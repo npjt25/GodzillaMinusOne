@@ -21,9 +21,13 @@ jobs:
       - name: Build
         run: ./gradlew build --no-daemon --stacktrace
 
+      - name: Game tests
+        run: ./gradlew runGameTestServer --no-daemon
+
       - name: Upload jar
         uses: actions/upload-artifact@v4
         with:
           name: godzillaminusone-jar
           path: build/libs/*.jar
           if-no-files-found: error
+        if: always()

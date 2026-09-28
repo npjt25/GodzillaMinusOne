@@ -45,12 +45,14 @@ import net.minecraft.world.entity.decoration.ArmorStand;
 import net.minecraft.world.entity.monster.Enemy;
 import net.minecraft.world.entity.monster.Monster;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.LiquidBlock;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.event.ForgeEventFactory;
 import net.minecraftforge.registries.RegistryObject;
@@ -222,6 +224,15 @@ public class GodzillaEntity extends Monster implements GeoEntity {
 
     public boolean isCharging() {
         return getChargeState() != CHARGE_NONE;
+    }
+
+    public boolean isStunned() {
+        return this.stunTicks > 0;
+    }
+
+    /** Skips the emerge-and-roar entrance (used by the game tests). */
+    public void skipIntro() {
+        setPhase(Phase.ACTIVE);
     }
 
     private void setChargeState(int state) {
@@ -443,7 +454,7 @@ public class GodzillaEntity extends Monster implements GeoEntity {
         }
 
         if (this.chargeTicks == CHARGE_BLAST_TICK) {
-            fireAtomicBreath(level, target);
+            fireAtomicBreath(level);
         } else if (this.chargeTicks == BEAM_END_TICK) {
             setChargeState(CHARGE_COOLING);
         } else if (this.chargeTicks >= CHARGE_LENGTH) {
@@ -454,18 +465,16 @@ public class GodzillaEntity extends Monster implements GeoEntity {
         }
     }
 
-    /** The add-on's atomic breath: a nuclear blast 50 blocks ahead (or on his target), a crater, black rain. */
-    private void fireAtomicBreath(ServerLevel level, @Nullable LivingEntity target) {
-        Vec3 forward = Vec3.directionFromRotation(0.0F, getYRot());
-        Vec3 mouth = position().add(forward.scale(11.5)).add(0.0, 30.5, 0.0);
-        Vec3 impact;
-        if (target != null && target.distanceTo(this) < 128.0F) {
-            impact = target.position();
-        } else {
-            Vec3 ahead = position().add(forward.scale(50.0));
-            BlockPos ground = level.getHeightmapPos(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, BlockPos.containing(ahead));
-            impact = new Vec3(ahead.x, ground.getY(), ahead.z);
-        }
+    /**
+     * The add-on's atomic breath. The charge animation stretches bone "B" into a beam that leaves his mouth
+     * ~20 blocks up and slopes down ~19 degrees for ~120 blocks; the blast goes off where that beam meets the
+     * ground (on flat ground ~70 blocks ahead), then a crater, a mushroom cloud and black rain.
+     */
+    private void fireAtomicBreath(ServerLevel level) {
+        Vec3 mouth = locator(0.0, 19.8, 14.5);
+        Vec3 beamEnd = locator(0.0, -19.8, 129.2);
+        HitResult hit = level.clip(new ClipContext(mouth, beamEnd, ClipContext.Block.COLLIDER, ClipContext.Fluid.ANY, this));
+        Vec3 impact = hit.getType() == HitResult.Type.MISS ? beamEnd : hit.getLocation();
 
         DamageSource source = ModDamageTypes.source(level, ModDamageTypes.ATOMIC_BREATH, this);
 

@@ -121,8 +121,40 @@ def face_list(cube, tw, th):
         yield name, np.array(corners, dtype=float), np.array(uvs, dtype=float) / np.array([tw, th])
 
 
+def _vec(v):
+    if isinstance(v, dict):
+        v = v.get("post", v.get("pre", v.get("vector")))
+    if isinstance(v, (int, float)):
+        return [float(v)] * 3
+    return [float(x) for x in v]
+
+
+def _sample(channel, t):
+    """Linear keyframe sampling (catmull-rom approximated as linear)."""
+    if not isinstance(channel, dict):
+        return _vec(channel)
+    keys = sorted((float(k), v) for k, v in channel.items())
+    if t <= keys[0][0]:
+        return _vec(keys[0][1])
+    for (t0, v0), (t1, v1) in zip(keys, keys[1:]):
+        if t0 <= t <= t1:
+            a, b = _vec(v0), _vec(v1)
+            f = (t - t0) / max(t1 - t0, 1e-9)
+            return [x + (y - x) * f for x, y in zip(a, b)]
+    return _vec(keys[-1][1])
+
+
+def animation_pose(anim_path, name, t):
+    """Pose dict for bone_matrices() from a Bedrock/GeckoLib animation at time t (seconds)."""
+    anim = json.load(open(anim_path))["animations"][name]
+    pose = {}
+    for bone, channels in anim.get("bones", {}).items():
+        pose[bone] = {c: _sample(v, t) for c, v in channels.items() if c in ("rotation", "position", "scale")}
+    return pose
+
+
 def render(geo_path, tex_path, out_path, yaw=150.0, pitch=15.0, size=900, pose=None, bg=(34, 38, 46),
-           hide=(), extra_scale=1.0):
+           hide=(), extra_scale=1.0, flat_bones=None, fit_bones=None):
     bones, tw, th = load_geo(geo_path)
     tex = np.array(Image.open(tex_path).convert("RGBA")).astype(float) / 255.0
     TH, TW = tex.shape[:2]
@@ -142,8 +174,9 @@ def render(geo_path, tex_path, out_path, yaw=150.0, pitch=15.0, size=900, pose=N
                 C = M @ about_pivot([-px, py, pz], rot_matrix(math.radians(-rx), math.radians(-ry), math.radians(rz)))
             for name, corners, uvs in face_list(c, tw, th):
                 pts = (C @ np.c_[corners, np.ones(4)].T).T[:, :3]
-                quads.append((pts, uvs))
-    allpts = np.concatenate([q[0] for q in quads])
+                quads.append((pts, uvs, (flat_bones or {}).get(b["name"]), b["name"]))
+    fit = [q[0] for q in quads if not fit_bones or q[3] in fit_bones]
+    allpts = np.concatenate(fit)
     vp = (view @ allpts.T).T
     lo, hi = vp.min(0), vp.max(0)
     scale = (size * 0.9) / max(hi[0] - lo[0], hi[1] - lo[1]) * extra_scale
@@ -155,7 +188,7 @@ def render(geo_path, tex_path, out_path, yaw=150.0, pitch=15.0, size=900, pose=N
     light = np.array([0.4, 0.8, -0.45])
     light /= np.linalg.norm(light)
 
-    for pts, uvs in quads:
+    for pts, uvs, flat, _ in quads:
         p = (view @ pts.T).T
         sx = (p[:, 0] - center[0]) * scale + size / 2
         sy = -(p[:, 1] - center[1]) * scale + size / 2
@@ -191,6 +224,9 @@ def render(geo_path, tex_path, out_path, yaw=150.0, pitch=15.0, size=900, pose=N
         tx = np.clip((u * TW).astype(int), 0, TW - 1)
         ty = np.clip((v * TH).astype(int), 0, TH - 1)
         col = tex[ty, tx]
+        if flat is not None:
+            col = np.empty(col.shape)
+            col[...] = np.array(list(flat) + [255]) / 255.0
         visible = inside & (col[..., 3] > 0.1)
         sub = zbuf[ymin:ymax + 1, xmin:xmax + 1]
         win = visible & (depth > sub)
@@ -199,7 +235,7 @@ def render(geo_path, tex_path, out_path, yaw=150.0, pitch=15.0, size=900, pose=N
         # world-space normal for lighting
         wn = np.cross(pts[1] - pts[0], pts[3] - pts[0])
         wn /= max(np.linalg.norm(wn), 1e-9)
-        shade = 0.55 + 0.45 * max(0.0, float(-wn @ light))
+        shade = 1.0 if flat is not None else 0.55 + 0.45 * max(0.0, float(-wn @ light))
         rgb = col[..., :3] * shade
         img[ymin:ymax + 1, xmin:xmax + 1][win] = rgb[win]
         sub[win] = depth[win]
