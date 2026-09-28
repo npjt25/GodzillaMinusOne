@@ -32,9 +32,9 @@ Godzilla's brown skin is recoloured to a charcoal grey.
 - **Radiation aura**: anything within 16 blocks gets "RADIATION POISONING" and Wither.
 - Every step shakes the camera and hurts everything near him. He smashes through blocks (needs `mobGriefing`).
 - Attacks with bites, stomps and tail swipes.
-- With a target he **charges his atomic breath**: the dorsal plates glow blue, mobs freeze in fear, and 13.6 seconds
-  later the beam fires. The blast kills everything around the impact, leaves a crater and fire, and is followed by
-  a mushroom cloud and black rain.
+- With a target he **charges his atomic breath**: the dorsal plates glow blue, mobs freeze in fear, and about
+  11 seconds in the beam fires. The blast goes off where the beam hits the ground, kills everything around it,
+  leaves a crater and fire, and is followed by a mushroom cloud and black rain.
 - He regenerates while calm and likes to wander into water. He walks along the sea floor.
 - **Only naval mines hurt him** (as in the add-on), each taking about 10% of his health and stunning him.
   At zero health he collapses, lies dead for 15 seconds, then regenerates and rises again.
@@ -68,7 +68,8 @@ restore it. You can also make Godzilla mortal, stop him regenerating, or turn of
 ```
 
 The jar ends up in `build/libs/`. GitHub Actions builds it on every push (see the *Actions* tab, artifact
-`godzillaminusone-jar`).
+`godzillaminusone-jar`) and then runs the server-side game tests (`./gradlew runGameTestServer`, see
+`src/main/java/com/npjt25/godzillaminusone/gametest`).
 
 ## Re-converting the add-on assets
 
