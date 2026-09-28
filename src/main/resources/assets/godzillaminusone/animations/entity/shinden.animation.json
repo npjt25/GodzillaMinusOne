@@ -1,0 +1,122 @@
+{
+ "format_version": "1.8.0",
+ "animations": {
+  "animation.kplane.fly": {
+   "loop": true,
+   "animation_length": 2,
+   "bones": {
+    "bone": {
+     "rotation": {
+      "0.0": {
+       "post": [
+        0,
+        0,
+        -2.5
+       ],
+       "lerp_mode": "catmullrom"
+      },
+      "1.0": {
+       "post": [
+        0,
+        0,
+        2.5
+       ],
+       "lerp_mode": "catmullrom"
+      },
+      "2.0": {
+       "post": [
+        0,
+        0,
+        -2.5
+       ],
+       "lerp_mode": "catmullrom"
+      }
+     }
+    },
+    "Will2": {
+     "rotation": [
+      87.5,
+      0,
+      0
+     ],
+     "position": [
+      0,
+      13,
+      0
+     ],
+     "scale": [
+      0,
+      0,
+      0
+     ]
+    },
+    "bone2": {
+     "rotation": {
+      "0.0": [
+       0,
+       0,
+       0
+      ],
+      "2.0": [
+       0,
+       0,
+       1755
+      ]
+     }
+    },
+    "Will": {
+     "scale": [
+      0,
+      0,
+      0
+     ]
+    }
+   },
+   "sound_effects": {
+    "0.0000": {
+     "effect": "shinden.engine"
+    }
+   }
+  },
+  "animation.kplane.turning": {
+   "loop": true,
+   "bones": {
+    "bone": {
+     "rotation": [
+      0,
+      0,
+      "math.max(-20, math.min(20,query.yaw_speed * 0.5))*-1"
+     ]
+    }
+   },
+   "animation_length": 1.0
+  },
+  "animation.kplane.fire": {
+   "loop": true,
+   "animation_length": 0.33333,
+   "sound_effects": {
+    "0.0000": {
+     "effect": "shinden.gun"
+    }
+   },
+   "particle_effects": {
+    "0.0000": {
+     "effect": "gun_flash",
+     "locator": "locator"
+    },
+    "0.0010": {
+     "effect": "gun_flash",
+     "locator": "locator2"
+    },
+    "0.0020": {
+     "effect": "gun_flash",
+     "locator": "locator"
+    },
+    "0.0030": {
+     "effect": "gun_flash",
+     "locator": "locator2"
+    }
+   }
+  }
+ }
+}

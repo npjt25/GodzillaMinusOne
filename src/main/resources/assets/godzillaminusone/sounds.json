@@ -1,0 +1,144 @@
+{
+ "godzilla.ambient": {
+  "subtitle": "subtitles.godzillaminusone.godzilla.ambient",
+  "sounds": [
+   {
+    "name": "godzillaminusone:godzilla_stand"
+   },
+   {
+    "name": "godzillaminusone:godzilla_stand2"
+   },
+   {
+    "name": "godzillaminusone:godzilla_stand3"
+   }
+  ]
+ },
+ "godzilla.roar": {
+  "subtitle": "subtitles.godzillaminusone.godzilla.roar",
+  "sounds": [
+   {
+    "name": "godzillaminusone:godzilla_roar",
+    "stream": true
+   }
+  ]
+ },
+ "godzilla.roar2": {
+  "subtitle": "subtitles.godzillaminusone.godzilla.roar2",
+  "sounds": [
+   {
+    "name": "godzillaminusone:godzilla_stand"
+   }
+  ]
+ },
+ "godzilla.emerge": {
+  "subtitle": "subtitles.godzillaminusone.godzilla.emerge",
+  "sounds": [
+   {
+    "name": "godzillaminusone:godzilla_spawn2",
+    "stream": true
+   }
+  ]
+ },
+ "godzilla.death": {
+  "subtitle": "subtitles.godzillaminusone.godzilla.death",
+  "sounds": [
+   {
+    "name": "godzillaminusone:godzilla_roar",
+    "stream": true
+   }
+  ]
+ },
+ "godzilla.step": {
+  "subtitle": "subtitles.godzillaminusone.godzilla.step",
+  "sounds": [
+   {
+    "name": "godzillaminusone:godzilla_step"
+   }
+  ]
+ },
+ "godzilla.stomp": {
+  "subtitle": "subtitles.godzillaminusone.godzilla.stomp",
+  "sounds": [
+   {
+    "name": "godzillaminusone:godzilla_attack1"
+   }
+  ]
+ },
+ "godzilla.attack": {
+  "subtitle": "subtitles.godzillaminusone.godzilla.attack",
+  "sounds": [
+   {
+    "name": "godzillaminusone:godzilla_attack"
+   }
+  ]
+ },
+ "godzilla.hurt": {
+  "subtitle": "subtitles.godzillaminusone.godzilla.hurt",
+  "sounds": [
+   {
+    "name": "godzillaminusone:godzilla_hurts"
+   }
+  ]
+ },
+ "godzilla.radiation": {
+  "subtitle": "subtitles.godzillaminusone.godzilla.radiation",
+  "sounds": [
+   {
+    "name": "godzillaminusone:godzilla_radiation"
+   }
+  ]
+ },
+ "godzilla.charge": {
+  "subtitle": "subtitles.godzillaminusone.godzilla.charge",
+  "sounds": [
+   {
+    "name": "godzillaminusone:godzilla_charge1"
+   },
+   {
+    "name": "godzillaminusone:godzilla_charge2"
+   }
+  ]
+ },
+ "godzilla.full_charge": {
+  "subtitle": "subtitles.godzillaminusone.godzilla.full_charge",
+  "sounds": [
+   {
+    "name": "godzillaminusone:godzilla_full_charge",
+    "stream": true
+   }
+  ]
+ },
+ "godzilla.atomic_blast": {
+  "subtitle": "subtitles.godzillaminusone.godzilla.atomic_blast",
+  "sounds": [
+   {
+    "name": "godzillaminusone:godzilla_nuke",
+    "stream": true
+   }
+  ]
+ },
+ "shinden.engine": {
+  "subtitle": "subtitles.godzillaminusone.shinden.engine",
+  "sounds": [
+   {
+    "name": "godzillaminusone:kplane_fly"
+   }
+  ]
+ },
+ "shinden.gun": {
+  "subtitle": "subtitles.godzillaminusone.shinden.gun",
+  "sounds": [
+   {
+    "name": "godzillaminusone:kplane_fire"
+   }
+  ]
+ },
+ "naval_mine.explode": {
+  "subtitle": "subtitles.godzillaminusone.naval_mine.explode",
+  "sounds": [
+   {
+    "name": "godzillaminusone:naval_mine_naval_mine"
+   }
+  ]
+ }
+}

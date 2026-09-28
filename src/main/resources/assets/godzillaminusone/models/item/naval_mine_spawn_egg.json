@@ -1,0 +1,6 @@
+{
+  "parent": "minecraft:item/generated",
+  "textures": {
+    "layer0": "godzillaminusone:item/naval_mine_spawn_egg"
+  }
+}

@@ -1,0 +1,28 @@
+package com.npjt25.godzillaminusone.registry;
+
+import com.npjt25.godzillaminusone.GodzillaMinusOne;
+import com.npjt25.godzillaminusone.item.TorridItem;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.Rarity;
+import net.minecraftforge.common.ForgeSpawnEggItem;
+import net.minecraftforge.registries.DeferredRegister;
+import net.minecraftforge.registries.ForgeRegistries;
+import net.minecraftforge.registries.RegistryObject;
+
+public final class ModItems {
+    public static final DeferredRegister<Item> ITEMS = DeferredRegister.create(ForgeRegistries.ITEMS, GodzillaMinusOne.MODID);
+
+    public static final RegistryObject<Item> TORRID = ITEMS.register("torrid",
+            () -> new TorridItem(new Item.Properties().stacksTo(1).rarity(Rarity.EPIC)));
+
+    // The eggs use their own textures from the add-on, so both tint colours are white (no tint).
+    public static final RegistryObject<Item> GODZILLA_SPAWN_EGG = ITEMS.register("godzilla_spawn_egg",
+            () -> new ForgeSpawnEggItem(ModEntities.GODZILLA, 0xFFFFFF, 0xFFFFFF, new Item.Properties().rarity(Rarity.EPIC)));
+    public static final RegistryObject<Item> SHINDEN_SPAWN_EGG = ITEMS.register("shinden_spawn_egg",
+            () -> new ForgeSpawnEggItem(ModEntities.SHINDEN, 0xFFFFFF, 0xFFFFFF, new Item.Properties()));
+    public static final RegistryObject<Item> NAVAL_MINE_SPAWN_EGG = ITEMS.register("naval_mine_spawn_egg",
+            () -> new ForgeSpawnEggItem(ModEntities.NAVAL_MINE, 0xFFFFFF, 0xFFFFFF, new Item.Properties()));
+
+    private ModItems() {
+    }
+}

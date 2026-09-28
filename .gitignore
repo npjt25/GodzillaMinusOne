@@ -1,0 +1,25 @@
+# Gradle / ForgeGradle
+.gradle/
+build/
+out/
+run/
+run-data/
+logs/
+
+# IDEs
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+.settings/
+.classpath
+.project
+bin/
+eclipse/
+
+# OS
+.DS_Store
+Thumbs.db
+javac.*.args
+__pycache__/
