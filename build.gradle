@@ -46,6 +46,7 @@ minecraft {
         // Runs the server-side game tests in src/main/java/.../gametest and exits.
         gameTestServer {
             property 'forge.enabledGameTestNamespaces', mod_id
+            property 'forge.logging.console.level', 'info'
         }
     }
 }
