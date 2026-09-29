@@ -2,6 +2,7 @@ package com.npjt25.godzillaminusone.client;
 
 import com.npjt25.godzillaminusone.GodzillaMinusOne;
 import com.npjt25.godzillaminusone.client.particle.Fx;
+import com.npjt25.godzillaminusone.client.render.NuclearCloud;
 import com.npjt25.godzillaminusone.network.CameraPacket;
 import com.npjt25.godzillaminusone.network.FxPacket;
 import net.minecraft.client.Minecraft;
@@ -14,8 +15,8 @@ import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.ClientPlayerNetworkEvent;
 import net.minecraftforge.client.event.CustomizeGuiOverlayEvent;
+import net.minecraftforge.client.event.RenderLevelStageEvent;
 import net.minecraftforge.client.event.ViewportEvent;
-import net.minecraftforge.client.gui.overlay.ForgeGui;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
@@ -23,7 +24,7 @@ import net.minecraftforge.fml.common.Mod;
 import java.util.ArrayList;
 import java.util.List;
 
-/** Client-side state for the add-on's camera shakes, fades, black rain and the Godzilla boss bar. */
+/** Client-side state for the add-on's camera shakes, the blurred vision after a blast, black rain and the Godzilla boss bar. */
 @Mod.EventBusSubscriber(modid = GodzillaMinusOne.MODID, bus = Mod.EventBusSubscriber.Bus.FORGE, value = Dist.CLIENT)
 public final class ClientFx {
     private static final String BOSS_KEY = "boss." + GodzillaMinusOne.MODID + ".godzilla";
@@ -55,11 +56,11 @@ public final class ClientFx {
     private static int shakeTicks;
     private static int shakeTotal;
 
-    private static int fadeColor;
-    private static float fadeIn;
-    private static float fadeHold;
-    private static float fadeOut;
-    private static int fadeAge = -1;
+    private static float blurStrength;
+    private static float blurIn;
+    private static float blurHold;
+    private static float blurOut;
+    private static int blurAge = -1;
 
     private static Vec3 rainCenter = Vec3.ZERO;
     private static float rainRadius;
@@ -75,7 +76,10 @@ public final class ClientFx {
     public static void handle(FxPacket msg) {
         switch (msg.type()) {
             case MINE_BLAST -> Fx.mineBlast(msg.pos());
-            case ATOMIC_BLAST -> Fx.atomicBlast(msg.pos());
+            case ATOMIC_BLAST -> {
+                Fx.atomicBlast(msg.pos(), msg.b() > 0.5F);
+                NuclearCloud.spawn(msg.pos(), msg.a(), msg.b() < 0.5F);
+            }
             case STOMP -> Fx.stomp(msg.pos(), Math.max(0.5F, msg.a()));
             case BLACK_RAIN -> {
                 rainCenter = msg.pos();
@@ -93,12 +97,12 @@ public final class ClientFx {
                 shakeTotal = shakeTicks = Math.max(1, Math.round(msg.shakeSeconds() * 20.0F));
             }
         }
-        if (msg.fadeIn() + msg.fadeHold() + msg.fadeOut() > 0.0F) {
-            fadeColor = msg.fadeColor() & 0xFFFFFF;
-            fadeIn = msg.fadeIn() * 20.0F;
-            fadeHold = msg.fadeHold() * 20.0F;
-            fadeOut = msg.fadeOut() * 20.0F;
-            fadeAge = 0;
+        if (msg.blurStrength() > 0.0F && msg.blurIn() + msg.blurHold() + msg.blurOut() > 0.0F && msg.blurStrength() >= blur(0.0F)) {
+            blurStrength = Math.min(msg.blurStrength(), 1.0F);
+            blurIn = msg.blurIn() * 20.0F;
+            blurHold = msg.blurHold() * 20.0F;
+            blurOut = msg.blurOut() * 20.0F;
+            blurAge = 0;
         }
     }
 
@@ -112,6 +116,7 @@ public final class ClientFx {
             return;
         }
         clientTicks++;
+        NuclearCloud.tick();
         if (!EMITTERS.isEmpty()) {
             List<Emitter> running = new ArrayList<>(EMITTERS);
             for (Emitter emitter : running) {
@@ -122,8 +127,8 @@ public final class ClientFx {
         if (shakeTicks > 0) {
             shakeTicks--;
         }
-        if (fadeAge >= 0 && ++fadeAge > fadeIn + fadeHold + fadeOut) {
-            fadeAge = -1;
+        if (blurAge >= 0 && ++blurAge > blurIn + blurHold + blurOut) {
+            blurAge = -1;
         }
         if (rainTicks > 0) {
             rainTicks--;
@@ -138,7 +143,9 @@ public final class ClientFx {
     public static void onLogout(ClientPlayerNetworkEvent.LoggingOut event) {
         EMITTERS.clear();
         shakeTicks = 0;
-        fadeAge = -1;
+        blurAge = -1;
+        BlurEffect.close();
+        NuclearCloud.clear();
         rainTicks = 0;
     }
 
@@ -159,23 +166,31 @@ public final class ClientFx {
         return (Mth.sin(t) * 0.6F + Mth.sin(t * 2.3F + 1.7F) * 0.3F + Mth.sin(t * 5.1F + 4.2F) * 0.1F);
     }
 
-    /** Bedrock "/camera ... fade": a full-screen colour that fades in, holds, and fades out. */
-    public static void renderFade(ForgeGui gui, GuiGraphics graphics, float partialTick, int width, int height) {
-        if (fadeAge < 0) {
-            return;
+    /** Current blur strength: fades in, holds, and fades out. */
+    private static float blur(float partialTick) {
+        if (blurAge < 0) {
+            return 0.0F;
         }
-        float t = fadeAge + partialTick;
-        float alpha;
-        if (t < fadeIn) {
-            alpha = t / Math.max(fadeIn, 1.0F);
-        } else if (t < fadeIn + fadeHold) {
-            alpha = 1.0F;
+        float t = blurAge + partialTick;
+        float envelope;
+        if (t < blurIn) {
+            envelope = t / Math.max(blurIn, 1.0F);
+        } else if (t < blurIn + blurHold) {
+            envelope = 1.0F;
         } else {
-            alpha = 1.0F - (t - fadeIn - fadeHold) / Math.max(fadeOut, 1.0F);
+            float x = 1.0F - (t - blurIn - blurHold) / Math.max(blurOut, 1.0F);
+            envelope = x * x;
         }
-        alpha = Mth.clamp(alpha, 0.0F, 1.0F);
-        if (alpha > 0.0F) {
-            graphics.fill(0, 0, width, height, ((int) (alpha * 255.0F) << 24) | fadeColor);
+        return blurStrength * Mth.clamp(envelope, 0.0F, 1.0F);
+    }
+
+    /** The 3D nuclear explosions; and after a blast the view goes blurry (instead of the add-on's fade to black), then slowly clears. */
+    @SubscribeEvent
+    public static void onRenderLevel(RenderLevelStageEvent event) {
+        if (event.getStage() == RenderLevelStageEvent.Stage.AFTER_PARTICLES) {
+            NuclearCloud.renderAll(event.getPoseStack(), event.getCamera(), event.getPartialTick());
+        } else if (event.getStage() == RenderLevelStageEvent.Stage.AFTER_LEVEL && blurAge >= 0) {
+            BlurEffect.render(blur(event.getPartialTick()));
         }
     }
 
@@ -188,13 +203,14 @@ public final class ClientFx {
         }
         event.setCanceled(true);
         GuiGraphics graphics = event.getGuiGraphics();
+        // The add-on's panel, at 60% of its original size.
         int centerX = event.getX() + 91;
-        int top = event.getY() - 14;
-        int width = 190;
-        int height = 106;
+        int top = event.getY() - 8;
+        int width = 114;
+        int height = 64;
         int left = centerX - width / 2;
 
-        graphics.blit(BAR_EMPTY, centerX - 105, top + 2, 210, 100, 0.0F, 0.0F, 64, 64, 64, 64);
+        graphics.blit(BAR_EMPTY, centerX - 63, top + 1, 126, 60, 0.0F, 0.0F, 64, 64, 64, 64);
         float progress = Mth.clamp(boss.getProgress(), 0.0F, 1.0F);
         int filled = Math.round(width * progress);
         if (filled > 0) {
@@ -202,10 +218,10 @@ public final class ClientFx {
         }
         graphics.blit(BAR_SPINES, left, top, width, height, 0.0F, 0.0F, 64, 64, 64, 64);
         graphics.blit(BAR_TEXT, left, top, width, height, 0.0F, 0.0F, 64, 64, 64, 64);
-        int bob = Math.round(Mth.sin(clientTicks * 0.12F) * 1.5F);
+        int bob = Math.round(Mth.sin(clientTicks * 0.12F));
         graphics.blit(BAR_FACE, left, top + bob, width, height, 0.0F, 0.0F, 64, 64, 64, 64);
 
-        event.setIncrement(52);
+        event.setIncrement(34);
     }
 
     private ClientFx() {

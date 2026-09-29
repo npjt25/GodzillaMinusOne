@@ -1,14 +1,20 @@
 package com.npjt25.godzillaminusone.gametest;
 
 import com.npjt25.godzillaminusone.GodzillaMinusOne;
+import com.npjt25.godzillaminusone.entity.Destruction;
 import com.npjt25.godzillaminusone.entity.GodzillaEntity;
 import com.npjt25.godzillaminusone.entity.NavalMineEntity;
 import com.npjt25.godzillaminusone.entity.ShindenEntity;
 import com.npjt25.godzillaminusone.registry.ModEntities;
+import com.npjt25.godzillaminusone.registry.ModItems;
+import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.animal.Pig;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.gametest.GameTestHolder;
 import net.minecraftforge.gametest.PrefixGameTestTemplate;
 
@@ -95,12 +101,80 @@ public final class ModGameTests {
         helper.succeed();
     }
 
-    @GameTest(template = FLOOR, batch = "gmo_atomic_breath", timeoutTicks = 520)
-    public static void atomicBreathKillsHisTarget(GameTestHelper helper) {
+    @GameTest(template = FLOOR, batch = "gmo_atomic_breath", timeoutTicks = 560)
+    public static void atomicBreathKillsHisTargetThenRecharges(GameTestHelper helper) {
         GodzillaEntity godzilla = spawnActiveGodzilla(helper);
         Pig pig = helper.spawn(EntityType.PIG, 4, 1, 48);
         godzilla.setTarget(pig);
         helper.runAtTickTime(120, () -> helper.assertTrue(godzilla.isCharging(), "with a target he should be charging his atomic breath"));
-        helper.succeedWhen(() -> helper.assertFalse(pig.isAlive(), "the atomic breath should kill his target"));
+        helper.runAtTickTime(300, () -> helper.assertTrue(pig.isAlive(), "the 4 s in-breath comes before the blast"));
+        helper.succeedWhen(() -> {
+            helper.assertFalse(pig.isAlive(), "the atomic breath should kill his target");
+            helper.assertTrue(godzilla.getBreathCooldown() > 170 * 20, "after firing he needs ~3 minutes to recharge, cooldown "
+                    + godzilla.getBreathCooldown());
+        });
+    }
+
+    @GameTest(template = FLOOR, batch = "gmo_plane_first", timeoutTicks = 60)
+    public static void aPilotedPlaneBecomesHisTarget(GameTestHelper helper) {
+        GodzillaEntity godzilla = spawnActiveGodzilla(helper);
+        Pig pig = helper.spawn(EntityType.PIG, 4, 1, 20);
+        godzilla.setTarget(pig);
+        ShindenEntity plane = helper.spawn(ModEntities.SHINDEN.get(), 4, 1, 44);
+        Pig pilot = helper.spawn(EntityType.PIG, 4, 1, 44);
+        pilot.startRiding(plane, true);
+        helper.succeedWhen(() -> helper.assertTrue(godzilla.getTarget() == plane,
+                "a plane with someone in it should come first, target was " + godzilla.getTarget()));
+    }
+
+    @GameTest(template = FLOOR, batch = "gmo_swim", timeoutTicks = 300)
+    public static void godzillaSwimsAtTheSurfaceOfDeepWater(GameTestHelper helper) {
+        // A 16 deep pool with unbreakable walls.
+        int depth = 16;
+        for (int x = -3; x <= 11; x++) {
+            for (int z = -3; z <= 11; z++) {
+                boolean wall = x == -3 || x == 11 || z == -3 || z == 11;
+                for (int y = 1; y <= depth + 1; y++) {
+                    helper.setBlock(new BlockPos(x, y, z), wall ? Blocks.BARRIER.defaultBlockState()
+                            : y <= depth ? Blocks.WATER.defaultBlockState() : Blocks.AIR.defaultBlockState());
+                }
+            }
+        }
+        GodzillaEntity godzilla = spawnActiveGodzilla(helper);
+        double surface = helper.absoluteVec(new Vec3(0, depth + 1, 0)).y - 0.1;
+        helper.succeedWhen(() -> {
+            helper.assertTrue(godzilla.isSwimmingAtSurface(), "in water this deep he should swim");
+            double expected = surface - GodzillaEntity.SWIM_SINK;
+            helper.assertTrue(Math.abs(godzilla.getY() - expected) < 1.0,
+                    "he should float with his back just under the surface: y " + godzilla.getY() + ", expected ~" + expected);
+        });
+    }
+
+    @GameTest(template = FLOOR, batch = "gmo_footprint")
+    public static void footstepsLeaveAFootprint(GameTestHelper helper) {
+        GodzillaEntity godzilla = spawnActiveGodzilla(helper);
+        helper.setBlock(new BlockPos(4, 1, 6), Blocks.POPPY.defaultBlockState());
+        Vec3 foot = helper.absoluteVec(new Vec3(4.5, 1.0, 4.5));
+        Destruction.footprint(helper.getLevel(), godzilla, foot, 0.0F, 2.6, 4.6);
+        helper.assertBlockPresent(Blocks.AIR, new BlockPos(4, 1, 6));
+        helper.assertBlockPresent(Blocks.AIR, new BlockPos(4, 0, 4));
+        helper.assertBlockNotPresent(Blocks.STONE, new BlockPos(4, 0, 7));
+        helper.assertBlockPresent(Blocks.STONE, new BlockPos(0, 0, 4));
+        helper.succeed();
+    }
+
+    @GameTest(template = FLOOR, batch = "gmo_plane_item")
+    public static void hittingAPlaneKnocksItIntoItsItem(GameTestHelper helper) {
+        ShindenEntity plane = helper.spawn(ModEntities.SHINDEN.get(), 4, 1, 4);
+        Player player = helper.makeMockPlayer();
+        float health = plane.getHealth();
+        plane.hurt(helper.getLevel().damageSources().playerAttack(player), 1.0F);
+        helper.assertFalse(plane.isRemoved(), "one light hit should only rock it");
+        helper.assertTrue(plane.getHealth() == health, "it isn't hurt like a mob");
+        helper.assertTrue(plane.getHurtTime() > 0, "it should wobble");
+        plane.hurt(helper.getLevel().damageSources().playerAttack(player), 5.0F);
+        helper.assertTrue(plane.isRemoved(), "a few hits should knock it down like a boat");
+        helper.assertItemEntityPresent(ModItems.SHINDEN_SPAWN_EGG.get(), new BlockPos(4, 1, 4), 3.0);
+        helper.succeed();
     }
 }

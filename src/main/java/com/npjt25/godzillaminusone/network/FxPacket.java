@@ -13,7 +13,7 @@ public record FxPacket(Type type, Vec3 pos, float a, float b) {
     public enum Type {
         /** goji:mind_explosion + goji:mine_shockwave. */
         MINE_BLAST,
-        /** The atomic breath impact: nuclear explosion, shockwave, smoke and mushroom cloud. a = yaw. */
+        /** The atomic breath impact: flash, flames and shockwave (the fireball and cloud are an entity). a = yaw, b = 1 on the ground. */
         ATOMIC_BLAST,
         /** gojira:black_rain around pos. a = radius, b = seconds. */
         BLACK_RAIN,

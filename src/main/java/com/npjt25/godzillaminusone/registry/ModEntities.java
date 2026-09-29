@@ -16,7 +16,7 @@ public final class ModEntities {
 
     public static final RegistryObject<EntityType<GodzillaEntity>> GODZILLA = ENTITIES.register("godzilla",
             () -> EntityType.Builder.of(GodzillaEntity::new, MobCategory.MONSTER)
-                    .sized(8.0F, 30.0F)
+                    .sized(10.0F, 40.0F)
                     .fireImmune()
                     .clientTrackingRange(20)
                     .build(GodzillaMinusOne.id("godzilla").toString()));

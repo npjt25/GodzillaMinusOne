@@ -18,9 +18,6 @@ import java.util.List;
 
 /** Shared explosion logic (the add-on's animation.gojira.mine timeline). */
 public final class Blasts {
-    /** Bedrock "camera fade ... color 9 9 9". */
-    public static final int FADE_COLOR = 0x090909;
-
     /**
      * A naval mine (or a Shinden flown into Godzilla) going off: huge damage to everything nearby,
      * Shinden pilots only get scratched, and Godzilla loses a slice of his health and is stunned.
@@ -31,7 +28,7 @@ public final class Blasts {
         ModNetwork.sendNear(level, pos, 512.0, new FxPacket(FxPacket.Type.MINE_BLAST, pos));
         level.playSound(null, pos.x, pos.y, pos.z, ModSounds.NAVAL_MINE_EXPLODE.get(), SoundSource.BLOCKS, 12.0F, 1.0F);
         ModNetwork.shake(level, pos, 50.0, 1.0F, 3.0F);
-        ModNetwork.fade(level, pos, radius, FADE_COLOR, 0.1F, 0.1F, 0.1F);
+        ModNetwork.blur(level, pos, radius * 2.0, 0.6F, 0.1F, 0.3F, 1.5F);
 
         DamageSource source = ModDamageTypes.source(level, ModDamageTypes.NAVAL_MINE, mine, attacker);
         for (LivingEntity target : livingNear(level, pos, radius, mine)) {

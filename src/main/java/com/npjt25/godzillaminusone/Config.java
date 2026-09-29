@@ -23,6 +23,7 @@ public final class Config {
     public static final ForgeConfigSpec.IntValue AURA_WITHER_AMPLIFIER;
     public static final ForgeConfigSpec.DoubleValue STEP_DAMAGE;
     public static final ForgeConfigSpec.IntValue STEP_RADIUS;
+    public static final ForgeConfigSpec.BooleanValue FOOTPRINTS;
 
     // ---- Atomic breath
     public static final ForgeConfigSpec.IntValue ATOMIC_BREATH_COOLDOWN;
@@ -30,6 +31,8 @@ public final class Config {
     public static final ForgeConfigSpec.IntValue ATOMIC_BLAST_RADIATION_RADIUS;
     public static final ForgeConfigSpec.IntValue ATOMIC_BLAST_RADIATION_AMPLIFIER;
     public static final ForgeConfigSpec.IntValue ATOMIC_BLAST_CRATER_RADIUS;
+    public static final ForgeConfigSpec.IntValue ATOMIC_BLAST_DESTRUCTION_RADIUS;
+    public static final ForgeConfigSpec.IntValue ATOMIC_BLAST_STORM_SECONDS;
     public static final ForgeConfigSpec.IntValue CHARGE_FREEZE_RADIUS;
 
     // ---- Shinden / Torrid / naval mine
@@ -83,12 +86,15 @@ public final class Config {
         STEP_RADIUS = BUILDER
                 .comment("Radius of the walking shockwave. Add-on: 20.")
                 .defineInRange("stepRadius", 20, 0, 128);
+        FOOTPRINTS = BUILDER
+                .comment("Each step crushes what he walks on into a footprint of rubble (also needs breaksBlocks and mobGriefing).")
+                .define("footprints", true);
         BUILDER.pop();
 
         BUILDER.push("atomic_breath");
         ATOMIC_BREATH_COOLDOWN = BUILDER
-                .comment("Seconds between the end of one atomic breath and the start of the next charge (add-on: ~18).")
-                .defineInRange("cooldownSeconds", 18, 0, 3600);
+                .comment("Seconds he needs to recharge after an atomic breath before he can charge the next one (add-on: ~18).")
+                .defineInRange("rechargeSeconds", 180, 0, 3600);
         ATOMIC_BLAST_KILL_RADIUS = BUILDER
                 .comment("Everything within this many blocks of the blast is killed, except Shinden pilots (add-on: 2000 around Godzilla).")
                 .defineInRange("killRadius", 64, 0, 2000);
@@ -99,8 +105,14 @@ public final class Config {
                 .comment("Wither amplifier of the blast's radiation (add-on: 25).")
                 .defineInRange("radiationAmplifier", 3, 0, 255);
         ATOMIC_BLAST_CRATER_RADIUS = BUILDER
-                .comment("Radius of the crater carved by the blast (0 = no block damage; also needs mobGriefing).")
-                .defineInRange("craterRadius", 12, 0, 48);
+                .comment("Radius of the crater blasted out where the atomic breath lands (0 = no block damage; also needs mobGriefing).")
+                .defineInRange("blastCraterRadius", 24, 0, 64);
+        ATOMIC_BLAST_DESTRUCTION_RADIUS = BUILDER
+                .comment("Around the crater the blast wave flattens trees and buildings and scorches the ground out to this radius.")
+                .defineInRange("blastWaveRadius", 64, 0, 160);
+        ATOMIC_BLAST_STORM_SECONDS = BUILDER
+                .comment("After the blast the sky clouds over and rains for this many seconds, then clears (0 = no weather change).")
+                .defineInRange("stormSeconds", 120, 0, 3600);
         CHARGE_FREEZE_RADIUS = BUILDER
                 .comment("While he charges, mobs within this radius are frozen in place (add-on: 2000).")
                 .defineInRange("freezeRadius", 128, 0, 2000);

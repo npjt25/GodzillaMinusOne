@@ -10,7 +10,7 @@ import net.minecraftforge.network.PacketDistributor;
 import net.minecraftforge.network.simple.SimpleChannel;
 
 public final class ModNetwork {
-    private static final String VERSION = "1";
+    private static final String VERSION = "2";
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             GodzillaMinusOne.id("main"), () -> VERSION, VERSION::equals, VERSION::equals);
 
@@ -20,6 +20,8 @@ public final class ModNetwork {
                 .encoder(FxPacket::encode).decoder(FxPacket::decode).consumerMainThread(FxPacket::handle).add();
         CHANNEL.messageBuilder(CameraPacket.class, id++, NetworkDirection.PLAY_TO_CLIENT)
                 .encoder(CameraPacket::encode).decoder(CameraPacket::decode).consumerMainThread(CameraPacket::handle).add();
+        CHANNEL.messageBuilder(ShindenCrashPacket.class, id++, NetworkDirection.PLAY_TO_SERVER)
+                .encoder(ShindenCrashPacket::encode).decoder(ShindenCrashPacket::decode).consumerMainThread(ShindenCrashPacket::handle).add();
     }
 
     public static void send(ServerPlayer player, Object message) {
@@ -42,11 +44,13 @@ public final class ModNetwork {
         }
     }
 
-    /** Bedrock "camera fade" for every player within {@code radius}. */
-    public static void fade(ServerLevel level, Vec3 pos, double radius, int rgb, float in, float hold, float out) {
+    /** Blurred vision for every player within {@code radius}; weaker towards the edge. */
+    public static void blur(ServerLevel level, Vec3 pos, double radius, float strength, float in, float hold, float out) {
         for (ServerPlayer player : level.players()) {
-            if (player.position().distanceTo(pos) <= radius) {
-                send(player, CameraPacket.fade(rgb, in, hold, out));
+            double dist = player.position().distanceTo(pos);
+            if (dist <= radius) {
+                float falloff = (float) (1.0 - 0.5 * dist / radius);
+                send(player, CameraPacket.blur(strength * falloff, in, hold, out));
             }
         }
     }

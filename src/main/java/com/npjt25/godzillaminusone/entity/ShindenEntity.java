@@ -2,16 +2,23 @@ package com.npjt25.godzillaminusone.entity;
 
 import com.npjt25.godzillaminusone.Config;
 import com.npjt25.godzillaminusone.network.ModNetwork;
+import com.npjt25.godzillaminusone.network.ShindenCrashPacket;
 import com.npjt25.godzillaminusone.registry.ModDamageTypes;
 import com.npjt25.godzillaminusone.registry.ModItems;
 import com.npjt25.godzillaminusone.registry.ModSounds;
+import net.minecraft.network.syncher.EntityDataAccessor;
+import net.minecraft.network.syncher.EntityDataSerializers;
+import net.minecraft.network.syncher.SynchedEntityData;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.sounds.SoundEvents;
+import net.minecraft.tags.DamageTypeTags;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.Mth;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.damagesource.DamageSource;
+import net.minecraft.world.damagesource.DamageTypes;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.Entity;
@@ -24,7 +31,9 @@ import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.ClipContext;
+import net.minecraft.world.level.GameRules;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.gameevent.GameEvent;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.registries.RegistryObject;
@@ -41,9 +50,10 @@ import software.bernie.geckolib.util.GeckoLibUtil;
 
 /**
  * The Kyushu J7W1 Shinden (goji:kyushu_j7w1). Right-click to fly it: W/S throttle, the mouse steers and
- * pitches (look up to climb, down to dive). The pilot gets the Torrid cannon while seated. If the plane is
- * destroyed, or flown within {@link Config#SHINDEN_KAMIKAZE_DISTANCE} blocks of Godzilla, it goes off
- * like a naval mine and the pilot bails out.
+ * pitches (look up to climb, down to dive). The pilot gets the Torrid cannon while seated. Like a boat, a few
+ * hits from a player knock it back into its item. If it is crashed into something at (near) full speed,
+ * blown up, or flown within {@link Config#SHINDEN_KAMIKAZE_DISTANCE} blocks of Godzilla, it goes off like a
+ * naval mine and the pilot bails out.
  */
 public class ShindenEntity extends Mob implements GeoEntity {
     private static final RawAnimation FLY = RawAnimation.begin().thenLoop("animation.kplane.fly");
@@ -52,15 +62,54 @@ public class ShindenEntity extends Mob implements GeoEntity {
 
     /** Below this speed the plane can't hold altitude. */
     private static final double STALL_SPEED = 0.35;
+    /** Hitting something at this fraction of top speed or more is a crash. */
+    private static final double CRASH_SPEED = 0.75;
+
+    private static final EntityDataAccessor<Integer> DATA_HURT_TIME = SynchedEntityData.defineId(ShindenEntity.class, EntityDataSerializers.INT);
+    private static final EntityDataAccessor<Integer> DATA_HURT_DIR = SynchedEntityData.defineId(ShindenEntity.class, EntityDataSerializers.INT);
+    private static final EntityDataAccessor<Float> DATA_DAMAGE = SynchedEntityData.defineId(ShindenEntity.class, EntityDataSerializers.FLOAT);
 
     private final AnimatableInstanceCache cache = GeckoLibUtil.createInstanceCache(this);
     private double flightSpeed;
     private boolean exploded;
+    private boolean crashed;
 
     public ShindenEntity(EntityType<? extends ShindenEntity> type, Level level) {
         super(type, level);
         this.setMaxUpStep(1.0F);
         this.setPersistenceRequired();
+    }
+
+    @Override
+    protected void defineSynchedData() {
+        super.defineSynchedData();
+        this.entityData.define(DATA_HURT_TIME, 0);
+        this.entityData.define(DATA_HURT_DIR, 1);
+        this.entityData.define(DATA_DAMAGE, 0.0F);
+    }
+
+    public int getHurtTime() {
+        return this.entityData.get(DATA_HURT_TIME);
+    }
+
+    public int getHurtDir() {
+        return this.entityData.get(DATA_HURT_DIR);
+    }
+
+    public float getDamage() {
+        return this.entityData.get(DATA_DAMAGE);
+    }
+
+    @Override
+    public void tick() {
+        super.tick();
+        // like a boat, knocks wear off again
+        if (getHurtTime() > 0) {
+            this.entityData.set(DATA_HURT_TIME, getHurtTime() - 1);
+        }
+        if (getDamage() > 0.0F) {
+            this.entityData.set(DATA_DAMAGE, Math.max(0.0F, getDamage() - 1.0F));
+        }
     }
 
     public static AttributeSupplier.Builder createAttributes() {
@@ -132,6 +181,16 @@ public class ShindenEntity extends Mob implements GeoEntity {
         Vec3 motion = getDeltaMovement().lerp(wanted, 0.2);
         setDeltaMovement(motion);
         move(MoverType.SELF, motion);
+        boolean fast = this.flightSpeed >= max * CRASH_SPEED;
+        if (fast && (this.horizontalCollision || (this.verticalCollisionBelow && motion.y < -0.5)) && !this.crashed) {
+            // Flew into a building, a hill or the ground at full speed: the pilot's client tells the server.
+            this.crashed = true;
+            if (level().isClientSide) {
+                ModNetwork.CHANNEL.sendToServer(new ShindenCrashPacket(getId()));
+            } else {
+                explode();
+            }
+        }
         if (this.horizontalCollision) {
             this.flightSpeed *= 0.5;
         }
@@ -224,26 +283,61 @@ public class ShindenEntity extends Mob implements GeoEntity {
         discard();
     }
 
+    /** Called (on the server) when the pilot's client reports a crash at full speed. */
+    public void crash(Player pilot) {
+        if (getControllingPassenger() == pilot && isAlive()) {
+            explode();
+        }
+    }
+
+    /**
+     * Hits work like on a boat rather than a mob: the plane wobbles, and enough of them (one in creative) knock it
+     * back into its item. Explosions and monsters' attacks wreck it instead, and then it blows up.
+     */
     @Override
     public boolean hurt(DamageSource source, float amount) {
-        // Sneak-punch an empty plane to pick it back up.
-        if (!level().isClientSide && !isVehicle() && source.getEntity() instanceof Player player && player.isShiftKeyDown()
-                && source.getDirectEntity() == player) {
-            if (!player.getAbilities().instabuild) {
-                spawnAtLocation(ModItems.SHINDEN_SPAWN_EGG.get());
-            }
-            discard();
-            return true;
+        if (source.is(DamageTypeTags.BYPASSES_INVULNERABILITY)) {
+            return super.hurt(source, amount); // /kill and the void
+        }
+        if (isInvulnerableTo(source) || source.is(DamageTypeTags.IS_FIRE) || source.is(DamageTypeTags.IS_DROWNING)
+                || source.is(DamageTypes.IN_WALL) || source.is(DamageTypes.CACTUS) || source.is(DamageTypes.SWEET_BERRY_BUSH)) {
+            return false;
         }
         if (source.getEntity() != null && source.getEntity() == getFirstPassenger()) {
             return false; // don't shoot yourself down
         }
-        return super.hurt(source, amount);
+        if (level().isClientSide || isRemoved()) {
+            return true;
+        }
+        this.entityData.set(DATA_HURT_DIR, -getHurtDir());
+        this.entityData.set(DATA_HURT_TIME, 10);
+        this.entityData.set(DATA_DAMAGE, getDamage() + amount * 10.0F);
+        markHurt();
+        gameEvent(GameEvent.ENTITY_DAMAGE, source.getEntity());
+        playSound(SoundEvents.ZOMBIE_ATTACK_IRON_DOOR, 0.5F, 1.4F + this.random.nextFloat() * 0.2F);
+        boolean creative = source.getEntity() instanceof Player player && player.getAbilities().instabuild;
+        if (creative || getDamage() > 40.0F) {
+            if (source.getEntity() instanceof Player) {
+                ejectPassengers();
+                if (!creative && level().getGameRules().getBoolean(GameRules.RULE_DOENTITYDROPS)) {
+                    spawnAtLocation(ModItems.SHINDEN_SPAWN_EGG.get());
+                }
+                discard();
+            } else {
+                explode();
+            }
+        }
+        return true;
+    }
+
+    @Override
+    public boolean canBreatheUnderwater() {
+        return true;
     }
 
     @Override
     public void die(DamageSource source) {
-        if (!level().isClientSide) {
+        if (!level().isClientSide && !source.is(DamageTypeTags.BYPASSES_INVULNERABILITY)) {
             explode();
         } else {
             super.die(source);
@@ -288,7 +382,7 @@ public class ShindenEntity extends Mob implements GeoEntity {
         controllers.add(new AnimationController<>(this, "flight", 5,
                 state -> isVehicle() ? state.setAndContinue(FLY) : PlayState.STOP)
                 .setSoundKeyframeHandler(this::onSoundKeyframe));
-        controllers.add(new AnimationController<>(this, "turning", 0, state -> state.setAndContinue(TURNING)));
+        controllers.add(new AnimationController<>(this, "turning", 0, state -> isVehicle() ? state.setAndContinue(TURNING) : PlayState.STOP));
         controllers.add(new AnimationController<>(this, "guns", 0, state -> PlayState.STOP)
                 .triggerableAnim("fire", FIRE)
                 .setSoundKeyframeHandler(this::onSoundKeyframe)

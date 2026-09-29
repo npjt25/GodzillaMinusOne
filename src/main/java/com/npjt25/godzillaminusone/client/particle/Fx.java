@@ -68,7 +68,15 @@ public final class Fx {
                 case "stomp_dust" -> dust(pos, 30, 1.8F);
                 case "roar_ring" -> roarRings(pos);
                 case "beam_smoke" -> beamSmoke(godzilla, pos);
-                case "splash" -> splash(godzilla);
+                case "splash" -> {
+                    if (locator.equals("y")) {
+                        // animation.gojira.swim_bite: the jaws slam into the water
+                        splash(godzilla.locator(0.0, GodzillaEntity.SWIM_SINK, GodzillaEntity.SWIM_BITE_REACH), 0.0, 6.0, 40);
+                    } else {
+                        splash(godzilla.isSwimmingAtSurface() ? godzilla.position().add(0.0, GodzillaEntity.SWIM_SINK, 0.0)
+                                : godzilla.position().add(0.0, godzilla.getFluidHeight(FluidTags.WATER), 0.0), 5.0, 10.0, 24);
+                    }
+                }
                 default -> {
                 }
             }
@@ -79,12 +87,12 @@ public final class Fx {
 
     private static Vec3 godzillaLocator(GodzillaEntity g, String locator) {
         return switch (locator) {
-            case "st" -> g.locator(5.7, 0.4, 3.05);
-            case "st2" -> g.locator(-5.7, 0.4, 3.05);
-            case "y" -> g.locator(0.0, 30.6, 11.5);
-            case "locator2" -> g.locator(8.5, 14.1, -8.5);
-            case "locator3" -> g.locator(-8.5, 14.1, -8.5);
-            default -> g.locator(0.0, 28.0, 4.0);
+            case "st" -> g.locator(GodzillaEntity.FOOT_SIDE, 0.4, GodzillaEntity.FOOT_FORWARD);
+            case "st2" -> g.locator(-GodzillaEntity.FOOT_SIDE, 0.4, GodzillaEntity.FOOT_FORWARD);
+            case "y" -> g.locator(0.0, 34.0, 18.0);
+            case "locator2" -> g.locator(2.3, 26.7, -3.8);
+            case "locator3" -> g.locator(-2.3, 26.7, -3.8);
+            default -> g.locator(0.0, 34.0, 4.0);
         };
     }
 
@@ -124,7 +132,7 @@ public final class Fx {
                     .life(100 + RANDOM.nextInt(40)).size(6.0F, 10.0F).friction(0.95F)
                     .colors(0.0F, 0xC0463921, 0.47F, 0xA0291B10, 0.93F, 0x212A2A2A, 1.0F, 0x002A2A2A).spawn();
         });
-        Vec3 mouth = g.locator(0.0, 29.0, 13.0);
+        Vec3 mouth = g.beamLine(g.getAimPitch(1.0F))[0];
         for (int i = 0; i < 40; i++) {
             of(ModParticles.BLUE_FLAME).at(mouth).velocity(rand(-0.6, 0.6), rand(-0.6, 0.6), rand(-0.6, 0.6))
                     .life(10 + RANDOM.nextInt(15)).size(1.2F, 0.2F).additive()
@@ -132,19 +140,18 @@ public final class Fx {
         }
     }
 
-    private static void splash(GodzillaEntity g) {
+    private static void splash(Vec3 center, double minRadius, double maxRadius, int count) {
         ClientLevel level = Minecraft.getInstance().level;
         if (level == null) {
             return;
         }
-        double surface = g.getY() + g.getFluidHeight(FluidTags.WATER);
-        for (int i = 0; i < 24; i++) {
+        for (int i = 0; i < count; i++) {
             double angle = rand(0, Math.PI * 2);
-            double r = rand(5, 10);
-            level.addAlwaysVisibleParticle(ParticleTypes.SPLASH, true, g.getX() + Math.cos(angle) * r, surface, g.getZ() + Math.sin(angle) * r,
-                    0.0, 0.3, 0.0);
-            level.addAlwaysVisibleParticle(ParticleTypes.CLOUD, true, g.getX() + Math.cos(angle) * r, surface + 0.5, g.getZ() + Math.sin(angle) * r,
-                    rand(-0.05, 0.05), 0.08, rand(-0.05, 0.05));
+            double r = rand(minRadius, maxRadius);
+            double x = center.x + Math.cos(angle) * r;
+            double z = center.z + Math.sin(angle) * r;
+            level.addAlwaysVisibleParticle(ParticleTypes.SPLASH, true, x, center.y, z, 0.0, 0.3, 0.0);
+            level.addAlwaysVisibleParticle(ParticleTypes.CLOUD, true, x, center.y + 0.5, z, rand(-0.05, 0.05), 0.08, rand(-0.05, 0.05));
         }
     }
 
@@ -193,65 +200,42 @@ public final class Fx {
     }
 
     /**
-     * The atomic breath impact: gojira:nuclear_explosion(2), nuclear_shockwave, nuclear_smoke,
-     * shockwave_ground and the gojinuclear:smoke1-5 mushroom cloud.
+     * The atomic breath impact, around the 3D fireball and mushroom cloud (client.render.NuclearCloud): the flash,
+     * flame streaks, and on the ground the racing smoke shockwave (gojira:nuclear_shockwave, shockwave_ground).
      */
-    public static void atomicBlast(Vec3 pos) {
-        // Fireball.
-        for (int i = 0; i < 4; i++) {
-            of(ModParticles.GLOW).at(pos.add(0, 20, 0)).life(300 + i * 30).size(15.0F, 200.0F + i * 40).additive()
-                    .colors(0.02F, 0xFFFFAA03, 0.37F, 0xBAECCF87, 0.62F, 0x40302010, 1.0F, 0x00000000).spawn();
-        }
+    public static void atomicBlast(Vec3 pos, boolean grounded) {
+        // Flash.
+        of(ModParticles.GLOW).at(pos.add(0, 10, 0)).life(8).size(120.0F, 260.0F).additive()
+                .colors(0.0F, 0xFFFFFFFF, 0.4F, 0xFFFFF0C0, 1.0F, 0x00FFAA40).spawn();
         // Flame streaks.
         for (int i = 0; i < 80; i++) {
-            Vec3 dir = new Vec3(rand(-1, 1), rand(-0.2, 1), rand(-1, 1)).normalize();
-            of(ModParticles.GLOW).at(pos.add(0, 1, 0).add(dir.scale(rand(5, 20)))).velocity(dir.x * 0.3, dir.y * 0.3, dir.z * 0.3)
-                    .life(20 + RANDOM.nextInt(80)).size((float) rand(3, 12), 1.0F).additive().spin((float) rand(-0.5, 0.5))
+            Vec3 dir = new Vec3(rand(-1, 1), rand(grounded ? -0.2 : -1, 1), rand(-1, 1)).normalize();
+            of(ModParticles.GLOW).at(pos.add(0, 1, 0).add(dir.scale(rand(5, 20)))).velocity(dir.x * 0.6, dir.y * 0.6, dir.z * 0.6)
+                    .life(20 + RANDOM.nextInt(60)).size((float) rand(3, 12), 1.0F).additive().spin((float) rand(-0.5, 0.5))
                     .colors(0.0F, 0x00FFFFFF, 0.23F, 0xFFFFFFFF, 0.8F, 0xFFFFA030, 1.0F, 0x00FFFFFF).spawn();
         }
+        if (!grounded) {
+            return;
+        }
         // Racing smoke shockwave.
-        for (int i = 0; i < 140; i++) {
+        for (int i = 0; i < 160; i++) {
             double angle = rand(0, Math.PI * 2);
-            double speed = rand(3.0, 4.0);
+            double speed = rand(3.0, 4.5);
             of(ModParticles.SMOKE).at(pos.add(0, 2, 0)).velocity(Math.cos(angle) * speed, rand(0, 0.1), Math.sin(angle) * speed)
                     .life(160 + RANDOM.nextInt(60)).size(16.0F, 40.0F).friction(0.965F).spin((float) rand(-0.1, 0.1))
-                    .colors(0.0F, 0xC29E9E9E, 0.28F, 0xFF292929, 0.6F, 0x00F2F2F2).spawn();
+                    .colors(0.0F, 0xC29E9E9E, 0.28F, 0xFF4A4038, 0.6F, 0x00F2F2F2).spawn();
         }
-        // Ground shockwave ring.
+        // Ground shockwave rings.
         groundRing(pos, 320.0F, 60, 0xA3FFFFFF);
         groundRing(pos, 160.0F, 40, 0xA3848080);
-        // Mushroom cloud: stem, cap and a sprite, fed for 25 seconds like smoke1-5.
-        of(ModParticles.MUSHROOM).at(pos.add(0, 70, 0)).life(500).size(45.0F, 60.0F)
-                .colors(0.0F, 0x00B0770D, 0.1F, 0xC0B89F77, 0.69F, 0xA0847A7A, 1.0F, 0x004E4D4D).spawn();
-        ClientFx.addEmitter(500, tick -> {
-            for (int i = 0; i < 4; i++) {
-                // stem (smoke1 / smoke4)
-                double a = rand(0, Math.PI * 2);
-                double r = rand(0, 12);
-                of(ModParticles.SMOKE).at(pos.add(Math.cos(a) * r, rand(0, 10), Math.sin(a) * r))
-                        .velocity(rand(-0.05, 0.05), rand(1.2, 2.2), rand(-0.05, 0.05)).life(30 + RANDOM.nextInt(10))
-                        .size(8.0F, 14.0F).friction(0.99F)
-                        .colors(0.0F, 0xFF2E2D2D, 0.54F, 0xC0484848, 1.0F, 0x00848484).spawn();
-            }
-            if (tick % 2 == 0) {
-                // cap (smoke2 / smoke3 / smoke5)
-                double a = rand(0, Math.PI * 2);
-                double r = Math.sqrt(RANDOM.nextDouble()) * Math.min(90, 20 + tick * 0.5);
-                of(ModParticles.SMOKE).at(pos.add(Math.cos(a) * r, 60 + rand(0, 25), Math.sin(a) * r))
-                        .velocity(Math.cos(a) * 0.05, rand(0.02, 0.15), Math.sin(a) * 0.05).life(60 + RANDOM.nextInt(40))
-                        .size(22.0F, 34.0F).friction(0.98F).spin((float) rand(-0.02, 0.02))
-                        .colors(0.0F, 0x005A5047, 0.15F, 0xFF5A5047, 0.57F, 0xFF382A18, 1.0F, 0x00261608).spawn();
-            }
-            if (tick < 30 && tick % 3 == 0) {
-                // nuclear_smoke: the initial rising burst
-                for (int i = 0; i < 8; i++) {
-                    Vec3 dir = new Vec3(rand(-1, 1), rand(0, 1), rand(-1, 1)).normalize();
-                    of(ModParticles.SMOKE).at(pos.add(0, 30, 0).add(dir.scale(rand(0, 30)))).velocity(dir.x * 0.4, 0.6 + dir.y * 0.5, dir.z * 0.4)
-                            .life(200 + RANDOM.nextInt(200)).size(24.0F, 40.0F).friction(0.97F).gravity(-0.02F)
-                            .colors(0.0F, 0xFFFFFFFF, 0.08F, 0xEDD1CDCD, 0.2F, 0xED555454, 0.34F, 0x8F000000, 0.6F, 0x00F2F2F2).spawn();
-                }
-            }
-        });
+        // Debris and embers thrown out of the crater.
+        for (int i = 0; i < 60; i++) {
+            Vec3 dir = new Vec3(rand(-1, 1), rand(0.6, 1.6), rand(-1, 1)).normalize();
+            double speed = rand(1.0, 3.0);
+            of(ModParticles.SMOKE).at(pos.add(0, 2, 0)).velocity(dir.x * speed, dir.y * speed, dir.z * speed)
+                    .life(60 + RANDOM.nextInt(40)).size(2.0F, 4.0F).gravity(0.08F).friction(0.98F).collide()
+                    .colors(0.0F, 0xFF3A3028, 0.7F, 0xFF2A2420, 1.0F, 0x002A2420).spawn();
+        }
     }
 
     /** gojira:black_rain around the camera while it's inside the fallout area. */

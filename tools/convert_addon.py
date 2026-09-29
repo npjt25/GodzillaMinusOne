@@ -99,19 +99,8 @@ def save(arr, *parts):
 
 def convert_textures(rp):
     t = os.path.join(rp, "textures")
-    g2 = os.path.join(t, "entity", "gojira2")
 
-    base, glow = split_emissive(to_gray(load(os.path.join(g2, "no_powered.png"))))
-    save(base, "textures", "entity", "godzilla.png")
-    save(glow, "textures", "entity", "godzilla_glow.png")
-
-    base, glow = split_emissive(to_gray(load(os.path.join(g2, "powered.png"))))
-    save(base, "textures", "entity", "godzilla_charged.png")
-    save(glow, "textures", "entity", "godzilla_charged_glow.png")
-
-    dead, _ = split_emissive(to_gray(load(os.path.join(g2, "dead.png")), keep_blue=False))
-    save(dead, "textures", "entity", "godzilla_dead.png")
-
+    # Godzilla's own textures now come from the high-detail model (tools/build_godzilla_mesh.py).
     # Core colour of the atomic breath beam (bone "B"); not part of the add-on, which used a Bedrock material.
     Image.new("RGBA", (16, 16), (170, 235, 255, 255)).save(out("textures", "entity", "godzilla_beam.png"))
 
@@ -144,11 +133,31 @@ def convert_textures(rp):
 
 # ---------------------------------------------------------------- geometry
 
+def level_shinden(geo):
+    """The add-on's plane sits nose-up: its root bone is tilted 5 degrees and the nose gear is the longer leg.
+    Level the fuselage and even out the gear (nose leg 4 px shorter, main legs 4 px longer), so it stands
+    straight with both wheels on the ground."""
+    shift = {"Will2": 4.0, "Will": -4.0, "bone3": -4.0}
+    for bone in geo["bones"]:
+        if bone["name"] == "bone":
+            bone.pop("rotation", None)
+        dy = shift.get(bone["name"])
+        if dy is None:
+            continue
+        bone["pivot"][1] += dy
+        for cube in bone.get("cubes", []):
+            cube["origin"][1] += dy
+            if "pivot" in cube:
+                cube["pivot"][1] += dy
+
+
 def convert_models(rp):
     m = os.path.join(rp, "models", "entity")
     for src, dst in [("goji_gojira", "godzilla"), ("goji_kyushu_j7w1", "shinden"), ("mine", "naval_mine")]:
         data = json.load(open(os.path.join(m, src + ".json")))
         data["minecraft:geometry"][0]["description"]["identifier"] = "geometry." + dst
+        if dst == "shinden":
+            level_shinden(data["minecraft:geometry"][0])
         write_json(out("geo", "entity", dst + ".geo.json"), data)
 
 

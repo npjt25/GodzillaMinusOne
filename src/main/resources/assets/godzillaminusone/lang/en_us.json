@@ -7,13 +7,12 @@
   "boss.godzillaminusone.godzilla": "GODZILLA",
 
   "item.godzillaminusone.godzilla_spawn_egg": "Spawn GODZILLA",
-  "item.godzillaminusone.shinden_spawn_egg": "Spawn Kyushu J7W1 Shinden",
+  "item.godzillaminusone.shinden_spawn_egg": "Kyushu J7W1 Shinden",
   "item.godzillaminusone.naval_mine_spawn_egg": "Spawn Naval Mine",
   "item.godzillaminusone.torrid": "Torrid",
   "item.godzillaminusone.torrid.desc": "The Shinden's cannon. Use it while flying.",
 
   "message.godzillaminusone.radiation": "RADIATION POISONING",
-  "message.godzillaminusone.become_death": "Now I am become Death, the destroyer of worlds",
   "message.godzillaminusone.black_rain": "Black Rain?",
 
   "death.attack.godzillaminusone.naval_mine": "%1$s was caught in a naval mine blast",
