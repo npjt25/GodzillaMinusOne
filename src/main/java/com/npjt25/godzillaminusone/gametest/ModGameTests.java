@@ -168,8 +168,16 @@ public final class ModGameTests {
         GodzillaEntity godzilla = spawnActiveGodzilla(helper);
         Pig pig = spawnOnGround(helper, EntityType.PIG, 4, 48);
         godzilla.setTarget(pig);
-        boolean[] logged = {false};
+        boolean[] logged = {false, false};
         helper.onEachTick(() -> {
+            if (!logged[1] && godzilla.getBreathCooldown() > 0) {
+                logged[1] = true;
+                float aim = godzilla.getAimPitch(1.0F);
+                Vec3[] beam = godzilla.beamLine(aim);
+                GodzillaMinusOne.LOGGER.info("atomic breath test: fired at tick {}: target {}, aim {}, godzilla {} yaw {}, beam {} -> {}, pig {} alive {}",
+                        helper.getTick(), godzilla.getTarget(), aim, godzilla.position(), godzilla.getYRot(), beam[0], beam[1],
+                        pig.position(), pig.isAlive());
+            }
             if (!pig.isAlive() && !logged[0]) {
                 logged[0] = true;
                 GodzillaMinusOne.LOGGER.info("atomic breath test: the pig died at tick {} from {} by {} at {}; cooldown {}, charging {}",
