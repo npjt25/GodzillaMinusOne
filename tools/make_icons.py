@@ -16,15 +16,15 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ASSETS = os.path.join(ROOT, "src", "main", "resources", "assets", "godzillaminusone")
 KEY = (255, 0, 255)
 
-# item: (model, texture, yaw, pitch, bones to frame (None = all))
+# item: (model, texture, yaw, pitch, bones to frame (None = all), turn the picture by (degrees))
 ICONS = {
-    "odo_island_monster_spawn_egg": ("odo_island_monster", "odo_island_monster", 125, 8, {"head", "jaw", "neck2"}),
-    "searchlight": ("searchlight", "searchlight", 140, 18, None),
-    "nuclear_bomb": ("nuclear_bomb", "nuclear_bomb", 100, 10, None),
+    "odo_island_monster_spawn_egg": ("odo_island_monster", "odo_island_monster", 125, 8, {"head", "jaw", "neck2"}, 0),
+    "searchlight": ("searchlight", "searchlight", 25, 12, None, 0),
+    "nuclear_bomb": ("nuclear_bomb", "nuclear_bomb", 30, 10, None, -135),
 }
 
 
-def icon(item, model, texture, yaw, pitch, fit):
+def icon(item, model, texture, yaw, pitch, fit, turn):
     geo = os.path.join(ASSETS, "geo", "entity", model + ".geo.json")
     tex = os.path.join(ASSETS, "textures", "entity", texture + ".png")
     if not os.path.exists(geo):
@@ -35,6 +35,8 @@ def icon(item, model, texture, yaw, pitch, fit):
     a = np.asarray(Image.open(tmp).convert("RGB")).astype(int)
     alpha = (np.abs(a - np.array(KEY)).sum(-1) > 30).astype(np.uint8) * 255
     img = Image.fromarray(np.dstack([a.astype(np.uint8), alpha]), "RGBA")
+    if turn:
+        img = img.rotate(turn, resample=Image.NEAREST, expand=True)
     box = img.getbbox()
     img = img.crop(box)
     side = max(img.width, img.height)

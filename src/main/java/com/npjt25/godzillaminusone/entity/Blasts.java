@@ -8,11 +8,15 @@ import com.npjt25.godzillaminusone.registry.ModDamageTypes;
 import com.npjt25.godzillaminusone.registry.ModSounds;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundSource;
+import net.minecraft.util.Mth;
 import net.minecraft.world.damagesource.DamageSource;
+import net.minecraft.world.effect.MobEffectInstance;
+import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
-import net.minecraft.world.phys.AABB;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.levelgen.Heightmap;
+import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.event.level.ExplosionEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
@@ -73,6 +77,57 @@ public final class Blasts {
     public static void onExplosion(ExplosionEvent.Detonate event) {
         if (!SPARED.isEmpty()) {
             event.getAffectedEntities().removeIf(SPARED::contains);
+        }
+    }
+
+    /**
+     * A nuclear blast at {@code impact} (Godzilla's atomic breath landing, or a nuclear bomb): everything within
+     * the kill radius dies, there's radiation further out, and (when {@code grounded}) a crater and blast wave;
+     * then the 3D fireball and mushroom cloud, the boom, the shaking and a blurred view for everyone nearby.
+     *
+     * @param burnsOdo an Odo Island Monster caught in it is burnt (and later rises as Godzilla) instead of killed
+     * @return ground zero
+     */
+    public static Vec3 nuclear(ServerLevel level, Vec3 impact, boolean grounded, DamageSource source, @Nullable Entity except,
+                               @Nullable LivingEntity breaker, boolean destroyBlocks, boolean burnsOdo, float yaw) {
+        for (LivingEntity entity : livingNear(level, impact, Config.ATOMIC_BLAST_KILL_RADIUS.get(), except)) {
+            nuclearHit(entity, source, burnsOdo);
+        }
+        int amplifier = Config.ATOMIC_BLAST_RADIATION_AMPLIFIER.get();
+        for (LivingEntity entity : livingNear(level, impact, Config.ATOMIC_BLAST_RADIATION_RADIUS.get(), except)) {
+            if (!(entity instanceof GodzillaEntity)) {
+                entity.addEffect(new MobEffectInstance(MobEffects.WITHER, 600, amplifier), source.getEntity());
+            }
+        }
+        // Ground zero: the ground under the impact, not the tree top or roof that happened to be hit.
+        Vec3 zero = impact;
+        if (grounded) {
+            int ground = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, Mth.floor(impact.x), Mth.floor(impact.z));
+            zero = new Vec3(impact.x, Math.min(impact.y, ground), impact.z);
+            if (destroyBlocks) {
+                Destruction.atomicBlast(level, breaker, zero, Config.ATOMIC_BLAST_CRATER_RADIUS.get(), Config.ATOMIC_BLAST_DESTRUCTION_RADIUS.get());
+            }
+        }
+        ModNetwork.sendNear(level, zero, 1024.0, new FxPacket(FxPacket.Type.ATOMIC_BLAST, zero, yaw, grounded ? 1.0F : 0.0F));
+        level.playSound(null, impact.x, impact.y, impact.z, ModSounds.GODZILLA_ATOMIC_BLAST.get(), SoundSource.HOSTILE, 24.0F, 1.0F);
+        ModNetwork.shake(level, impact, 640.0, 4.0F, 6.0F);
+        ModNetwork.blur(level, impact, 320.0, 1.0F, 0.15F, 2.5F, 4.0F);
+        return zero;
+    }
+
+    /** Caught in a nuclear blast (or Godzilla's beam). */
+    public static void nuclearHit(LivingEntity entity, DamageSource source, boolean burnsOdo) {
+        if (entity instanceof GodzillaEntity) {
+            return;
+        }
+        if (burnsOdo && entity instanceof OdoIslandMonsterEntity odo) {
+            odo.nuke();
+        } else if (isPilot(entity)) {
+            entity.hurt(source, 15.0F); // "plot armor"
+        } else if (entity instanceof ShindenEntity shinden && shinden.isVehicle()) {
+            // a piloted Shinden rides out the blast, like its pilot (only the beam itself brings it down)
+        } else {
+            entity.hurt(source, 1.0E9F);
         }
     }
 

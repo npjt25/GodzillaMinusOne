@@ -126,7 +126,7 @@ public final class Destruction {
      * The atomic breath's impact: a crater of radius {@code crater} and, out to {@code radius}, a blast wave that
      * flattens trees and buildings and scorches the ground. It races outwards from the impact over ~1 second.
      */
-    public static void atomicBlast(ServerLevel level, LivingEntity breaker, Vec3 center, int crater, int radius) {
+    public static void atomicBlast(ServerLevel level, @Nullable LivingEntity breaker, Vec3 center, int crater, int radius) {
         if (crater <= 0 && radius <= 0) {
             return;
         }
@@ -161,6 +161,7 @@ public final class Destruction {
         private static final int BUDGET = 24000;
 
         final ServerLevel level;
+        @Nullable
         final LivingEntity breaker;
         final BlockPos center;
         final int crater;
@@ -172,7 +173,7 @@ public final class Destruction {
         int next;
         double front;
 
-        BlastWave(ServerLevel level, LivingEntity breaker, BlockPos center, int crater, int radius) {
+        BlastWave(ServerLevel level, @Nullable LivingEntity breaker, BlockPos center, int crater, int radius) {
             this.level = level;
             this.breaker = breaker;
             this.center = center;
@@ -334,11 +335,11 @@ public final class Destruction {
                 || state.is(Blocks.BEDROCK) || state.is(Blocks.MUD);
     }
 
-    static boolean canBreak(ServerLevel level, BlockPos pos, BlockState state, LivingEntity breaker) {
+    /** Whether a block may be destroyed; {@code breaker} is the mob doing it, or null for a bomb. */
+    static boolean canBreak(ServerLevel level, BlockPos pos, BlockState state, @Nullable LivingEntity breaker) {
         return state.getDestroySpeed(level, pos) >= 0.0F
                 && !state.is(BlockTags.WITHER_IMMUNE)
-                && state.canEntityDestroy(level, pos, breaker)
-                && ForgeEventFactory.onEntityDestroyBlock(breaker, pos, state);
+                && (breaker == null || (state.canEntityDestroy(level, pos, breaker) && ForgeEventFactory.onEntityDestroyBlock(breaker, pos, state)));
     }
 
     private Destruction() {

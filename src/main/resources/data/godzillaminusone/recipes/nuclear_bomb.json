@@ -1,0 +1,23 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    "NTN",
+    "TST",
+    "NTN"
+  ],
+  "key": {
+    "N": {
+      "item": "minecraft:netherite_ingot"
+    },
+    "T": {
+      "item": "minecraft:tnt"
+    },
+    "S": {
+      "item": "minecraft:nether_star"
+    }
+  },
+  "result": {
+    "item": "godzillaminusone:nuclear_bomb"
+  }
+}

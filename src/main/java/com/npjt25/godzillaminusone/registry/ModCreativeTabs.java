@@ -19,6 +19,8 @@ public final class ModCreativeTabs {
                 output.accept(ModItems.ODO_ISLAND_MONSTER_SPAWN_EGG.get());
                 output.accept(ModItems.SHINDEN_SPAWN_EGG.get());
                 output.accept(ModItems.NAVAL_MINE_SPAWN_EGG.get());
+                output.accept(ModItems.SEARCHLIGHT.get());
+                output.accept(ModItems.NUCLEAR_BOMB.get());
             })
             .build());
 

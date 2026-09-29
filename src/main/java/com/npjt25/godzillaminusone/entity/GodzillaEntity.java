@@ -765,31 +765,7 @@ public class GodzillaEntity extends Monster implements GeoEntity {
         }
 
         DamageSource source = ModDamageTypes.source(level, ModDamageTypes.ATOMIC_BREATH, this);
-        for (LivingEntity entity : Blasts.livingNear(level, impact, Config.ATOMIC_BLAST_KILL_RADIUS.get(), this)) {
-            atomicHit(entity, source);
-        }
-        int radiation = Config.ATOMIC_BLAST_RADIATION_RADIUS.get();
-        int amplifier = Config.ATOMIC_BLAST_RADIATION_AMPLIFIER.get();
-        for (LivingEntity entity : Blasts.livingNear(level, impact, radiation, this)) {
-            if (!(entity instanceof GodzillaEntity)) {
-                entity.addEffect(new MobEffectInstance(MobEffects.WITHER, 600, amplifier), this);
-            }
-        }
-
-        // Ground zero: the ground under the impact, not the tree top or roof the beam happened to hit.
-        Vec3 zero = impact;
-        if (grounded) {
-            int ground = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, Mth.floor(impact.x), Mth.floor(impact.z));
-            zero = new Vec3(impact.x, Math.min(impact.y, ground), impact.z);
-            if (ForgeEventFactory.getMobGriefingEvent(level, this)) {
-                Destruction.atomicBlast(level, this, zero, Config.ATOMIC_BLAST_CRATER_RADIUS.get(), Config.ATOMIC_BLAST_DESTRUCTION_RADIUS.get());
-            }
-        }
-
-        ModNetwork.sendNear(level, zero, 1024.0, new FxPacket(FxPacket.Type.ATOMIC_BLAST, zero, getYRot(), grounded ? 1.0F : 0.0F));
-        level.playSound(null, impact.x, impact.y, impact.z, ModSounds.GODZILLA_ATOMIC_BLAST.get(), SoundSource.HOSTILE, 24.0F, 1.0F);
-        ModNetwork.shake(level, impact, 640.0, 4.0F, 6.0F);
-        ModNetwork.blur(level, impact, 320.0, 1.0F, 0.15F, 2.5F, 4.0F);
+        Blasts.nuclear(level, impact, grounded, source, this, this, ForgeEventFactory.getMobGriefingEvent(level, this), false, getYRot());
         ModNetwork.blur(level, position(), 120.0, 1.0F, 0.15F, 2.5F, 4.0F);
 
         this.breathCooldown = Config.ATOMIC_BREATH_COOLDOWN.get() * 20;
@@ -798,16 +774,7 @@ public class GodzillaEntity extends Monster implements GeoEntity {
     }
 
     private void atomicHit(LivingEntity entity, DamageSource source) {
-        if (entity instanceof GodzillaEntity) {
-            return;
-        }
-        if (Blasts.isPilot(entity)) {
-            entity.hurt(source, 15.0F); // "plot armor"
-        } else if (entity instanceof ShindenEntity shinden && shinden.isVehicle()) {
-            // a piloted Shinden rides out the blast, like its pilot (only the beam itself brings it down)
-        } else {
-            entity.hurt(source, 1.0E9F);
-        }
+        Blasts.nuclearHit(entity, source, false);
     }
 
     private void startBlackRain(ServerLevel level) {

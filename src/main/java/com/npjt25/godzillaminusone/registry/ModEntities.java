@@ -3,7 +3,9 @@ package com.npjt25.godzillaminusone.registry;
 import com.npjt25.godzillaminusone.GodzillaMinusOne;
 import com.npjt25.godzillaminusone.entity.GodzillaEntity;
 import com.npjt25.godzillaminusone.entity.NavalMineEntity;
+import com.npjt25.godzillaminusone.entity.NuclearBombEntity;
 import com.npjt25.godzillaminusone.entity.OdoIslandMonsterEntity;
+import com.npjt25.godzillaminusone.entity.SearchlightEntity;
 import com.npjt25.godzillaminusone.entity.ShindenEntity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.MobCategory;
@@ -40,6 +42,20 @@ public final class ModEntities {
                     .sized(9.0F, 14.0F)
                     .clientTrackingRange(16)
                     .build(GodzillaMinusOne.id("odo_island_monster").toString()));
+
+    public static final RegistryObject<EntityType<SearchlightEntity>> SEARCHLIGHT = ENTITIES.register("searchlight",
+            () -> EntityType.Builder.<SearchlightEntity>of(SearchlightEntity::new, MobCategory.MISC)
+                    .sized(2.0F, 2.4F)
+                    .clientTrackingRange(10)
+                    .build(GodzillaMinusOne.id("searchlight").toString()));
+
+    public static final RegistryObject<EntityType<NuclearBombEntity>> NUCLEAR_BOMB = ENTITIES.register("nuclear_bomb",
+            () -> EntityType.Builder.<NuclearBombEntity>of(NuclearBombEntity::new, MobCategory.MISC)
+                    .sized(1.0F, 3.0F)
+                    .fireImmune()
+                    .clientTrackingRange(16)
+                    .updateInterval(1)
+                    .build(GodzillaMinusOne.id("nuclear_bomb").toString()));
 
     private ModEntities() {
     }
