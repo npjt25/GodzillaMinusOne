@@ -10,11 +10,15 @@ import com.npjt25.godzillaminusone.registry.ModItems;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.animal.Pig;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.gametest.GameTestHolder;
 import net.minecraftforge.gametest.PrefixGameTestTemplate;
@@ -37,14 +41,6 @@ public final class ModGameTests {
             GodzillaMinusOne.LOGGER.info("test at {}: removing a leftover Godzilla at {}", helper.absolutePos(BlockPos.ZERO), leftover.position());
             leftover.discard();
         }
-        StringBuilder floor = new StringBuilder();
-        for (int z = 0; z <= 8; z++) {
-            floor.append(' ');
-            for (int x = 0; x <= 8; x++) {
-                floor.append(helper.getBlockState(new BlockPos(x, 0, z)).isAir() ? '.' : '#');
-            }
-        }
-        GodzillaMinusOne.LOGGER.info("test at {}: floor{}", helper.absolutePos(BlockPos.ZERO), floor);
         return helper.spawn(ModEntities.GODZILLA.get(), 4, 1, 4);
     }
 
@@ -52,6 +48,36 @@ public final class ModGameTests {
         GodzillaEntity godzilla = spawnGodzilla(helper);
         godzilla.skipIntro();
         return godzilla;
+    }
+
+    /** The layer of the test floor (the template sits one block above the test's structure block). */
+    private static int floorY(GameTestHelper helper) {
+        for (int y = -1; y <= 3; y++) {
+            if (helper.getBlockState(new BlockPos(4, y, 4)).is(Blocks.STONE)) {
+                return y;
+            }
+        }
+        throw new IllegalStateException("no test floor");
+    }
+
+    /** Spawns a mob on the ground {@code dz} blocks out, beyond the test area, and keeps its chunk loaded. */
+    private static <T extends Mob> T spawnOnGround(GameTestHelper helper, EntityType<T> type, int dx, int dz) {
+        ServerLevel level = helper.getLevel();
+        BlockPos column = helper.absolutePos(new BlockPos(dx, 0, dz));
+        level.setChunkForced(column.getX() >> 4, column.getZ() >> 4, true);
+        int y = level.getHeight(Heightmap.Types.MOTION_BLOCKING, column.getX(), column.getZ());
+        T mob = type.create(level);
+        if (mob == null) {
+            throw new IllegalStateException("could not create " + type);
+        }
+        mob.moveTo(column.getX() + 0.5, y, column.getZ() + 0.5, 0.0F, 0.0F);
+        level.addFreshEntity(mob);
+        return mob;
+    }
+
+    private static void unforce(GameTestHelper helper, int dx, int dz) {
+        BlockPos column = helper.absolutePos(new BlockPos(dx, 0, dz));
+        helper.getLevel().setChunkForced(column.getX() >> 4, column.getZ() >> 4, false);
     }
 
     private static void remove(Entity... entities) {
@@ -140,7 +166,7 @@ public final class ModGameTests {
     @GameTest(template = FLOOR, batch = "gmo_atomic_breath", timeoutTicks = 560)
     public static void atomicBreathKillsHisTargetThenRecharges(GameTestHelper helper) {
         GodzillaEntity godzilla = spawnActiveGodzilla(helper);
-        Pig pig = helper.spawn(EntityType.PIG, 4, 1, 48);
+        Pig pig = spawnOnGround(helper, EntityType.PIG, 4, 48);
         godzilla.setTarget(pig);
         boolean[] logged = {false};
         helper.onEachTick(() -> {
@@ -162,6 +188,7 @@ public final class ModGameTests {
                     + godzilla.getBreathCooldown());
             helper.assertFalse(pig.isAlive(), "the atomic breath should kill his target");
             remove(godzilla);
+            unforce(helper, 4, 48);
         });
     }
 
@@ -181,28 +208,37 @@ public final class ModGameTests {
 
     @GameTest(template = FLOOR, batch = "gmo_swim", timeoutTicks = 300)
     public static void godzillaSwimsAtTheSurfaceOfDeepWater(GameTestHelper helper) {
-        // A 16 deep pool with unbreakable walls.
+        // A 16 deep pool with unbreakable walls and bottom.
         int depth = 16;
-        fillPool(helper, depth, false);
+        int floor = floorY(helper);
+        fillPool(helper, floor, depth, false);
         GodzillaEntity godzilla = spawnActiveGodzilla(helper);
-        double surface = helper.absoluteVec(new Vec3(0, depth + 1, 0)).y - 0.1;
+        godzilla.moveTo(helper.absoluteVec(new Vec3(4.5, floor + 1, 4.5)));
+        double surface = helper.absoluteVec(new Vec3(0, floor + depth + 1, 0)).y - 0.1;
         helper.succeedWhen(() -> {
             helper.assertTrue(godzilla.isSwimmingAtSurface(), "in water this deep he should swim");
             double expected = surface - GodzillaEntity.SWIM_SINK;
             helper.assertTrue(Math.abs(godzilla.getY() - expected) < 1.0,
                     "he should float with his back just under the surface: y " + godzilla.getY() + ", expected ~" + expected);
             remove(godzilla);
-            fillPool(helper, depth, true);
+            fillPool(helper, floor, depth, true);
         });
     }
 
-    private static void fillPool(GameTestHelper helper, int depth, boolean drain) {
-        for (int y = depth + 1; y >= 1; y--) {
+    private static void fillPool(GameTestHelper helper, int floor, int depth, boolean drain) {
+        for (int y = floor + depth + 1; y >= floor; y--) {
             for (int x = -3; x <= 11; x++) {
                 for (int z = -3; z <= 11; z++) {
-                    boolean wall = x == -3 || x == 11 || z == -3 || z == 11;
-                    helper.setBlock(new BlockPos(x, y, z), drain || y > depth ? Blocks.AIR.defaultBlockState()
-                            : wall ? Blocks.BARRIER.defaultBlockState() : Blocks.WATER.defaultBlockState());
+                    boolean wall = x == -3 || x == 11 || z == -3 || z == 11 || y == floor;
+                    BlockState state;
+                    if (drain) {
+                        state = y == floor && x >= 0 && x <= 8 && z >= 0 && z <= 8 ? Blocks.STONE.defaultBlockState() : Blocks.AIR.defaultBlockState();
+                    } else if (y > floor + depth) {
+                        state = Blocks.AIR.defaultBlockState();
+                    } else {
+                        state = wall ? Blocks.BARRIER.defaultBlockState() : Blocks.WATER.defaultBlockState();
+                    }
+                    helper.setBlock(new BlockPos(x, y, z), state);
                 }
             }
         }
@@ -211,15 +247,16 @@ public final class ModGameTests {
     @GameTest(template = FLOOR, batch = "gmo_footprint")
     public static void footstepsLeaveAFootprint(GameTestHelper helper) {
         GodzillaEntity godzilla = spawnActiveGodzilla(helper);
-        helper.setBlock(new BlockPos(4, 1, 6), Blocks.POPPY.defaultBlockState());
-        helper.assertBlockPresent(Blocks.STONE, new BlockPos(0, 0, 4));
-        Vec3 foot = helper.absoluteVec(new Vec3(4.5, 1.0, 4.5));
+        int floor = floorY(helper);
+        godzilla.moveTo(helper.absoluteVec(new Vec3(4.5, floor + 1, 4.5)));
+        helper.setBlock(new BlockPos(4, floor + 1, 6), Blocks.POPPY.defaultBlockState());
+        Vec3 foot = helper.absoluteVec(new Vec3(4.5, floor + 1, 4.5));
         Destruction.footprint(helper.getLevel(), godzilla, foot, 0.0F, 2.6, 4.6);
         remove(godzilla);
-        helper.assertBlockPresent(Blocks.AIR, new BlockPos(4, 1, 6));
-        helper.assertBlockPresent(Blocks.AIR, new BlockPos(4, 0, 4));
-        helper.assertBlockNotPresent(Blocks.STONE, new BlockPos(4, 0, 7));
-        helper.assertBlockPresent(Blocks.STONE, new BlockPos(0, 0, 4));
+        helper.assertBlockPresent(Blocks.AIR, new BlockPos(4, floor + 1, 6));
+        helper.assertBlockPresent(Blocks.AIR, new BlockPos(4, floor, 4));
+        helper.assertBlockNotPresent(Blocks.STONE, new BlockPos(4, floor, 7));
+        helper.assertBlockPresent(Blocks.STONE, new BlockPos(0, floor, 4));
         helper.succeed();
     }
 
