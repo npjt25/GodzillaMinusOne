@@ -5,34 +5,6 @@
    "loop": true,
    "animation_length": 2,
    "bones": {
-    "bone": {
-     "rotation": {
-      "0.0": {
-       "post": [
-        0,
-        0,
-        -2.5
-       ],
-       "lerp_mode": "catmullrom"
-      },
-      "1.0": {
-       "post": [
-        0,
-        0,
-        2.5
-       ],
-       "lerp_mode": "catmullrom"
-      },
-      "2.0": {
-       "post": [
-        0,
-        0,
-        -2.5
-       ],
-       "lerp_mode": "catmullrom"
-      }
-     }
-    },
     "Will2": {
      "rotation": [
       87.5,
@@ -77,19 +49,6 @@
      "effect": "shinden.engine"
     }
    }
-  },
-  "animation.kplane.turning": {
-   "loop": true,
-   "bones": {
-    "bone": {
-     "rotation": [
-      0,
-      0,
-      "math.max(-20, math.min(20,query.yaw_speed * 0.5))*-1"
-     ]
-    }
-   },
-   "animation_length": 1.0
   },
   "animation.kplane.fire": {
    "loop": true,

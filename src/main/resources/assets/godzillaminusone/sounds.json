@@ -156,5 +156,78 @@
     "name": "godzillaminusone:nuke_whistle"
    }
   ]
+ },
+ "odo.ambient": {
+  "subtitle": "subtitles.godzillaminusone.odo.ambient",
+  "sounds": [
+   {
+    "name": "godzillaminusone:godzilla_stand",
+    "pitch": 1.3
+   },
+   {
+    "name": "godzillaminusone:godzilla_stand2",
+    "pitch": 1.3
+   },
+   {
+    "name": "godzillaminusone:godzilla_stand3",
+    "pitch": 1.3
+   }
+  ]
+ },
+ "odo.roar": {
+  "subtitle": "subtitles.godzillaminusone.odo.roar",
+  "sounds": [
+   {
+    "name": "godzillaminusone:godzilla_roar",
+    "stream": true,
+    "pitch": 1.3
+   }
+  ]
+ },
+ "odo.bite": {
+  "subtitle": "subtitles.godzillaminusone.odo.bite",
+  "sounds": [
+   {
+    "name": "godzillaminusone:godzilla_attack",
+    "pitch": 1.35
+   }
+  ]
+ },
+ "odo.stomp": {
+  "subtitle": "subtitles.godzillaminusone.odo.stomp",
+  "sounds": [
+   {
+    "name": "godzillaminusone:godzilla_attack1",
+    "pitch": 1.3
+   }
+  ]
+ },
+ "odo.step": {
+  "subtitle": "subtitles.godzillaminusone.odo.step",
+  "sounds": [
+   {
+    "name": "godzillaminusone:godzilla_step",
+    "pitch": 1.45
+   }
+  ]
+ },
+ "odo.hurt": {
+  "subtitle": "subtitles.godzillaminusone.odo.hurt",
+  "sounds": [
+   {
+    "name": "godzillaminusone:godzilla_hurts",
+    "pitch": 1.35
+   }
+  ]
+ },
+ "odo.death": {
+  "subtitle": "subtitles.godzillaminusone.odo.death",
+  "sounds": [
+   {
+    "name": "godzillaminusone:godzilla_roar",
+    "stream": true,
+    "pitch": 1.1
+   }
+  ]
  }
 }

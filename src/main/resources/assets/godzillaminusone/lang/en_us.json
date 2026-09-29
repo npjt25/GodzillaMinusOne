@@ -4,11 +4,13 @@
   "entity.godzillaminusone.godzilla": "Godzilla",
   "entity.godzillaminusone.shinden": "Kyushu J7W1 Shinden",
   "entity.godzillaminusone.naval_mine": "Naval Mine",
+  "entity.godzillaminusone.odo_island_monster": "Odo Island Monster",
   "boss.godzillaminusone.godzilla": "GODZILLA",
 
   "item.godzillaminusone.godzilla_spawn_egg": "Spawn GODZILLA",
   "item.godzillaminusone.shinden_spawn_egg": "Kyushu J7W1 Shinden",
   "item.godzillaminusone.naval_mine_spawn_egg": "Spawn Naval Mine",
+  "item.godzillaminusone.odo_island_monster_spawn_egg": "Spawn Odo Island Monster",
   "item.godzillaminusone.torrid": "Torrid",
   "item.godzillaminusone.torrid.desc": "The Shinden's cannon. Use it while flying.",
 
@@ -43,5 +45,12 @@
   "subtitles.godzillaminusone.godzilla.atomic_blast": "Atomic blast",
   "subtitles.godzillaminusone.shinden.engine": "Shinden engine roars",
   "subtitles.godzillaminusone.shinden.gun": "Torrid fires",
-  "subtitles.godzillaminusone.naval_mine.explode": "Naval mine explodes"
+  "subtitles.godzillaminusone.naval_mine.explode": "Naval mine explodes",
+  "subtitles.godzillaminusone.odo.ambient": "Odo Island Monster growls",
+  "subtitles.godzillaminusone.odo.roar": "Odo Island Monster roars",
+  "subtitles.godzillaminusone.odo.bite": "Odo Island Monster bites",
+  "subtitles.godzillaminusone.odo.stomp": "Odo Island Monster stomps",
+  "subtitles.godzillaminusone.odo.step": "Heavy footsteps",
+  "subtitles.godzillaminusone.odo.hurt": "Odo Island Monster hurts",
+  "subtitles.godzillaminusone.odo.death": "Odo Island Monster collapses"
 }

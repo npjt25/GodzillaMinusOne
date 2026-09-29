@@ -64,12 +64,12 @@ def worley(size, cell, r):
     return f1, f2
 
 
-def hide_detail(size, r):
+def hide_detail(size, r, cell=11):
     """A brightness multiplier: raised nodules, dark cracks between them, and a fine grain."""
-    f1, f2 = worley(size, 11, r)
-    nodule = np.clip(1.0 - (f1 / 7.5) ** 2, 0.0, 1.0) ** 0.8
-    crack = np.clip(1.0 - (f2 - f1) / 2.2, 0.0, 1.0)
-    g1, _ = worley(size, 4, r)
+    f1, f2 = worley(size, cell, r)
+    nodule = np.clip(1.0 - (f1 / (cell * 0.68)) ** 2, 0.0, 1.0) ** 0.8
+    crack = np.clip(1.0 - (f2 - f1) / (cell * 0.2), 0.0, 1.0)
+    g1, _ = worley(size, max(3, cell * 4 // 11), r)
     fine = np.clip(1.0 - (g1 / 3.0) ** 2, 0.0, 1.0)
     grain = r.random((size, size))
     return 0.74 + 0.36 * nodule + 0.06 * fine - 0.34 * crack ** 2 + 0.03 * (grain - 0.5)

@@ -15,7 +15,7 @@ public class ShindenRenderer extends GeoEntityRenderer<ShindenEntity> {
         this.shadowRadius = 3.0F;
     }
 
-    /** Tilts the plane's nose with the pilot's pitch, and rocks it when it's hit (like a boat). */
+    /** Keeps the plane level in flight, leaning only into turns, and rocks it when it's hit (like a boat). */
     @Override
     protected void applyRotations(ShindenEntity entity, PoseStack poseStack, float ageInTicks, float rotationYaw, float partialTick) {
         super.applyRotations(entity, poseStack, ageInTicks, rotationYaw, partialTick);
@@ -24,11 +24,12 @@ public class ShindenRenderer extends GeoEntityRenderer<ShindenEntity> {
         if (hurt > 0.0F) {
             poseStack.mulPose(Axis.ZP.rotationDegrees(Mth.sin(hurt) * hurt * damage / 10.0F * entity.getWobbleSide()));
         }
-        if (entity.isVehicle()) {
-            float pitch = Mth.lerp(partialTick, entity.xRotO, entity.getXRot());
-            poseStack.translate(0.0F, 2.0F, 0.0F);
-            poseStack.mulPose(Axis.XP.rotationDegrees(-pitch * 0.8F));
-            poseStack.translate(0.0F, -2.0F, 0.0F);
+        float bank = entity.getBank(partialTick);
+        if (bank != 0.0F) {
+            // the model faces -z with its right wing along +x: a negative roll about z drops the right wing
+            poseStack.translate(0.0F, 1.5F, 0.0F);
+            poseStack.mulPose(Axis.ZP.rotationDegrees(-bank));
+            poseStack.translate(0.0F, -1.5F, 0.0F);
         }
     }
 }

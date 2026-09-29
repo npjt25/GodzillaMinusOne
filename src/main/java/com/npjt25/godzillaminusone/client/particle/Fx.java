@@ -2,6 +2,7 @@ package com.npjt25.godzillaminusone.client.particle;
 
 import com.npjt25.godzillaminusone.client.ClientFx;
 import com.npjt25.godzillaminusone.entity.GodzillaEntity;
+import com.npjt25.godzillaminusone.entity.OdoIslandMonsterEntity;
 import com.npjt25.godzillaminusone.entity.ShindenEntity;
 import com.npjt25.godzillaminusone.registry.ModParticles;
 import net.minecraft.client.Minecraft;
@@ -76,6 +77,23 @@ public final class Fx {
                         splash(godzilla.isSwimmingAtSurface() ? godzilla.position().add(0.0, GodzillaEntity.SWIM_SINK, 0.0)
                                 : godzilla.position().add(0.0, godzilla.getFluidHeight(FluidTags.WATER), 0.0), 5.0, 10.0, 24);
                     }
+                }
+                default -> {
+                }
+            }
+        } else if (entity instanceof OdoIslandMonsterEntity odo) {
+            switch (effect) {
+                case "odo_stomp" -> {
+                    Vec3 foot = odo.locator(-1.8, 0.2, 1.1);
+                    groundRing(foot, 14.0F, 10, 0xA3FFFFFF);
+                    dust(foot, 10, 0.8F);
+                }
+                case "odo_smoke" -> {
+                    // smoke rising off the burnt body
+                    Vec3 at = odo.locator(rand(-2.5, 2.5), rand(1.0, 5.0), rand(-14.0, 8.0));
+                    of(ModParticles.SMOKE).at(at).velocity(rand(-0.02, 0.02), rand(0.06, 0.14), rand(-0.02, 0.02))
+                            .life(60 + RANDOM.nextInt(40)).size(1.5F, 4.5F).friction(0.98F)
+                            .colors(0.0F, 0x00303030, 0.2F, 0xB0303030, 1.0F, 0x00505050).spawn();
                 }
                 default -> {
                 }

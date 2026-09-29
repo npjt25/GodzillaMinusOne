@@ -327,7 +327,7 @@ public final class Destruction {
     }
 
     /** Natural ground: where the blast wave stops digging down a column. */
-    private static boolean isGround(BlockState state) {
+    static boolean isGround(BlockState state) {
         return state.is(BlockTags.DIRT) || state.is(Tags.Blocks.STONE) || state.is(Tags.Blocks.SAND) || state.is(Tags.Blocks.GRAVEL)
                 || state.is(Tags.Blocks.SANDSTONE) || state.is(Tags.Blocks.ORES) || state.is(BlockTags.TERRACOTTA)
                 || state.is(Blocks.CLAY) || state.is(Blocks.SNOW_BLOCK) || state.is(BlockTags.ICE) || state.is(Blocks.DIRT_PATH)

@@ -3,6 +3,7 @@ package com.npjt25.godzillaminusone;
 import com.mojang.logging.LogUtils;
 import com.npjt25.godzillaminusone.entity.GodzillaEntity;
 import com.npjt25.godzillaminusone.entity.NavalMineEntity;
+import com.npjt25.godzillaminusone.entity.OdoIslandMonsterEntity;
 import com.npjt25.godzillaminusone.entity.ShindenEntity;
 import com.npjt25.godzillaminusone.network.ModNetwork;
 import com.npjt25.godzillaminusone.registry.ModCreativeTabs;
@@ -52,5 +53,6 @@ public class GodzillaMinusOne {
         event.put(ModEntities.GODZILLA.get(), GodzillaEntity.createAttributes().build());
         event.put(ModEntities.SHINDEN.get(), ShindenEntity.createAttributes().build());
         event.put(ModEntities.NAVAL_MINE.get(), NavalMineEntity.createAttributes().build());
+        event.put(ModEntities.ODO_ISLAND_MONSTER.get(), OdoIslandMonsterEntity.createAttributes().build());
     }
 }

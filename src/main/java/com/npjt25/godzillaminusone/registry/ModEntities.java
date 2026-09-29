@@ -3,6 +3,7 @@ package com.npjt25.godzillaminusone.registry;
 import com.npjt25.godzillaminusone.GodzillaMinusOne;
 import com.npjt25.godzillaminusone.entity.GodzillaEntity;
 import com.npjt25.godzillaminusone.entity.NavalMineEntity;
+import com.npjt25.godzillaminusone.entity.OdoIslandMonsterEntity;
 import com.npjt25.godzillaminusone.entity.ShindenEntity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.MobCategory;
@@ -33,6 +34,12 @@ public final class ModEntities {
                     .fireImmune()
                     .clientTrackingRange(10)
                     .build(GodzillaMinusOne.id("naval_mine").toString()));
+
+    public static final RegistryObject<EntityType<OdoIslandMonsterEntity>> ODO_ISLAND_MONSTER = ENTITIES.register("odo_island_monster",
+            () -> EntityType.Builder.of(OdoIslandMonsterEntity::new, MobCategory.MONSTER)
+                    .sized(9.0F, 14.0F)
+                    .clientTrackingRange(16)
+                    .build(GodzillaMinusOne.id("odo_island_monster").toString()));
 
     private ModEntities() {
     }

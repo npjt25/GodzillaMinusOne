@@ -22,6 +22,8 @@ public final class ModItems {
             () -> new ForgeSpawnEggItem(ModEntities.SHINDEN, 0xFFFFFF, 0xFFFFFF, new Item.Properties()));
     public static final RegistryObject<Item> NAVAL_MINE_SPAWN_EGG = ITEMS.register("naval_mine_spawn_egg",
             () -> new ForgeSpawnEggItem(ModEntities.NAVAL_MINE, 0xFFFFFF, 0xFFFFFF, new Item.Properties()));
+    public static final RegistryObject<Item> ODO_ISLAND_MONSTER_SPAWN_EGG = ITEMS.register("odo_island_monster_spawn_egg",
+            () -> new ForgeSpawnEggItem(ModEntities.ODO_ISLAND_MONSTER, 0xFFFFFF, 0xFFFFFF, new Item.Properties().rarity(Rarity.RARE)));
 
     private ModItems() {
     }

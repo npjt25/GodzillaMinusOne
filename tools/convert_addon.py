@@ -268,10 +268,21 @@ def convert_animation_file(src, dst, renames=None, extra=None):
     write_json(dst, {"format_version": "1.8.0", "animations": anims})
 
 
+def steady_shinden(path):
+    """The add-on rocks the plane from side to side the whole time it flies, and rolls it by a Molang
+    "turning" animation; here it flies level and the renderer banks it into turns instead."""
+    data = json.load(open(path))
+    anims = data["animations"]
+    anims["animation.kplane.fly"]["bones"].pop("bone", None)
+    anims.pop("animation.kplane.turning", None)
+    write_json(path, data)
+
+
 def convert_animations(rp):
     a = os.path.join(rp, "animations")
     convert_animation_file(os.path.join(a, "gojira.animation.json"), out("animations", "entity", "godzilla.animation.json"))
     convert_animation_file(os.path.join(a, "kplane.animation.json"), out("animations", "entity", "shinden.animation.json"))
+    steady_shinden(out("animations", "entity", "shinden.animation.json"))
     # The add-on references "animation.mine.idle" but never ships it; this is a gentle bob/spin.
     mine = {
         "animation.mine.idle": {
@@ -312,6 +323,14 @@ SOUNDS = {
     # "@name": made by tools/make_sounds.py, not converted from the add-on.
     "godzilla.inhale": (["@godzilla_inhale"], False),
     "nuke.whistle": (["@nuke_whistle"], False),
+    # The Odo Island Monster, a younger, smaller Godzilla: his sounds, pitched up ("@": already converted above).
+    "odo.ambient": (["@godzilla_stand", "@godzilla_stand2", "@godzilla_stand3"], False, 1.3),
+    "odo.roar": (["@godzilla_roar"], True, 1.3),
+    "odo.bite": (["@godzilla_attack"], False, 1.35),
+    "odo.stomp": (["@godzilla_attack1"], False, 1.3),
+    "odo.step": (["@godzilla_step"], False, 1.45),
+    "odo.hurt": (["@godzilla_hurts"], False, 1.35),
+    "odo.death": (["@godzilla_roar"], True, 1.1),
 }
 
 
@@ -329,7 +348,7 @@ def convert_sounds(rp):
     src_dir = os.path.join(rp, "sounds", "mob")
     done = set()
     defs = {}
-    for event, (files, stream) in SOUNDS.items():
+    for event, (files, stream, *pitch) in SOUNDS.items():
         entries = []
         for f in files:
             name = f.replace("/", "_").replace("gojira_gojira_", "godzilla_").replace("gojira_", "godzilla_")
@@ -344,6 +363,8 @@ def convert_sounds(rp):
             entry = {"name": MODID + ":" + name}
             if stream:
                 entry["stream"] = True
+            if pitch:
+                entry["pitch"] = pitch[0]
             entries.append(entry)
         defs[event] = {"subtitle": "subtitles." + MODID + "." + event, "sounds": entries}
     write_json(out("sounds.json"), defs)

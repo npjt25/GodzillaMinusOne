@@ -1,0 +1,6 @@
+{
+  "parent": "minecraft:item/generated",
+  "textures": {
+    "layer0": "godzillaminusone:item/odo_island_monster_spawn_egg"
+  }
+}

@@ -1,6 +1,7 @@
 package com.npjt25.godzillaminusone.entity;
 
 import com.npjt25.godzillaminusone.Config;
+import com.npjt25.godzillaminusone.GodzillaMinusOne;
 import com.npjt25.godzillaminusone.network.FxPacket;
 import com.npjt25.godzillaminusone.network.ModNetwork;
 import com.npjt25.godzillaminusone.registry.ModDamageTypes;
@@ -11,16 +12,27 @@ import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.phys.AABB;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.Vec3;
+import net.minecraftforge.event.level.ExplosionEvent;
+import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.minecraftforge.fml.common.Mod;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /** Shared explosion logic (the add-on's animation.gojira.mine timeline). */
+@Mod.EventBusSubscriber(modid = GodzillaMinusOne.MODID, bus = Mod.EventBusSubscriber.Bus.FORGE)
 public final class Blasts {
+    /** Entities an explosion going off right now must leave alone (a pilot bailing out of their plane). */
+    private static final Set<Entity> SPARED = new HashSet<>();
+
     /**
      * A naval mine (or a Shinden flown into Godzilla) going off: huge damage to everything nearby,
-     * Shinden pilots only get scratched, and Godzilla loses a slice of his health and is stunned.
+     * Shinden pilots (and the one who just bailed out, {@code attacker} when {@code mine} is their plane) only get
+     * scratched, and Godzilla loses a slice of his health and is stunned.
      */
     public static void navalMine(ServerLevel level, Vec3 pos, @Nullable Entity mine, @Nullable Entity attacker) {
         double radius = Config.MINE_BLAST_RADIUS.get();
@@ -34,11 +46,33 @@ public final class Blasts {
         for (LivingEntity target : livingNear(level, pos, radius, mine)) {
             if (target instanceof GodzillaEntity godzilla) {
                 godzilla.hitByNavalMine(source);
-            } else if (isPilot(target)) {
+            } else if (isPilot(target) || (mine instanceof ShindenEntity && target == attacker)) {
                 target.hurt(source, Config.PILOT_BLAST_DAMAGE.get().floatValue());
             } else {
                 target.hurt(source, clampDamage(Config.MINE_BLAST_DAMAGE.get()));
             }
+        }
+    }
+
+    /**
+     * A plane flown into the ground: an ordinary (block-breaking) explosion of the given power, which spares the
+     * pilot bailing out of it.
+     */
+    public static void impact(ServerLevel level, Vec3 pos, float power, Entity source, @Nullable Entity pilot) {
+        if (pilot != null) {
+            SPARED.add(pilot);
+        }
+        try {
+            level.explode(source, pos.x, pos.y, pos.z, power, Level.ExplosionInteraction.TNT);
+        } finally {
+            SPARED.clear();
+        }
+    }
+
+    @SubscribeEvent
+    public static void onExplosion(ExplosionEvent.Detonate event) {
+        if (!SPARED.isEmpty()) {
+            event.getAffectedEntities().removeIf(SPARED::contains);
         }
     }
 

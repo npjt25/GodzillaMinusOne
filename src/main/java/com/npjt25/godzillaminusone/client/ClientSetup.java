@@ -4,6 +4,7 @@ import com.npjt25.godzillaminusone.GodzillaMinusOne;
 import com.npjt25.godzillaminusone.client.particle.Fx;
 import com.npjt25.godzillaminusone.client.render.GodzillaRenderer;
 import com.npjt25.godzillaminusone.client.render.NavalMineRenderer;
+import com.npjt25.godzillaminusone.client.render.OdoIslandMonsterRenderer;
 import com.npjt25.godzillaminusone.client.render.ShindenRenderer;
 import com.npjt25.godzillaminusone.entity.EffectHooks;
 import com.npjt25.godzillaminusone.registry.ModEntities;
@@ -31,6 +32,7 @@ public final class ClientSetup {
         event.registerEntityRenderer(ModEntities.GODZILLA.get(), GodzillaRenderer::new);
         event.registerEntityRenderer(ModEntities.SHINDEN.get(), ShindenRenderer::new);
         event.registerEntityRenderer(ModEntities.NAVAL_MINE.get(), NavalMineRenderer::new);
+        event.registerEntityRenderer(ModEntities.ODO_ISLAND_MONSTER.get(), OdoIslandMonsterRenderer::new);
     }
 
     @SubscribeEvent

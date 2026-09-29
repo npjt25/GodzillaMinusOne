@@ -57,13 +57,14 @@ import software.bernie.geckolib.util.GeckoLibUtil;
  */
 public class ShindenEntity extends Mob implements GeoEntity {
     private static final RawAnimation FLY = RawAnimation.begin().thenLoop("animation.kplane.fly");
-    private static final RawAnimation TURNING = RawAnimation.begin().thenLoop("animation.kplane.turning");
     private static final RawAnimation FIRE = RawAnimation.begin().thenPlay("animation.kplane.fire");
 
     /** Below this speed the plane can't hold altitude. */
     private static final double STALL_SPEED = 0.35;
     /** Hitting something at this fraction of top speed or more is a crash. */
     private static final double CRASH_SPEED = 0.75;
+    /** A crash goes off like five blocks of TNT (TNT is 4). */
+    private static final float CRASH_EXPLOSION_POWER = 20.0F;
 
     private static final EntityDataAccessor<Integer> DATA_HURT_TIME = SynchedEntityData.defineId(ShindenEntity.class, EntityDataSerializers.INT);
     private static final EntityDataAccessor<Integer> DATA_HURT_DIR = SynchedEntityData.defineId(ShindenEntity.class, EntityDataSerializers.INT);
@@ -73,6 +74,10 @@ public class ShindenEntity extends Mob implements GeoEntity {
     private double flightSpeed;
     private boolean exploded;
     private boolean crashed;
+    // Client side: how far the plane leans into a turn (degrees, right wing down is positive).
+    private float bank;
+    private float bankO;
+    private float bankYaw;
 
     public ShindenEntity(EntityType<? extends ShindenEntity> type, Level level) {
         super(type, level);
@@ -103,6 +108,15 @@ public class ShindenEntity extends Mob implements GeoEntity {
     @Override
     public void tick() {
         super.tick();
+        if (level().isClientSide) {
+            // Level flight; it only leans into turns, as far as it is turning.
+            this.bankO = this.bank;
+            float turn = Mth.wrapDegrees(getYRot() - this.bankYaw);
+            this.bankYaw = getYRot();
+            float wanted = isVehicle() ? Mth.clamp(turn * 3.5F, -40.0F, 40.0F) : 0.0F;
+            this.bank += (wanted - this.bank) * 0.2F;
+            return;
+        }
         // like a boat, knocks wear off again
         if (getWobbleTime() > 0) {
             this.entityData.set(DATA_HURT_TIME, getWobbleTime() - 1);
@@ -110,6 +124,11 @@ public class ShindenEntity extends Mob implements GeoEntity {
         if (getWobbleDamage() > 0.0F) {
             this.entityData.set(DATA_DAMAGE, Math.max(0.0F, getWobbleDamage() - 1.0F));
         }
+    }
+
+    /** How far the plane leans into a turn (degrees, right wing down is positive). */
+    public float getBank(float partialTick) {
+        return Mth.lerp(partialTick, this.bankO, this.bank);
     }
 
     public static AttributeSupplier.Builder createAttributes() {
@@ -187,8 +206,8 @@ public class ShindenEntity extends Mob implements GeoEntity {
             this.crashed = true;
             if (level().isClientSide) {
                 ModNetwork.CHANNEL.sendToServer(new ShindenCrashPacket(getId()));
-            } else {
-                explode();
+            } else if (getControllingPassenger() instanceof Player pilot) {
+                crash(pilot);
             }
         }
         if (this.horizontalCollision) {
@@ -268,6 +287,10 @@ public class ShindenEntity extends Mob implements GeoEntity {
 
     /** Blows up like a naval mine; the pilot bails out with a "parachute" (Slow Falling). */
     public void explode() {
+        explode(false);
+    }
+
+    private void explode(boolean impact) {
         if (this.exploded || !(level() instanceof ServerLevel level)) {
             return;
         }
@@ -279,14 +302,18 @@ public class ShindenEntity extends Mob implements GeoEntity {
             living.setDeltaMovement(getDeltaMovement().scale(0.3).add(0.0, 1.4, 0.0));
             living.hurtMarked = true;
         }
-        Blasts.navalMine(level, position().add(0.0, 1.5, 0.0), this, pilot);
+        Vec3 at = position().add(0.0, 1.5, 0.0);
+        Blasts.navalMine(level, at, this, pilot);
+        if (impact) {
+            Blasts.impact(level, at, CRASH_EXPLOSION_POWER, this, pilot);
+        }
         discard();
     }
 
-    /** Called (on the server) when the pilot's client reports a crash at full speed. */
+    /** Called (on the server) when the pilot flies it into something at (near) full speed: a huge explosion. */
     public void crash(Player pilot) {
         if (getControllingPassenger() == pilot && isAlive()) {
-            explode();
+            explode(true);
         }
     }
 
@@ -382,7 +409,6 @@ public class ShindenEntity extends Mob implements GeoEntity {
         controllers.add(new AnimationController<>(this, "flight", 5,
                 state -> isVehicle() ? state.setAndContinue(FLY) : PlayState.STOP)
                 .setSoundKeyframeHandler(this::onSoundKeyframe));
-        controllers.add(new AnimationController<>(this, "turning", 0, state -> isVehicle() ? state.setAndContinue(TURNING) : PlayState.STOP));
         controllers.add(new AnimationController<>(this, "guns", 0, state -> PlayState.STOP)
                 .triggerableAnim("fire", FIRE)
                 .setSoundKeyframeHandler(this::onSoundKeyframe)

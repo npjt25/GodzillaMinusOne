@@ -327,6 +327,11 @@ public class GodzillaEntity extends Monster implements GeoEntity {
         setPhase(Phase.ACTIVE);
     }
 
+    /** Starts him off rising to his feet with a roar instead of emerging from the ground (a burnt Odo Island Monster). */
+    public void awaken() {
+        setPhase(Phase.RISING);
+    }
+
     public int getBreathCooldown() {
         return this.breathCooldown;
     }
@@ -1214,10 +1219,20 @@ public class GodzillaEntity extends Monster implements GeoEntity {
 
     // ------------------------------------------------------------------ AI
 
-    /** Vanilla MoveControl turns up to 90 degrees a tick; a 45 block kaiju turns slowly (add-on: max_turn 15). */
+    /**
+     * Walks straight at the wanted position, no pathfinding. Vanilla MoveControl turns up to 90 degrees a tick; a
+     * 45 block kaiju turns slowly (add-on: max_turn 15).
+     */
     static class GodzillaMoveControl extends MoveControl {
+        private final float maxTurn;
+
         GodzillaMoveControl(Mob mob) {
+            this(mob, 5.0F);
+        }
+
+        GodzillaMoveControl(Mob mob, float maxTurn) {
             super(mob);
+            this.maxTurn = maxTurn;
         }
 
         @Override
@@ -1231,7 +1246,7 @@ public class GodzillaEntity extends Monster implements GeoEntity {
                     return;
                 }
                 float yaw = (float) (Mth.atan2(dz, dx) * Mth.RAD_TO_DEG) - 90.0F;
-                this.mob.setYRot(this.rotlerp(this.mob.getYRot(), yaw, 5.0F));
+                this.mob.setYRot(this.rotlerp(this.mob.getYRot(), yaw, this.maxTurn));
                 float speed = (float) (this.speedModifier * this.mob.getAttributeValue(Attributes.MOVEMENT_SPEED));
                 float turn = Mth.degreesDifferenceAbs(this.mob.getYRot(), yaw);
                 this.mob.setSpeed(turn > 60.0F ? speed * 0.25F : speed);
