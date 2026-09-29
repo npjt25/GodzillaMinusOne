@@ -214,8 +214,14 @@ public final class ModGameTests {
         });
     }
 
+    /**
+     * Floating at the surface, his 40 block tall hitbox reaches far above the test's pocket into whatever rock the
+     * (random) test world has there, which would stop him rising: the pool gets a clear, walled shaft above it.
+     */
+    private static final int POOL_HEADROOM = 44;
+
     private static void fillPool(GameTestHelper helper, int floor, int depth, boolean drain) {
-        for (int y = floor + depth + 1; y >= floor; y--) {
+        for (int y = floor + depth + POOL_HEADROOM; y >= floor; y--) {
             for (int x = -3; x <= 11; x++) {
                 for (int z = -3; z <= 11; z++) {
                     boolean wall = x == -3 || x == 11 || z == -3 || z == 11 || y == floor;
@@ -223,7 +229,7 @@ public final class ModGameTests {
                     if (drain) {
                         state = y == floor && x >= 0 && x <= 8 && z >= 0 && z <= 8 ? Blocks.STONE.defaultBlockState() : Blocks.AIR.defaultBlockState();
                     } else if (y > floor + depth) {
-                        state = Blocks.AIR.defaultBlockState();
+                        state = wall ? Blocks.BARRIER.defaultBlockState() : Blocks.AIR.defaultBlockState();
                     } else {
                         state = wall ? Blocks.BARRIER.defaultBlockState() : Blocks.WATER.defaultBlockState();
                     }
