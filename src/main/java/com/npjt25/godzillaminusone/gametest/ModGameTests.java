@@ -142,14 +142,14 @@ public final class ModGameTests {
 
     /**
      * Game tests run in a pocket dug out at y -60 of a normal world, so the beam hits rock right at his mouth.
-     * The pig waits in a sealed cell 30 blocks ahead: out of his sight and out of reach of the heat around him
+     * The pig waits in a sealed cell 40 blocks ahead: out of his sight and beyond his footsteps and the heat around him
      * while he charges, but well inside the blast.
      */
     @GameTest(template = FLOOR, batch = "gmo_atomic_breath", timeoutTicks = 560)
     public static void atomicBreathKillsHisTargetThenRecharges(GameTestHelper helper) {
         GodzillaEntity godzilla = spawnActiveGodzilla(helper);
         int floor = floorY(helper);
-        BlockPos cell = new BlockPos(4, floor + 1, 34);
+        BlockPos cell = new BlockPos(4, floor + 1, 44);
         for (BlockPos wall : new BlockPos[]{cell.below(), cell.above(), cell.north(), cell.south(), cell.east(), cell.west()}) {
             helper.setBlock(wall, Blocks.STONE.defaultBlockState());
         }
