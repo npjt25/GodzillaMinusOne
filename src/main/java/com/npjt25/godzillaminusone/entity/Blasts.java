@@ -95,7 +95,7 @@ public final class Blasts {
         }
         int amplifier = Config.ATOMIC_BLAST_RADIATION_AMPLIFIER.get();
         for (LivingEntity entity : livingNear(level, impact, Config.ATOMIC_BLAST_RADIATION_RADIUS.get(), except)) {
-            if (!(entity instanceof GodzillaEntity)) {
+            if (!(entity instanceof GodzillaEntity) && !(entity instanceof OdoIslandMonsterEntity odo && odo.isBurnt())) {
                 entity.addEffect(new MobEffectInstance(MobEffects.WITHER, 600, amplifier), source.getEntity());
             }
         }

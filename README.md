@@ -1,14 +1,22 @@
 # Godzilla Minus One — Forge 1.20.1
 
 A Minecraft Java Edition (Forge 1.20.1, GeckoLib 4) port of the Bedrock add-on
-**"Godzilla Minus One V3" by GojiDraw**. Godzilla is drawn with the high-detail
+**"Godzilla Minus One" V3 by GojiDraw**. Godzilla is the add-on's model in charcoal grey, made bigger and
+given more detail: layered dorsal plates, a pebbled, scarred hide and rows of teeth, using the
 [Godzilla Minus One model by ArachnoBoy](https://sketchfab.com/3d-models/godzilla-minus-one-ccaf341a3e734263a88cecb5c49eac0e)
-(in charcoal grey), rigged to the add-on's skeleton so he moves with its animations. The Shinden, naval
-mine, sounds and effects come from the add-on.
+only as a reference (none of it is in the mod). The Shinden, naval mine, sounds and effects come from the
+add-on. The mod also adds the **Odo Island Monster** (Godzilla's smaller, dinosaur-like form from the start
+of the film), a **searchlight** and a **nuclear bomb**.
 
 ![Godzilla idle, charging, and breathing in](docs/godzilla_preview.png)
 
 *Left: idle. Middle: charging, the dorsal plates lighting up from the tail. Right: the in-breath before the beam.*
+
+![The Odo Island Monster](docs/odo_preview.png)
+
+*The Odo Island Monster: standing, roaring, and burnt to a crisp by a nuclear bomb.*
+
+![Searchlight and nuclear bomb](docs/props_preview.png)
 
 ## Requirements
 
@@ -28,21 +36,24 @@ mine, sounds and effects come from the add-on.
 | `goji:nuclear_hole` | The crater and blast wave left by the atomic breath |
 | Nuclear explosion particles | A 3D fireball and mushroom cloud (`client/render/NuclearCloud.java`) |
 | Particles, camera shakes, custom boss bar | Recreated in Java (see `client/`); the fade to black is a blur instead |
+| *(new)* | **Odo Island Monster** (`godzillaminusone:odo_island_monster`), with its spawn egg |
+| *(new)* | **Searchlight**, a mountable WWII searchlight |
+| *(new)* | **Nuclear Bomb**, called in from the sky |
 
 ### Godzilla
 
-- About 45 blocks tall and 80 long. Spawns from his egg by rising out of the ground and roaring, then becomes
+- About 45 blocks tall and 70 long. Spawns from his egg by rising out of the ground and roaring, then becomes
   active (with the add-on's boss bar).
 - **Radiation aura**: anything within 16 blocks gets "RADIATION POISONING" and Wither.
 - Every footfall shakes the camera, hurts everything near him and **crushes a footprint** of rubble into the
   ground. He smashes through blocks (needs `mobGriefing`).
 - Attacks with bites, stomps and tail swipes.
 - With a target he **charges his atomic breath**: the dorsal plates light up blue one by one from the tail to
-  the neck as they punch up, mobs freeze in fear, he breathes in for 4 seconds, then fires with his head angled
+  the neck as they punch up, mobs freeze in fear, he breathes in for 4 seconds (the in-breath sound lasts exactly as long), then fires with his head angled
   up (he tilts it further up at planes). Where the beam lands a **nuclear blast** kills everything around it,
   blasts out a large crater, flattens trees and buildings and scorches the ground in a wide ring, and a 3D
-  fireball rises into a mushroom cloud. Everyone nearby sees a blur, the sky clouds over with (black) rain for
-  2 minutes, then clears. He then needs **3 minutes to recharge** before the next breath.
+  fireball rises into a mushroom cloud. Everyone nearby sees a blur, then black rain falls around ground zero
+  (just particles: the weather isn't changed). He then needs **3 minutes to recharge** before the next breath.
 - **A plane in the air always comes first**: if someone is flying a Shinden, he goes after it.
 - He regenerates while calm and likes to wander into water. In shallow water he walks along the bottom; in deep
   water he **swims at the surface** with his dorsal plates out of the water, runs down boats and bites at them
@@ -53,10 +64,13 @@ mine, sounds and effects come from the add-on.
 ### Kyushu J7W1 Shinden
 
 - Right-click to climb in. **W** accelerates, **S** brakes, the mouse steers: look up to climb, down to dive.
+  The plane stays level in flight and only banks into left and right turns.
 - You get the **Torrid** while seated (right-click to fire forward); it disappears when you get out.
 - Pilots have the add-on's "plot armour": Godzilla's blasts barely scratch them.
-- Fly within 15 blocks of Godzilla, or crash into something at (near) full speed, and the plane detonates like
-  a naval mine — the film's ending — and you bail out with Slow Falling as a parachute.
+- Fly within 15 blocks of Godzilla and the plane detonates like a naval mine (the film's ending), and you bail
+  out with Slow Falling as a parachute.
+- Crash into something at (near) full speed and it explodes on impact as big as **5 TNT** (a block-breaking
+  explosion of power 20). You bail out and the explosion spares you.
 - Hit it like a boat: it rocks, and a few hits knock it back into its item (one hit in creative).
 - **Multiplayer servers**: set `allow-flight=true` in `server.properties`, or flying players get kicked.
 
@@ -65,6 +79,35 @@ mine, sounds and effects come from the add-on.
 - Floats on water; can be leashed and towed.
 - Anything that damages it sets it off: arrows, Godzilla's footsteps, his radiation.
 - Blast radius 30. Sneak-punch it with an empty hand to pick it back up.
+
+### Odo Island Monster
+
+- Godzilla's first form from Odo Island: a shorter, dinosaur-like Godzilla, **15 blocks tall**, 600 health.
+- Left alone he wanders and ignores you, but get within about 16 blocks and he **charges**: he runs you down,
+  crashing through trees and fences, and **bites** or **stomps** you.
+- **Caught in a searchlight's beam he goes berserk**: he roars and comes for whoever is working the light, and
+  stays enraged for a minute.
+- **Nuke him** with a Nuclear Bomb and he doesn't die: he collapses, **burnt to a crisp**, the embers in his
+  hide slowly going out. Nothing can hurt him while he lies there. **Three minutes later he rises again as
+  Godzilla.** (Godzilla's own atomic breath just kills him.)
+
+### Searchlight
+
+- Crafted from iron ingots, glass, a redstone lamp and iron blocks (iron ingot, glass, iron ingot / iron
+  ingot, redstone lamp, iron ingot / three iron blocks). Right-click the ground to set it up facing the way
+  you look.
+- Right-click it to sit at it: the lamp turns and tilts with where you look, and while you're manning it the
+  beam is lit, reaching 160 blocks and lighting up where it lands. Sneak to get off.
+- Hit it like a boat to knock it back into its item.
+
+### Nuclear Bomb
+
+- Crafted from netherite ingots in the corners, TNT on the sides and a nether star in the middle.
+- Use it while looking at a spot up to 256 blocks away: a bomb is dropped from high above it, marked by a red
+  flare and a column of smoke. Everyone nearby gets a countdown; it **falls for 20 seconds**, whistling over
+  the last seconds, then goes off like Godzilla's atomic blast (same kill radius, radiation, crater and
+  mushroom cloud; see the atomic blast options in the config). It goes off early if it hits something on the
+  way down, such as a roof. Stand well back: the kill radius is 64 blocks by default.
 
 ## Configuration
 
@@ -92,23 +135,26 @@ pip install pillow numpy imageio-ffmpeg
 python3 tools/convert_addon.py path/to/extracted/addon
 ```
 
-Then rebuild the high-detail Godzilla from the Sketchfab download and adapt the animations to it:
+Then add the detail to Godzilla, edit the animations, and build the rest:
 
 ```
-python3 tools/build_godzilla_mesh.py path/to/extracted/godzilla_minus_one   # skinned mesh, skeleton, textures
-python3 tools/edit_animations.py                                           # bigger model, in-breath, swim bite
-python3 tools/make_cloud_textures.py                                       # noise textures of the 3D explosion
+python3 tools/detail_godzilla.py        # plates, scales, teeth; the finer hide in higher-resolution textures
+python3 tools/edit_animations.py        # the 4 s in-breath, head up 10 degrees, longer beam, swimming bite
+python3 tools/make_sounds.py            # the in-breath and the falling bomb's whistle
+python3 tools/make_odo_model.py         # the Odo Island Monster: model, textures, animations (odo_animations.py)
+python3 tools/make_props.py             # the searchlight and nuclear bomb models
+python3 tools/make_icons.py             # item icons of the new items
+python3 tools/make_cloud_textures.py    # noise textures of the 3D explosion
 ```
 
-Previews without starting the game: `tools/preview_godzilla.py` poses the skinned mesh with any animation frame,
-`tools/preview_cloud.py` renders the nuclear explosion at given times, `tools/render_preview.py` renders a
-cube model with its texture.
+Previews without starting the game: `tools/render_preview.py` renders a cube model with its texture (and any
+animation frame), `tools/preview_cloud.py` renders the nuclear explosion at given times.
 
 ## Credits
 
 Original Bedrock add-on (models, textures, animations, sounds): **GojiDraw**. The add-on is marked
 "Bedrock only"; this port is for personal use. Ask GojiDraw before publishing it anywhere.
 
-High-detail Godzilla model: ["Godzilla Minus One" by ArachnoBoy](https://sketchfab.com/3d-models/godzilla-minus-one-ccaf341a3e734263a88cecb5c49eac0e),
-Sketchfab Standard licence.
+Godzilla's added detail was modelled with ["Godzilla Minus One" by ArachnoBoy](https://sketchfab.com/3d-models/godzilla-minus-one-ccaf341a3e734263a88cecb5c49eac0e)
+as a visual reference; none of that model is included.
 Godzilla is a trademark of Toho Co., Ltd.

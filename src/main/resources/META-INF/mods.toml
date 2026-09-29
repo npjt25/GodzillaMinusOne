@@ -7,7 +7,7 @@ modId="${mod_id}"
 version="${mod_version}"
 displayName="${mod_name}"
 authors="${mod_authors}"
-credits="Original Bedrock add-on, models, textures, animations and sounds by GojiDraw. High-detail Godzilla model \"Godzilla Minus One\" by ArachnoBoy (Sketchfab)."
+credits="Original Bedrock add-on, models, textures, animations and sounds by GojiDraw. Godzilla's added detail was modelled with \"Godzilla Minus One\" by ArachnoBoy (Sketchfab) as a visual reference."
 description='''${mod_description}'''
 
 [[dependencies.${mod_id}]]

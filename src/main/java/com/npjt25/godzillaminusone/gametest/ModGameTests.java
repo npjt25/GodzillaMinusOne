@@ -1,10 +1,15 @@
 package com.npjt25.godzillaminusone.gametest;
 
 import com.npjt25.godzillaminusone.GodzillaMinusOne;
+import com.npjt25.godzillaminusone.entity.Blasts;
 import com.npjt25.godzillaminusone.entity.Destruction;
 import com.npjt25.godzillaminusone.entity.GodzillaEntity;
 import com.npjt25.godzillaminusone.entity.NavalMineEntity;
+import com.npjt25.godzillaminusone.entity.NuclearBombEntity;
+import com.npjt25.godzillaminusone.entity.OdoIslandMonsterEntity;
+import com.npjt25.godzillaminusone.entity.SearchlightEntity;
 import com.npjt25.godzillaminusone.entity.ShindenEntity;
+import com.npjt25.godzillaminusone.registry.ModDamageTypes;
 import com.npjt25.godzillaminusone.registry.ModEntities;
 import com.npjt25.godzillaminusone.registry.ModItems;
 import net.minecraft.core.BlockPos;
@@ -16,9 +21,12 @@ import net.minecraft.world.entity.animal.Pig;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.gametest.GameTestHolder;
 import net.minecraftforge.gametest.PrefixGameTestTemplate;
+
+import java.util.List;
 
 /**
  * Server-side checks of the add-on behaviour, run headless in CI with {@code ./gradlew runGameTestServer}.
@@ -253,6 +261,102 @@ public final class ModGameTests {
         plane.hurt(helper.getLevel().damageSources().playerAttack(player), 5.0F);
         helper.assertTrue(plane.isRemoved(), "a few hits should knock it down like a boat");
         helper.assertItemEntityPresent(ModItems.SHINDEN_SPAWN_EGG.get(), new BlockPos(4, 1, 4), 3.0);
+        helper.succeed();
+    }
+
+    private static OdoIslandMonsterEntity spawnOdo(GameTestHelper helper, int floor, int z) {
+        for (GodzillaEntity leftover : helper.getLevel().getEntities(ModEntities.GODZILLA.get(), e -> true)) {
+            leftover.discard();
+        }
+        for (OdoIslandMonsterEntity leftover : helper.getLevel().getEntities(ModEntities.ODO_ISLAND_MONSTER.get(), e -> true)) {
+            leftover.discard();
+        }
+        return helper.spawn(ModEntities.ODO_ISLAND_MONSTER.get(), new Vec3(4.5, floor + 1, z + 0.5));
+    }
+
+    @GameTest(template = FLOOR, batch = "gmo_odo_burnt", timeoutTicks = 120)
+    public static void aNukedOdoMonsterLiesBurntThenRisesAsGodzilla(GameTestHelper helper) {
+        OdoIslandMonsterEntity odo = spawnOdo(helper, floorY(helper), 4);
+        Blasts.nuclearHit(odo, ModDamageTypes.source(helper.getLevel(), ModDamageTypes.NUCLEAR_BOMB, null), true);
+        helper.assertTrue(odo.isBurnt() && odo.isAlive(), "a nuke should burn him, not kill him");
+        helper.assertTrue(odo.getBurntTicksLeft() == 3 * 60 * 20, "he should lie burnt for 3 minutes, " + odo.getBurntTicksLeft() + " ticks");
+        helper.assertFalse(odo.hurt(helper.getLevel().damageSources().generic(), 1000.0F), "burnt, he can't be hurt any more");
+        odo.setBurntTicksLeft(20);
+        Vec3 where = odo.position();
+        helper.succeedWhen(() -> {
+            helper.assertTrue(odo.isRemoved(), "after lying burnt he should be gone");
+            List<GodzillaEntity> godzillas = helper.getLevel().getEntitiesOfClass(GodzillaEntity.class, new AABB(where, where).inflate(4.0));
+            helper.assertTrue(godzillas.size() == 1, "he should rise again as Godzilla");
+            helper.assertTrue(godzillas.get(0).getPhase() == GodzillaEntity.Phase.RISING, "Godzilla should rise roaring, was "
+                    + godzillas.get(0).getPhase());
+            remove(godzillas.get(0));
+        });
+    }
+
+    /** A bomb dropped from a few blocks up (it falls from 200 in the game): the monster is burnt, a pig is not so lucky. */
+    @GameTest(template = FLOOR, batch = "gmo_bomb", timeoutTicks = 160)
+    public static void aNuclearBombBurnsTheOdoMonster(GameTestHelper helper) {
+        int floor = floorY(helper);
+        OdoIslandMonsterEntity odo = spawnOdo(helper, floor, 4);
+        Pig pig = helper.spawn(EntityType.PIG, new Vec3(4.5, floor + 1, 16.5));
+        NuclearBombEntity bomb = NuclearBombEntity.drop(helper.getLevel(), helper.absoluteVec(new Vec3(4.5, floor + 1, 10.5)), null, 30, 8.0);
+        helper.assertTrue(bomb != null, "the bomb should be dropped");
+        helper.runAtTickTime(25, () -> {
+            helper.assertFalse(bomb.isRemoved(), "the bomb should still be falling");
+            helper.assertFalse(odo.isBurnt(), "nothing should have happened yet");
+        });
+        long[] boom = {-1};
+        helper.succeedWhen(() -> {
+            helper.assertTrue(bomb.isRemoved(), "the bomb should have gone off");
+            helper.assertTrue(odo.isBurnt() && odo.isAlive(), "the monster should be burnt, not dead");
+            helper.assertFalse(pig.isAlive(), "the blast should kill the pig");
+            if (boom[0] < 0) {
+                boom[0] = helper.getTick();
+            }
+            // let the blast wave finish before the next test is set up next door
+            helper.assertTrue(helper.getTick() - boom[0] >= 60, "waiting for the blast wave to pass");
+            remove(odo);
+        });
+    }
+
+    @GameTest(template = FLOOR, batch = "gmo_searchlight", timeoutTicks = 60)
+    public static void aSearchlightOnTheOdoMonsterEnragesIt(GameTestHelper helper) {
+        int floor = floorY(helper);
+        // a clear view down to him (the test's pocket may end before he does)
+        for (int x = 0; x <= 8; x++) {
+            for (int y = floor + 1; y <= floor + 4; y++) {
+                for (int z = 0; z <= 18; z++) {
+                    helper.setBlock(new BlockPos(x, y, z), Blocks.AIR.defaultBlockState());
+                }
+            }
+        }
+        OdoIslandMonsterEntity odo = spawnOdo(helper, floor, 14);
+        odo.setNoAi(true);
+        SearchlightEntity light = helper.spawn(ModEntities.SEARCHLIGHT.get(), new Vec3(4.5, floor + 1, 2.5));
+        Pig operator = helper.spawn(EntityType.PIG, new Vec3(4.5, floor + 1, 1.5));
+        operator.setNoAi(true);
+        helper.assertTrue(operator.startRiding(light), "the searchlight should be mountable");
+        operator.setYRot(0.0F); // looking south, down the corridor at him
+        operator.setXRot(0.0F);
+        helper.assertFalse(odo.getTarget() == operator, "he shouldn't be after anyone yet");
+        helper.succeedWhen(() -> {
+            helper.assertTrue(light.isLit(), "manned, the searchlight should be lit");
+            helper.assertTrue(odo.getTarget() == operator, "caught in the beam he should go for the operator, target " + odo.getTarget());
+            helper.assertTrue(odo.getState() == OdoIslandMonsterEntity.STATE_ANGRY, "he should be enraged");
+            remove(odo, operator, light);
+        });
+    }
+
+    @GameTest(template = FLOOR, batch = "gmo_crash")
+    public static void aCrashExplosionSparesThePilot(GameTestHelper helper) {
+        int floor = floorY(helper);
+        ShindenEntity plane = helper.spawn(ModEntities.SHINDEN.get(), new Vec3(4.5, floor + 1, 4.5));
+        Pig pilot = helper.spawn(EntityType.PIG, new Vec3(4.5, floor + 1, 4.5));
+        Pig bystander = helper.spawn(EntityType.PIG, new Vec3(4.5, floor + 1, 8.5));
+        Blasts.impact(helper.getLevel(), plane.position(), 20.0F, plane, pilot);
+        helper.assertTrue(pilot.isAlive() && pilot.getHealth() == pilot.getMaxHealth(), "the pilot should be spared");
+        helper.assertFalse(bystander.isAlive(), "a 5x TNT blast should kill a pig 4 blocks away");
+        remove(plane, pilot);
         helper.succeed();
     }
 }

@@ -64,15 +64,17 @@ public class NuclearBombEntity extends Entity implements GeoEntity {
 
     /** Drops a bomb on {@code target}: it lands 20 seconds from now. */
     public static void drop(ServerLevel level, Vec3 target, @Nullable Entity owner) {
-        drop(level, target, owner, FALL_TICKS);
+        drop(level, target, owner, FALL_TICKS, DROP_HEIGHT);
     }
 
-    public static NuclearBombEntity drop(ServerLevel level, Vec3 target, @Nullable Entity owner, int fallTicks) {
+    /** Drops a bomb from {@code height} blocks above {@code target} (at most), to land {@code fallTicks} from now. */
+    @Nullable
+    public static NuclearBombEntity drop(ServerLevel level, Vec3 target, @Nullable Entity owner, int fallTicks, double height) {
         NuclearBombEntity bomb = ModEntities.NUCLEAR_BOMB.get().create(level);
         if (bomb == null) {
             return null;
         }
-        double top = Math.max(target.y + 8.0, Math.min(target.y + DROP_HEIGHT, level.getMaxBuildHeight() - 4.0));
+        double top = Math.max(target.y + Math.min(8.0, height), Math.min(target.y + height, level.getMaxBuildHeight() - 4.0));
         bomb.target = target;
         bomb.fuse = fallTicks;
         bomb.fallSpeed = (top - target.y) / fallTicks;
@@ -110,7 +112,8 @@ public class NuclearBombEntity extends Entity implements GeoEntity {
         if (this.fuse == WHISTLE_TICKS) {
             level.playSound(null, this.target.x, this.target.y + 20.0, this.target.z, ModSounds.NUKE_WHISTLE.get(), SoundSource.HOSTILE, 16.0F, 1.0F);
         }
-        boolean hitSomething = this.fuse < FALL_TICKS - 20 && !level.getBlockState(blockPosition()).getCollisionShape(level, blockPosition()).isEmpty();
+        // it goes off on whatever it hits on the way down (a roof, the ground over a cave) after its first second
+        boolean hitSomething = this.tickCount > 20 && !level.getBlockState(blockPosition()).getCollisionShape(level, blockPosition()).isEmpty();
         if (this.fuse <= 0 || hitSomething) {
             detonate(level, this.fuse <= 0 ? this.target : position());
         }

@@ -133,7 +133,7 @@ def searchlight():
     lamp = {"parent": "turret", "pivot": [0, 20, 0], "cubes": []}
     lamp["cubes"] += octagon(0, 20, 1, 24, 22, "metal")       # the drum
     lamp["cubes"] += octagon(0, 20, -10.8, 25, 2, "dark")     # front rim
-    lamp["cubes"] += octagon(0, 20, -11.2, 21, 1, "lens")     # the glass
+    lamp["cubes"] += octagon(0, 20, -12.0, 21, 0.5, "lens")   # the glass, just proud of the rim
     lamp["cubes"] += octagon(0, 20, 12.8, 18, 2, "dark")      # rear cap
     lamp["cubes"].append(box(0, 20, 14.5, 6, 6, 2, "dark"))   # the arc lamp housing
     lamp["cubes"].append(box(0, 33, 3, 6, 4, 8, "dark"))      # vent on top
