@@ -115,10 +115,27 @@ public class SearchlightEntity extends Entity implements GeoEntity {
 
     /** Where the beam ends: the first block it hits, or its full reach. */
     public Vec3 beamEnd() {
+        return beamHit(level()).getLocation();
+    }
+
+    private HitResult beamHit(Level level) {
         Vec3 from = lens();
-        Vec3 to = from.add(beamDirection().scale(RANGE));
-        HitResult hit = level().clip(new ClipContext(from, to, ClipContext.Block.VISUAL, ClipContext.Fluid.NONE, this));
-        return hit.getLocation();
+        Vec3 dir = beamDirection();
+        Vec3 to = from.add(dir.scale(loadedReach(level, from, dir, RANGE)));
+        return level.clip(new ClipContext(from, to, ClipContext.Block.VISUAL, ClipContext.Fluid.NONE, this));
+    }
+
+    /**
+     * How far a ray from {@code from} can go (up to {@code range}) before it leaves the loaded chunks: a raycast into
+     * unloaded chunks would load them, on the server synchronously.
+     */
+    public static double loadedReach(Level level, Vec3 from, Vec3 dir, double range) {
+        for (double d = 8.0; d < range + 8.0; d += 8.0) {
+            if (!level.hasChunkAt(BlockPos.containing(from.add(dir.scale(Math.min(d, range)))))) {
+                return Math.max(0.0, d - 8.0);
+            }
+        }
+        return range;
     }
 
     // ------------------------------------------------------------------ riding
@@ -211,7 +228,7 @@ public class SearchlightEntity extends Entity implements GeoEntity {
     private void shine(ServerLevel level, LivingEntity operator) {
         Vec3 from = lens();
         Vec3 dir = beamDirection();
-        HitResult hit = level.clip(new ClipContext(from, from.add(dir.scale(RANGE)), ClipContext.Block.VISUAL, ClipContext.Fluid.NONE, this));
+        HitResult hit = beamHit(level);
         Vec3 end = hit.getLocation();
         BlockPos light = null;
         if (hit instanceof BlockHitResult blockHit && hit.getType() == HitResult.Type.BLOCK) {
@@ -242,7 +259,8 @@ public class SearchlightEntity extends Entity implements GeoEntity {
 
     private void clearLight(Level level) {
         if (this.lightPos != null) {
-            BlockState state = level.getBlockState(this.lightPos);
+            // (a light left in a chunk that has since unloaded stays: loading the chunk just for it isn't worth it)
+            BlockState state = level.hasChunkAt(this.lightPos) ? level.getBlockState(this.lightPos) : Blocks.AIR.defaultBlockState();
             if (state.is(Blocks.LIGHT)) {
                 level.setBlock(this.lightPos, Blocks.AIR.defaultBlockState(), 3);
             }

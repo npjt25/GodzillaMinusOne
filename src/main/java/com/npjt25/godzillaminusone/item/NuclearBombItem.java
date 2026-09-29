@@ -1,6 +1,7 @@
 package com.npjt25.godzillaminusone.item;
 
 import com.npjt25.godzillaminusone.entity.NuclearBombEntity;
+import com.npjt25.godzillaminusone.entity.SearchlightEntity;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvents;
@@ -35,7 +36,8 @@ public class NuclearBombItem extends Item {
     public InteractionResultHolder<ItemStack> use(Level level, Player player, InteractionHand hand) {
         ItemStack stack = player.getItemInHand(hand);
         Vec3 eye = player.getEyePosition();
-        Vec3 to = eye.add(player.getLookAngle().scale(RANGE));
+        Vec3 look = player.getLookAngle();
+        Vec3 to = eye.add(look.scale(SearchlightEntity.loadedReach(level, eye, look, RANGE)));
         BlockHitResult hit = level.clip(new ClipContext(eye, to, ClipContext.Block.OUTLINE, ClipContext.Fluid.ANY, player));
         if (hit.getType() != HitResult.Type.BLOCK) {
             if (!level.isClientSide) {
