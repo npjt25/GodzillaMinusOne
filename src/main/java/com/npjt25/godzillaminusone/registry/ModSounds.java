@@ -27,10 +27,12 @@ public final class ModSounds {
     public static final RegistryObject<SoundEvent> GODZILLA_RADIATION = register("godzilla.radiation");
     public static final RegistryObject<SoundEvent> GODZILLA_CHARGE = register("godzilla.charge");
     public static final RegistryObject<SoundEvent> GODZILLA_FULL_CHARGE = register("godzilla.full_charge");
+    public static final RegistryObject<SoundEvent> GODZILLA_INHALE = register("godzilla.inhale");
     public static final RegistryObject<SoundEvent> GODZILLA_ATOMIC_BLAST = register("godzilla.atomic_blast");
     public static final RegistryObject<SoundEvent> SHINDEN_ENGINE = register("shinden.engine");
     public static final RegistryObject<SoundEvent> SHINDEN_GUN = register("shinden.gun");
     public static final RegistryObject<SoundEvent> NAVAL_MINE_EXPLODE = register("naval_mine.explode");
+    public static final RegistryObject<SoundEvent> NUKE_WHISTLE = register("nuke.whistle");
 
     private static RegistryObject<SoundEvent> register(String name) {
         RegistryObject<SoundEvent> sound = SOUNDS.register(name, () -> SoundEvent.createVariableRangeEvent(GodzillaMinusOne.id(name)));

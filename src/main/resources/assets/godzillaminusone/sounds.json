@@ -140,5 +140,21 @@
     "name": "godzillaminusone:naval_mine_naval_mine"
    }
   ]
+ },
+ "godzilla.inhale": {
+  "subtitle": "subtitles.godzillaminusone.godzilla.inhale",
+  "sounds": [
+   {
+    "name": "godzillaminusone:godzilla_inhale"
+   }
+  ]
+ },
+ "nuke.whistle": {
+  "subtitle": "subtitles.godzillaminusone.nuke.whistle",
+  "sounds": [
+   {
+    "name": "godzillaminusone:nuke_whistle"
+   }
+  ]
  }
 }

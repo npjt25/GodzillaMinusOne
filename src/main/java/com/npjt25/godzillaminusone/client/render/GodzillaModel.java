@@ -7,12 +7,10 @@ import net.minecraft.util.Mth;
 import software.bernie.geckolib.core.animation.AnimationState;
 import software.bernie.geckolib.model.DefaultedEntityGeoModel;
 
-/**
- * The add-on's skeleton and animations (geo/entity/godzilla.geo.json, animations/entity/godzilla.animation.json).
- * The visible model is the skinned mesh drawn by {@link GodzillaRenderer}.
- */
+/** geo/entity/godzilla.geo.json + animations/entity/godzilla.animation.json; the scorched skin once he collapses. */
 public class GodzillaModel extends DefaultedEntityGeoModel<GodzillaEntity> {
-    static final ResourceLocation BODY = GodzillaMinusOne.id("textures/entity/godzilla_body.png");
+    static final ResourceLocation NORMAL = GodzillaMinusOne.id("textures/entity/godzilla.png");
+    static final ResourceLocation DEAD = GodzillaMinusOne.id("textures/entity/godzilla_dead.png");
 
     public GodzillaModel() {
         super(GodzillaMinusOne.id("godzilla"));
@@ -20,7 +18,10 @@ public class GodzillaModel extends DefaultedEntityGeoModel<GodzillaEntity> {
 
     @Override
     public ResourceLocation getTextureResource(GodzillaEntity entity) {
-        return BODY;
+        return switch (entity.getPhase()) {
+            case COLLAPSING, DEAD -> DEAD;
+            default -> NORMAL;
+        };
     }
 
     /** Tilts the head (and with it the atomic breath, bone "B") towards his target. */

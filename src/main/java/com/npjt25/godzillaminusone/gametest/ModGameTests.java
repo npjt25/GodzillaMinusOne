@@ -189,8 +189,8 @@ public final class ModGameTests {
 
     @GameTest(template = FLOOR, batch = "gmo_swim", timeoutTicks = 300)
     public static void godzillaSwimsAtTheSurfaceOfDeepWater(GameTestHelper helper) {
-        // A 16 deep pool with unbreakable walls and bottom.
-        int depth = 16;
+        // A 20 deep pool with unbreakable walls and bottom.
+        int depth = 20;
         int floor = floorY(helper);
         fillPool(helper, floor, depth, false);
         GodzillaEntity godzilla = spawnActiveGodzilla(helper);

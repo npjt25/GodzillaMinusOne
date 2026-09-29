@@ -1,24 +1,21 @@
-"""Adapts the add-on's Godzilla animations to the high-detail model and adds the mod's own changes.
+"""Adds the mod's own changes to the add-on's Godzilla animations.
 
     python3 tools/edit_animations.py
 
-Run after tools/convert_addon.py and tools/build_godzilla_mesh.py. Edits
-animations/entity/godzilla.animation.json in place (and refuses to run twice):
+Run after tools/convert_addon.py. Edits animations/entity/godzilla.animation.json in place (and refuses to run
+twice):
 
-  * position keyframes scaled to the bigger model,
-  * atomic breath: a 4 second in-breath (head and chest rear back, jaw opens) inserted just before the beam,
-    the head angled 10 degrees higher while firing, and a longer, thicker beam,
+  * atomic breath: a 4 second in-breath (head and chest rear back, jaw opens, with its own breathing sound)
+    inserted just before the beam, the head angled 10 degrees higher while firing, and a longer, thicker beam,
   * a new "animation.gojira.swim_bite" (a lunging bite in the swimming pose, so he doesn't stand up to attack).
 """
 import json
-import math
 import os
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PATH = os.path.join(ROOT, "src", "main", "resources", "assets", "godzillaminusone", "animations", "entity",
                     "godzilla.animation.json")
 
-MODEL_SCALE = 118.0 / 99.13   # new model height / add-on model height
 INHALE_AT = 10.42             # charge animation: head reared back, jaw open, just before the beam
 INHALE_LENGTH = 4.0
 BEAM_START = 10.9167 + INHALE_LENGTH
@@ -26,7 +23,7 @@ BEAM_END = 15.1667 + INHALE_LENGTH
 HEAD_UP = -10.0               # degrees; negative X pitches the head up
 BEAM_LENGTH = 1.25
 BEAM_THICKNESS = 1.2
-BEAM_PITCH = 4.95 + 10.0      # rest pitch of bone B (see build_godzilla_mesh.py) + its animated pitch
+FIRING_SOUND = "godzilla.full_charge"   # its roar peaks 1.2 s in, as the beam fires: it moves with the beam
 
 
 def val(x):
@@ -101,25 +98,17 @@ def add_offset(channel, start, end, offset, ramp_in, ramp_out, step=0.05):
     return res
 
 
-def scale_positions(anim, factor, skip=("B",)):
-    for bone, channels in anim.get("bones", {}).items():
-        if bone in skip or "position" not in channels:
-            continue
-        p = channels["position"]
-        if isinstance(p, dict):
-            channels["position"] = {k: [round(q * factor, 4) for q in val(v)] for k, v in p.items()}
-        else:
-            channels["position"] = [round(q * factor, 4) for q in val(p)]
-
-
 def edit_charge(anim):
     bones = anim["bones"]
     for bone, channels in bones.items():
         for c in list(channels):
             channels[c] = shift_after(channels[c], INHALE_AT, INHALE_LENGTH)
+    def later(t, v):
+        return float(t) > INHALE_AT or (isinstance(v, dict) and v.get("effect") == FIRING_SOUND)
+
     for key in ("sound_effects", "particle_effects"):
         if key in anim:
-            anim[key] = {fmt(float(t) + (INHALE_LENGTH if float(t) > INHALE_AT else 0)): v for t, v in anim[key].items()}
+            anim[key] = {fmt(float(t) + (INHALE_LENGTH if later(t, v) else 0)): v for t, v in anim[key].items()}
     anim["animation_length"] = round(anim["animation_length"] + INHALE_LENGTH, 4)
 
     # The in-breath: rear further back, open the jaw, then snap forward into the beam.
@@ -129,23 +118,22 @@ def edit_charge(anim):
                          ("Left_arm", (-10, 0, 0))):
         ch = bones.setdefault(bone, {})
         ch["rotation"] = add_offset(ch.get("rotation", [0, 0, 0]), start, end, offset, 3.0, 0.8)
-    anim.setdefault("sound_effects", {})[fmt(start + 1.6)] = {"effect": "godzilla.charge"}
+    # The breathing sound lasts exactly as long as the in-breath (tools/make_sounds.py).
+    anim.setdefault("sound_effects", {})[fmt(start)] = {"effect": "godzilla.inhale"}
+    for key in ("sound_effects", "particle_effects"):
+        if key in anim:
+            anim[key] = dict(sorted(anim[key].items(), key=lambda kv: float(kv[0])))
 
     # Head angled 10 degrees up while the beam fires, so the breath reaches further.
     head = bones["Head"]
     head["rotation"] = add_offset(head["rotation"], BEAM_START - 0.15, BEAM_END + 0.25, (HEAD_UP, 0, 0), 0.15, 0.25)
 
-    # Longer, thicker beam that still starts at the mouth: bone B's offset runs along its own axis.
+    # Longer, thicker beam that still starts at the mouth: bone B's offset already runs along its own axis,
+    # so it grows with the beam's length.
     b = bones["B"]
     b["scale"] = {k: [round(val(v)[0] * BEAM_THICKNESS, 4), round(val(v)[1] * BEAM_THICKNESS, 4),
                       round(val(v)[2] * BEAM_LENGTH, 4) if val(v)[2] > 2 else val(v)[2]] for k, v in b["scale"].items()}
-    axis = (0.0, -math.sin(math.radians(BEAM_PITCH)), -math.cos(math.radians(BEAM_PITCH)))
-    pos = {}
-    for k, v in b["position"].items():
-        p = val(v)
-        m = math.sqrt(sum(q * q for q in p))
-        pos[k] = [round(a * m * BEAM_LENGTH, 4) for a in axis] if m > 1 else [0, 0, 0]
-    b["position"] = pos
+    b["position"] = {k: [round(q * BEAM_LENGTH, 4) for q in val(v)] for k, v in b["position"].items()}
 
 
 def swim_bite(anims):
@@ -179,8 +167,6 @@ def main():
     anims = data["animations"]
     if "animation.gojira.swim_bite" in anims:
         raise SystemExit("already edited; re-run tools/convert_addon.py first")
-    for anim in anims.values():
-        scale_positions(anim, MODEL_SCALE)
     edit_charge(anims["animation.gojira.charge"])
     anims["animation.gojira.swim_bite"] = swim_bite(anims)
     with open(PATH, "w") as f:

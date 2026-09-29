@@ -3,13 +3,11 @@ package com.npjt25.godzillaminusone.entity;
 import com.npjt25.godzillaminusone.GodzillaMinusOne;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
-import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.util.Mth;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.entity.LivingEntity;
-import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
@@ -25,10 +23,8 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 
 /**
  * Block damage: the footprints Godzilla crushes into the ground, and the atomic blast's crater and blast wave
@@ -38,7 +34,6 @@ import java.util.Map;
 public final class Destruction {
     private static final int FLAGS = Block.UPDATE_CLIENTS;
     private static final List<BlastWave> WAVES = new ArrayList<>();
-    private static final Map<ResourceKey<Level>, Long> CLEAR_SKIES_AT = new HashMap<>();
 
     // ------------------------------------------------------------------ footprints
 
@@ -138,16 +133,6 @@ public final class Destruction {
         WAVES.add(new BlastWave(level, breaker, BlockPos.containing(center), crater, Math.max(crater, radius)));
     }
 
-    /** The sky clouds over (rain) for {@code seconds}, then clears. */
-    public static void storm(ServerLevel level, int seconds) {
-        if (seconds <= 0) {
-            return;
-        }
-        int ticks = seconds * 20;
-        level.setWeatherParameters(0, ticks, true, false);
-        CLEAR_SKIES_AT.put(level.dimension(), level.getGameTime() + ticks);
-    }
-
     @SubscribeEvent
     public static void onLevelTick(TickEvent.LevelTickEvent event) {
         if (event.phase != TickEvent.Phase.END || !(event.level instanceof ServerLevel level)) {
@@ -162,19 +147,11 @@ public final class Destruction {
                 }
             }
         }
-        Long clearAt = CLEAR_SKIES_AT.get(level.dimension());
-        if (clearAt != null && level.getGameTime() >= clearAt) {
-            CLEAR_SKIES_AT.remove(level.dimension());
-            if (level.isRaining()) {
-                level.setWeatherParameters(12000 + level.getRandom().nextInt(12000), 0, false, false);
-            }
-        }
     }
 
     @SubscribeEvent
     public static void onServerStopped(ServerStoppedEvent event) {
         WAVES.clear();
-        CLEAR_SKIES_AT.clear();
     }
 
     private static final class BlastWave {

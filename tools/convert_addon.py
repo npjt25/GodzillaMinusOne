@@ -99,8 +99,19 @@ def save(arr, *parts):
 
 def convert_textures(rp):
     t = os.path.join(rp, "textures")
+    g2 = os.path.join(t, "entity", "gojira2")
 
-    # Godzilla's own textures now come from the high-detail model (tools/build_godzilla_mesh.py).
+    base, glow = split_emissive(to_gray(load(os.path.join(g2, "no_powered.png"))))
+    save(base, "textures", "entity", "godzilla.png")
+    save(glow, "textures", "entity", "godzilla_glow.png")
+
+    # While charging, only the glow of the "powered" skin is used: the plates light up one by one (renderer).
+    _, glow = split_emissive(to_gray(load(os.path.join(g2, "powered.png"))))
+    save(glow, "textures", "entity", "godzilla_charged_glow.png")
+
+    dead, _ = split_emissive(to_gray(load(os.path.join(g2, "dead.png")), keep_blue=False))
+    save(dead, "textures", "entity", "godzilla_dead.png")
+
     # Core colour of the atomic breath beam (bone "B"); not part of the add-on, which used a Bedrock material.
     Image.new("RGBA", (16, 16), (170, 235, 255, 255)).save(out("textures", "entity", "godzilla_beam.png"))
 
@@ -298,6 +309,9 @@ SOUNDS = {
     "shinden.engine": (["kplane/fly"], False),
     "shinden.gun": (["kplane/fire"], False),
     "naval_mine.explode": (["naval_mine/naval_mine"], False),
+    # "@name": made by tools/make_sounds.py, not converted from the add-on.
+    "godzilla.inhale": (["@godzilla_inhale"], False),
+    "nuke.whistle": (["@nuke_whistle"], False),
 }
 
 
@@ -319,7 +333,9 @@ def convert_sounds(rp):
         entries = []
         for f in files:
             name = f.replace("/", "_").replace("gojira_gojira_", "godzilla_").replace("gojira_", "godzilla_")
-            if f not in done:
+            if f.startswith("@"):
+                name = f[1:]
+            elif f not in done:
                 src = next(p for p in glob.glob(os.path.join(src_dir, f + ".*")))
                 dst = out("sounds", name + ".ogg")
                 subprocess.run([ff, "-y", "-loglevel", "error", "-i", src, "-vn", "-ac", "1", "-ar", "44100",

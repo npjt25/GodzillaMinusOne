@@ -32,7 +32,6 @@ public final class Config {
     public static final ForgeConfigSpec.IntValue ATOMIC_BLAST_RADIATION_AMPLIFIER;
     public static final ForgeConfigSpec.IntValue ATOMIC_BLAST_CRATER_RADIUS;
     public static final ForgeConfigSpec.IntValue ATOMIC_BLAST_DESTRUCTION_RADIUS;
-    public static final ForgeConfigSpec.IntValue ATOMIC_BLAST_STORM_SECONDS;
     public static final ForgeConfigSpec.IntValue CHARGE_FREEZE_RADIUS;
 
     // ---- Shinden / Torrid / naval mine
@@ -110,9 +109,6 @@ public final class Config {
         ATOMIC_BLAST_DESTRUCTION_RADIUS = BUILDER
                 .comment("Around the crater the blast wave flattens trees and buildings and scorches the ground out to this radius.")
                 .defineInRange("blastWaveRadius", 64, 0, 160);
-        ATOMIC_BLAST_STORM_SECONDS = BUILDER
-                .comment("After the blast the sky clouds over and rains for this many seconds, then clears (0 = no weather change).")
-                .defineInRange("stormSeconds", 120, 0, 3600);
         CHARGE_FREEZE_RADIUS = BUILDER
                 .comment("While he charges, mobs within this radius are frozen in place (add-on: 2000).")
                 .defineInRange("freezeRadius", 128, 0, 2000);

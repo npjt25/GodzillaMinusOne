@@ -89,10 +89,10 @@ public final class Fx {
         return switch (locator) {
             case "st" -> g.locator(GodzillaEntity.FOOT_SIDE, 0.4, GodzillaEntity.FOOT_FORWARD);
             case "st2" -> g.locator(-GodzillaEntity.FOOT_SIDE, 0.4, GodzillaEntity.FOOT_FORWARD);
-            case "y" -> g.locator(0.0, 34.0, 18.0);
-            case "locator2" -> g.locator(2.3, 26.7, -3.8);
-            case "locator3" -> g.locator(-2.3, 26.7, -3.8);
-            default -> g.locator(0.0, 34.0, 4.0);
+            case "y" -> g.locator(0.0, 35.0, 14.3);
+            case "locator2" -> g.locator(2.5, 30.0, 0.0);
+            case "locator3" -> g.locator(-2.5, 30.0, 0.0);
+            default -> g.locator(0.0, 36.0, 8.0);
         };
     }
 

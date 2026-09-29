@@ -2,7 +2,6 @@ package com.npjt25.godzillaminusone.client;
 
 import com.npjt25.godzillaminusone.GodzillaMinusOne;
 import com.npjt25.godzillaminusone.client.particle.Fx;
-import com.npjt25.godzillaminusone.client.render.GodzillaMesh;
 import com.npjt25.godzillaminusone.client.render.GodzillaRenderer;
 import com.npjt25.godzillaminusone.client.render.NavalMineRenderer;
 import com.npjt25.godzillaminusone.client.render.ShindenRenderer;
@@ -12,7 +11,6 @@ import com.npjt25.godzillaminusone.registry.ModParticles;
 import net.minecraft.core.particles.SimpleParticleType;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.EntityRenderersEvent;
-import net.minecraftforge.client.event.RegisterClientReloadListenersEvent;
 import net.minecraftforge.client.event.RegisterParticleProvidersEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
@@ -47,11 +45,6 @@ public final class ClientSetup {
                 return (options, level, x, y, z, dx, dy, dz) -> Fx.basic(particleType, level, x, y, z, dx, dy, dz);
             });
         }
-    }
-
-    @SubscribeEvent
-    public static void registerReloadListeners(RegisterClientReloadListenersEvent event) {
-        event.registerReloadListener(GodzillaMesh.reloadListener());
     }
 
     private ClientSetup() {

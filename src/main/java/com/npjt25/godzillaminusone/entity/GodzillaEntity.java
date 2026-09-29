@@ -121,31 +121,32 @@ public class GodzillaEntity extends Monster implements GeoEntity {
     private static final int RIGHT_STEP = 27;
     private static final int LEFT_STEP = 61;
     /** Where his feet land (blocks right, forward) and the footprint's half width and half length. */
-    public static final double FOOT_SIDE = 9.1;
-    public static final double FOOT_FORWARD = 7.5;
+    public static final double FOOT_SIDE = 7.25;
+    public static final double FOOT_FORWARD = 3.8;
     private static final double FOOT_HALF_WIDTH = 2.6;
     private static final double FOOT_HALF_LENGTH = 4.6;
 
-    // Swimming: in water at least this deep he floats with his back just under the surface.
-    private static final double SWIM_START_DEPTH = 12.0;
-    private static final double SWIM_STOP_DEPTH = 9.0;
+    // Swimming: in water at least this deep he floats with his back just under the surface (his belly hangs
+    // 12 blocks below his back in the swimming pose).
+    private static final double SWIM_START_DEPTH = 17.0;
+    private static final double SWIM_STOP_DEPTH = 14.0;
     /** How far below the water surface his feet (the entity position) are while swimming. */
-    public static final double SWIM_SINK = 4.7;
+    public static final double SWIM_SINK = 4.3;
     /** Swimming speed relative to walking: fast enough to run down a boat. */
     private static final double SWIM_SPEED = 1.17;
     private static final EntityDimensions SWIM_SIZE = EntityDimensions.scalable(10.0F, 10.0F);
     /** How far ahead of him the swimming bite lands (the jaw in animation.gojira.swim_bite). */
-    public static final double SWIM_BITE_REACH = 29.0;
+    public static final double SWIM_BITE_REACH = 24.0;
 
     // The atomic breath, measured on the charge animation (blocks: right, up, forward). The head pivots about
-    // HEAD; the beam leaves the mouth at BEAM_NEAR and would reach BEAM_FAR: with his head angled 10 degrees up
-    // it slopes down ~9 degrees and lands ~170 blocks ahead on flat ground.
-    private static final Vec3 HEAD = new Vec3(0.0, 24.2, 18.76);
-    private static final Vec3 BEAM_NEAR = new Vec3(-0.56, 24.94, 20.83);
-    private static final Vec3 BEAM_FAR = new Vec3(-6.94, 1.07, 170.74);
-    private static final double BEAM_REACH = 160.0;
+    // HEAD; the beam leaves his mouth at BEAM_NEAR and reaches out to BEAM_FAR: with his head angled 10 degrees up
+    // it slopes down ~10 degrees and lands ~160 blocks ahead on flat ground.
+    private static final Vec3 HEAD = new Vec3(-0.46, 25.45, 17.48);
+    private static final Vec3 BEAM_NEAR = new Vec3(-0.43, 25.10, 16.75);
+    private static final Vec3 BEAM_FAR = new Vec3(-8.27, -5.53, 191.96);
+    private static final double BEAM_REACH = 185.0;
     /** The beam veers this far left of where he faces, so he turns this far right to aim it. */
-    private static final float BEAM_YAW = (float) Math.toDegrees(Math.atan2(6.38, 149.9));
+    private static final float BEAM_YAW = (float) Math.toDegrees(Math.atan2(7.84, 175.2));
     /** Extra head pitch to aim at a target (degrees, up); never lower than the add-on's original angle. */
     private static final float MIN_AIM = -10.0F;
     private static final float MAX_AIM = 60.0F;
@@ -743,7 +744,7 @@ public class GodzillaEntity extends Monster implements GeoEntity {
     /**
      * The nuclear blast where the beam lands: everything nearby dies, radiation, a crater and blast wave, the
      * 3D fireball and mushroom cloud (client.render.NuclearCloud), a blurred view for everyone who saw it, then
-     * clouds and (black) rain.
+     * black rain (particles only: the weather isn't touched).
      */
     private void fireAtomicBlast(ServerLevel level) {
         Vec3[] line = beamLine(this.entityData.get(DATA_AIM));
@@ -785,7 +786,6 @@ public class GodzillaEntity extends Monster implements GeoEntity {
         ModNetwork.shake(level, impact, 640.0, 4.0F, 6.0F);
         ModNetwork.blur(level, impact, 320.0, 1.0F, 0.15F, 2.5F, 4.0F);
         ModNetwork.blur(level, position(), 120.0, 1.0F, 0.15F, 2.5F, 4.0F);
-        Destruction.storm(level, Config.ATOMIC_BLAST_STORM_SECONDS.get());
 
         this.breathCooldown = Config.ATOMIC_BREATH_COOLDOWN.get() * 20;
         this.blackRainPos = impact;
