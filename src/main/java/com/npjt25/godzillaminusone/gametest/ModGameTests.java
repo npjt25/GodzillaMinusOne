@@ -34,8 +34,17 @@ public final class ModGameTests {
 
     private static GodzillaEntity spawnGodzilla(GameTestHelper helper) {
         for (GodzillaEntity leftover : helper.getLevel().getEntities(ModEntities.GODZILLA.get(), e -> true)) {
+            GodzillaMinusOne.LOGGER.info("test at {}: removing a leftover Godzilla at {}", helper.absolutePos(BlockPos.ZERO), leftover.position());
             leftover.discard();
         }
+        StringBuilder floor = new StringBuilder();
+        for (int z = 0; z <= 8; z++) {
+            floor.append(' ');
+            for (int x = 0; x <= 8; x++) {
+                floor.append(helper.getBlockState(new BlockPos(x, 0, z)).isAir() ? '.' : '#');
+            }
+        }
+        GodzillaMinusOne.LOGGER.info("test at {}: floor{}", helper.absolutePos(BlockPos.ZERO), floor);
         return helper.spawn(ModEntities.GODZILLA.get(), 4, 1, 4);
     }
 
@@ -133,13 +142,19 @@ public final class ModGameTests {
         GodzillaEntity godzilla = spawnActiveGodzilla(helper);
         Pig pig = helper.spawn(EntityType.PIG, 4, 1, 48);
         godzilla.setTarget(pig);
+        boolean[] logged = {false};
+        helper.onEachTick(() -> {
+            if (!pig.isAlive() && !logged[0]) {
+                logged[0] = true;
+                GodzillaMinusOne.LOGGER.info("atomic breath test: the pig died at tick {} from {} by {} at {}; cooldown {}, charging {}",
+                        helper.getTick(), pig.getLastDamageSource() == null ? "?" : pig.getLastDamageSource().getMsgId(),
+                        pig.getLastDamageSource() == null ? "?" : pig.getLastDamageSource().getEntity(), pig.position(),
+                        godzilla.getBreathCooldown(), godzilla.isCharging());
+            }
+        });
         helper.runAtTickTime(120, () -> helper.assertTrue(godzilla.isCharging(), "with a target he should be charging his atomic breath"));
         // The charge starts ~2 s after he spots his target; with the 4 s in-breath the blast is ~17.6 s later.
         helper.runAtTickTime(320, () -> {
-            if (!pig.isAlive()) {
-                GodzillaMinusOne.LOGGER.info("atomic breath test: the pig died before the blast from {} at {} (Godzilla at {})",
-                        pig.getLastDamageSource() == null ? "?" : pig.getLastDamageSource().getMsgId(), pig.position(), godzilla.position());
-            }
             helper.assertTrue(godzilla.getBreathCooldown() == 0, "the 4 s in-breath comes before the blast, but he already fired");
         });
         helper.succeedWhen(() -> {
