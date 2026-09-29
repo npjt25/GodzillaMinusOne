@@ -10,15 +10,12 @@ import com.npjt25.godzillaminusone.registry.ModItems;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
-import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
-import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.animal.Pig;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.gametest.GameTestHolder;
 import net.minecraftforge.gametest.PrefixGameTestTemplate;
@@ -58,26 +55,6 @@ public final class ModGameTests {
             }
         }
         throw new IllegalStateException("no test floor");
-    }
-
-    /** Spawns a mob on the ground {@code dz} blocks out, beyond the test area, and keeps its chunk loaded. */
-    private static <T extends Mob> T spawnOnGround(GameTestHelper helper, EntityType<T> type, int dx, int dz) {
-        ServerLevel level = helper.getLevel();
-        BlockPos column = helper.absolutePos(new BlockPos(dx, 0, dz));
-        level.setChunkForced(column.getX() >> 4, column.getZ() >> 4, true);
-        int y = level.getHeight(Heightmap.Types.MOTION_BLOCKING, column.getX(), column.getZ());
-        T mob = type.create(level);
-        if (mob == null) {
-            throw new IllegalStateException("could not create " + type);
-        }
-        mob.moveTo(column.getX() + 0.5, y, column.getZ() + 0.5, 0.0F, 0.0F);
-        level.addFreshEntity(mob);
-        return mob;
-    }
-
-    private static void unforce(GameTestHelper helper, int dx, int dz) {
-        BlockPos column = helper.absolutePos(new BlockPos(dx, 0, dz));
-        helper.getLevel().setChunkForced(column.getX() >> 4, column.getZ() >> 4, false);
     }
 
     private static void remove(Entity... entities) {
@@ -163,40 +140,36 @@ public final class ModGameTests {
         helper.succeed();
     }
 
+    /**
+     * Game tests run in a pocket dug out at y -60 of a normal world, so the beam hits rock right at his mouth.
+     * The pig waits in a sealed cell 30 blocks ahead: out of his sight and out of reach of the heat around him
+     * while he charges, but well inside the blast.
+     */
     @GameTest(template = FLOOR, batch = "gmo_atomic_breath", timeoutTicks = 560)
     public static void atomicBreathKillsHisTargetThenRecharges(GameTestHelper helper) {
         GodzillaEntity godzilla = spawnActiveGodzilla(helper);
-        Pig pig = spawnOnGround(helper, EntityType.PIG, 4, 48);
+        int floor = floorY(helper);
+        BlockPos cell = new BlockPos(4, floor + 1, 34);
+        for (BlockPos wall : new BlockPos[]{cell.below(), cell.above(), cell.north(), cell.south(), cell.east(), cell.west()}) {
+            helper.setBlock(wall, Blocks.STONE.defaultBlockState());
+        }
+        helper.setBlock(cell, Blocks.AIR.defaultBlockState());
+        BlockPos abs = helper.absolutePos(cell);
+        helper.getLevel().setChunkForced(abs.getX() >> 4, abs.getZ() >> 4, true);
+        Pig pig = helper.spawn(EntityType.PIG, cell);
         godzilla.setTarget(pig);
-        boolean[] logged = {false, false};
-        helper.onEachTick(() -> {
-            if (!logged[1] && godzilla.getBreathCooldown() > 0) {
-                logged[1] = true;
-                float aim = godzilla.getAimPitch(1.0F);
-                Vec3[] beam = godzilla.beamLine(aim);
-                GodzillaMinusOne.LOGGER.info("atomic breath test: fired at tick {}: target {}, aim {}, godzilla {} yaw {}, beam {} -> {}, pig {} alive {}",
-                        helper.getTick(), godzilla.getTarget(), aim, godzilla.position(), godzilla.getYRot(), beam[0], beam[1],
-                        pig.position(), pig.isAlive());
-            }
-            if (!pig.isAlive() && !logged[0]) {
-                logged[0] = true;
-                GodzillaMinusOne.LOGGER.info("atomic breath test: the pig died at tick {} from {} by {} at {}; cooldown {}, charging {}",
-                        helper.getTick(), pig.getLastDamageSource() == null ? "?" : pig.getLastDamageSource().getMsgId(),
-                        pig.getLastDamageSource() == null ? "?" : pig.getLastDamageSource().getEntity(), pig.position(),
-                        godzilla.getBreathCooldown(), godzilla.isCharging());
-            }
-        });
         helper.runAtTickTime(120, () -> helper.assertTrue(godzilla.isCharging(), "with a target he should be charging his atomic breath"));
         // The charge starts ~2 s after he spots his target; with the 4 s in-breath the blast is ~17.6 s later.
         helper.runAtTickTime(320, () -> {
             helper.assertTrue(godzilla.getBreathCooldown() == 0, "the 4 s in-breath comes before the blast, but he already fired");
+            helper.assertTrue(pig.isAlive(), "nothing but the blast should have killed the pig");
         });
         helper.succeedWhen(() -> {
+            helper.assertFalse(pig.isAlive(), "the atomic breath should kill his target");
             helper.assertTrue(godzilla.getBreathCooldown() > 170 * 20, "after firing he needs ~3 minutes to recharge, cooldown "
                     + godzilla.getBreathCooldown());
-            helper.assertFalse(pig.isAlive(), "the atomic breath should kill his target");
             remove(godzilla);
-            unforce(helper, 4, 48);
+            helper.getLevel().setChunkForced(abs.getX() >> 4, abs.getZ() >> 4, false);
         });
     }
 
