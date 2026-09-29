@@ -88,15 +88,15 @@ public class ShindenEntity extends Mob implements GeoEntity {
         this.entityData.define(DATA_DAMAGE, 0.0F);
     }
 
-    public int getHurtTime() {
+    public int getWobbleTime() {
         return this.entityData.get(DATA_HURT_TIME);
     }
 
-    public int getHurtDir() {
+    public int getWobbleSide() {
         return this.entityData.get(DATA_HURT_DIR);
     }
 
-    public float getDamage() {
+    public float getWobbleDamage() {
         return this.entityData.get(DATA_DAMAGE);
     }
 
@@ -104,11 +104,11 @@ public class ShindenEntity extends Mob implements GeoEntity {
     public void tick() {
         super.tick();
         // like a boat, knocks wear off again
-        if (getHurtTime() > 0) {
-            this.entityData.set(DATA_HURT_TIME, getHurtTime() - 1);
+        if (getWobbleTime() > 0) {
+            this.entityData.set(DATA_HURT_TIME, getWobbleTime() - 1);
         }
-        if (getDamage() > 0.0F) {
-            this.entityData.set(DATA_DAMAGE, Math.max(0.0F, getDamage() - 1.0F));
+        if (getWobbleDamage() > 0.0F) {
+            this.entityData.set(DATA_DAMAGE, Math.max(0.0F, getWobbleDamage() - 1.0F));
         }
     }
 
@@ -309,14 +309,14 @@ public class ShindenEntity extends Mob implements GeoEntity {
         if (level().isClientSide || isRemoved()) {
             return true;
         }
-        this.entityData.set(DATA_HURT_DIR, -getHurtDir());
+        this.entityData.set(DATA_HURT_DIR, -getWobbleSide());
         this.entityData.set(DATA_HURT_TIME, 10);
-        this.entityData.set(DATA_DAMAGE, getDamage() + amount * 10.0F);
+        this.entityData.set(DATA_DAMAGE, getWobbleDamage() + amount * 10.0F);
         markHurt();
         gameEvent(GameEvent.ENTITY_DAMAGE, source.getEntity());
         playSound(SoundEvents.ZOMBIE_ATTACK_IRON_DOOR, 0.5F, 1.4F + this.random.nextFloat() * 0.2F);
         boolean creative = source.getEntity() instanceof Player player && player.getAbilities().instabuild;
-        if (creative || getDamage() > 40.0F) {
+        if (creative || getWobbleDamage() > 40.0F) {
             if (source.getEntity() instanceof Player) {
                 ejectPassengers();
                 if (!creative && level().getGameRules().getBoolean(GameRules.RULE_DOENTITYDROPS)) {

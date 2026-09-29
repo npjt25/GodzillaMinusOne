@@ -171,7 +171,7 @@ public final class ModGameTests {
         plane.hurt(helper.getLevel().damageSources().playerAttack(player), 1.0F);
         helper.assertFalse(plane.isRemoved(), "one light hit should only rock it");
         helper.assertTrue(plane.getHealth() == health, "it isn't hurt like a mob");
-        helper.assertTrue(plane.getHurtTime() > 0, "it should wobble");
+        helper.assertTrue(plane.getWobbleTime() > 0, "it should wobble");
         plane.hurt(helper.getLevel().damageSources().playerAttack(player), 5.0F);
         helper.assertTrue(plane.isRemoved(), "a few hits should knock it down like a boat");
         helper.assertItemEntityPresent(ModItems.SHINDEN_SPAWN_EGG.get(), new BlockPos(4, 1, 4), 3.0);

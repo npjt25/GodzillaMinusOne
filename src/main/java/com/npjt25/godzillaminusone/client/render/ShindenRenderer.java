@@ -19,10 +19,10 @@ public class ShindenRenderer extends GeoEntityRenderer<ShindenEntity> {
     @Override
     protected void applyRotations(ShindenEntity entity, PoseStack poseStack, float ageInTicks, float rotationYaw, float partialTick) {
         super.applyRotations(entity, poseStack, ageInTicks, rotationYaw, partialTick);
-        float hurt = entity.getHurtTime() - partialTick;
-        float damage = Math.max(0.0F, entity.getDamage() - partialTick);
+        float hurt = entity.getWobbleTime() - partialTick;
+        float damage = Math.max(0.0F, entity.getWobbleDamage() - partialTick);
         if (hurt > 0.0F) {
-            poseStack.mulPose(Axis.ZP.rotationDegrees(Mth.sin(hurt) * hurt * damage / 10.0F * entity.getHurtDir()));
+            poseStack.mulPose(Axis.ZP.rotationDegrees(Mth.sin(hurt) * hurt * damage / 10.0F * entity.getWobbleSide()));
         }
         if (entity.isVehicle()) {
             float pitch = Mth.lerp(partialTick, entity.xRotO, entity.getXRot());
