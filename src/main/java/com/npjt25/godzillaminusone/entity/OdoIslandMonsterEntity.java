@@ -19,6 +19,8 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
+import net.minecraft.world.entity.ai.attributes.AttributeInstance;
+import net.minecraft.world.entity.ai.attributes.AttributeModifier;
 import net.minecraft.world.entity.ai.attributes.AttributeSupplier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.ai.goal.Goal;
@@ -48,6 +50,7 @@ import software.bernie.geckolib.core.object.PlayState;
 import software.bernie.geckolib.util.GeckoLibUtil;
 
 import java.util.EnumSet;
+import java.util.UUID;
 
 /**
  * The Odo Island Monster: Godzilla Minus One in his earlier, dinosaur-like form (Monster122's Godzillasaurus,
@@ -55,7 +58,10 @@ import java.util.EnumSet;
  *
  * <ul>
  *   <li>Left alone he wanders. Come within {@link #PROXIMITY} blocks and he charges you, biting and stomping.</li>
- *   <li>Catch him in a searchlight's beam and he goes berserk: he roars and runs down whoever is working the light.</li>
+ *   <li>Spotted, he goes into a frenzy: caught in a searchlight's beam, or seen by a player (a player looking at him
+ *       within {@link #SPOT_RANGE} blocks, or one in his own sight within {@link #SIGHT_RANGE}). He roars, then runs
+ *       down whoever spotted him, faster, biting and stomping harder and twice as often, and doesn't let up for
+ *       {@link #FRENZY_TICKS} ticks, crashing through whatever is in his way.</li>
  *   <li>Caught in a nuclear bomb's blast he doesn't die: he collapses, burnt to a crisp, and three minutes later he
  *       rises again as Godzilla.</li>
  * </ul>
@@ -72,6 +78,18 @@ public class OdoIslandMonsterEntity extends Monster implements GeoEntity {
     private static final int SPOTLIGHT_RAGE = 60 * 20;
     private static final int PROXIMITY_RAGE = 20 * 20;
     private static final double RUN_SPEED = 1.75;
+    /** A player looking at him from this far away (with nothing in between) sets him off... */
+    public static final double SPOT_RANGE = 64.0;
+    /** ...and so does a player he sees this close. */
+    public static final double SIGHT_RANGE = 32.0;
+    /** How long a frenzy lasts (renewed every time he's spotted again). */
+    public static final int FRENZY_TICKS = 90 * 20;
+    private static final UUID FRENZY_SPEED_ID = UUID.fromString("4f3b2a39-6d8e-4f7c-9a55-0d2b8a1f6c01");
+    private static final UUID FRENZY_DAMAGE_ID = UUID.fromString("9c1d7e42-3b6a-4d18-8f2e-5a7c0b9e4d02");
+    private static final AttributeModifier FRENZY_SPEED = new AttributeModifier(FRENZY_SPEED_ID, "Odo frenzy speed", 0.35,
+            AttributeModifier.Operation.MULTIPLY_TOTAL);
+    private static final AttributeModifier FRENZY_DAMAGE = new AttributeModifier(FRENZY_DAMAGE_ID, "Odo frenzy damage", 0.6,
+            AttributeModifier.Operation.MULTIPLY_TOTAL);
 
     // Measured on the model (blocks: right, up, forward): where the jaws snap shut as his head lunges down in the
     // bite (animation.odo.bite at 0.75 s), and where his left foot comes down in the stomp (at 1.08 s).
@@ -99,6 +117,10 @@ public class OdoIslandMonsterEntity extends Monster implements GeoEntity {
 
     private final AnimatableInstanceCache cache = GeckoLibUtil.createInstanceCache(this);
     private int rageTicks;
+    private int frenzyTicks;
+    /** Whoever set off his frenzy: he keeps coming for them, even out of sight. */
+    @Nullable
+    private LivingEntity frenzyTarget;
     private int burntTicks;
     private int attackCooldown;
     private int roarTicks;
@@ -186,15 +208,78 @@ public class OdoIslandMonsterEntity extends Monster implements GeoEntity {
         this.entityData.set(DATA_STATE, state);
     }
 
-    /** Lit up by a searchlight: he goes berserk and runs down whoever is working it. */
+    /** Lit up by a searchlight: he goes into a frenzy and runs down whoever is working it. */
     public void spottedBy(@Nullable LivingEntity operator) {
         if (isBurnt() || !isAlive()) {
             return;
         }
-        if (operator != null && operator.isAlive() && !(operator instanceof Player p && p.isSpectator())) {
-            setTarget(operator);
-        }
+        frenzy(operator, true);
         enrage(SPOTLIGHT_RAGE);
+    }
+
+    public boolean isFrenzied() {
+        return this.frenzyTicks > 0;
+    }
+
+    /** Whether {@code player} has spotted him (looking at him from within {@link #SPOT_RANGE}) or he has spotted them
+     * (within {@link #SIGHT_RANGE}), with nothing in between; if so, he goes into a frenzy after them. */
+    public boolean noticePlayer(Player player) {
+        if (isBurnt() || !isAlive() || !player.isAlive() || player.isCreative() || player.isSpectator()) {
+            return false;
+        }
+        double distance = distanceTo(player);
+        if (distance > SPOT_RANGE) {
+            return false;
+        }
+        boolean spotted = distance < SIGHT_RANGE && hasLineOfSight(player);
+        if (!spotted) {
+            // looking at him: his middle within the angle he fills in the player's view (he's 14 blocks tall)
+            Vec3 to = new Vec3(getX() - player.getX(), getY(0.5) - player.getEyeY(), getZ() - player.getZ());
+            double d = Math.max(to.length(), 1.0);
+            double within = Math.cos(Math.atan(Math.max(getBbWidth(), getBbHeight()) * 0.5 / d));
+            spotted = player.getViewVector(1.0F).dot(to.scale(1.0 / d)) > within && player.hasLineOfSight(this);
+        }
+        if (spotted) {
+            frenzy(player, false);
+        }
+        return spotted;
+    }
+
+    /** Starts (or renews) his frenzy after {@code who}; he only turns on them if {@code retarget}, or if whoever set
+     * him off before is gone. */
+    private void frenzy(@Nullable LivingEntity who, boolean retarget) {
+        if (isBurnt() || level().isClientSide) {
+            return;
+        }
+        this.frenzyTicks = FRENZY_TICKS;
+        boolean busy = this.frenzyTarget != null && this.frenzyTarget.isAlive() && this.frenzyTarget != who;
+        if (who != null && (retarget || !busy) && who.isAlive() && !(who instanceof Player p && (p.isSpectator() || p.isCreative()))) {
+            this.frenzyTarget = who;
+            if (getTarget() != who) {
+                setTarget(who);
+            }
+        }
+        enrage(FRENZY_TICKS);
+        setFrenzyModifiers(true);
+    }
+
+    private void setFrenzyModifiers(boolean on) {
+        AttributeInstance speed = getAttribute(Attributes.MOVEMENT_SPEED);
+        AttributeInstance damage = getAttribute(Attributes.ATTACK_DAMAGE);
+        if (speed == null || damage == null) {
+            return;
+        }
+        if (on) {
+            if (!speed.hasModifier(FRENZY_SPEED)) {
+                speed.addTransientModifier(FRENZY_SPEED);
+            }
+            if (!damage.hasModifier(FRENZY_DAMAGE)) {
+                damage.addTransientModifier(FRENZY_DAMAGE);
+            }
+        } else {
+            speed.removeModifier(FRENZY_SPEED_ID);
+            damage.removeModifier(FRENZY_DAMAGE_ID);
+        }
     }
 
     /** Caught in a nuclear blast: he doesn't die, he collapses, burnt to a crisp (then rises as Godzilla). */
@@ -205,6 +290,9 @@ public class OdoIslandMonsterEntity extends Monster implements GeoEntity {
         setState(STATE_BURNT);
         this.burntTicks = BURNT_TICKS;
         this.rageTicks = 0;
+        this.frenzyTicks = 0;
+        this.frenzyTarget = null;
+        setFrenzyModifiers(false);
         this.pendingHitTicks = -1;
         this.entityData.set(DATA_RUNNING, false);
         setTarget(null);
@@ -271,6 +359,24 @@ public class OdoIslandMonsterEntity extends Monster implements GeoEntity {
         if (this.rageTicks > 0) {
             this.rageTicks--;
         }
+        if (this.frenzyTicks > 0) {
+            if (--this.frenzyTicks <= 0 || this.frenzyTarget != null && !this.frenzyTarget.isAlive()) {
+                this.frenzyTicks = 0;
+                this.frenzyTarget = null;
+                setFrenzyModifiers(false);
+            } else if (target == null && this.frenzyTarget != null && distanceTo(this.frenzyTarget) < getAttributeValue(Attributes.FOLLOW_RANGE)) {
+                // out of sight isn't out of mind
+                setTarget(this.frenzyTarget);
+                target = this.frenzyTarget;
+            }
+        }
+        if (this.tickCount % 10 == 0) {
+            for (Player player : level.getEntitiesOfClass(Player.class, getBoundingBox().inflate(SPOT_RANGE))) {
+                if (noticePlayer(player)) {
+                    break;
+                }
+            }
+        }
         if (this.rageTicks <= 0 && target == null && getState() == STATE_ANGRY) {
             setState(STATE_CALM);
         }
@@ -284,7 +390,7 @@ public class OdoIslandMonsterEntity extends Monster implements GeoEntity {
                 bite(level, target);
             }
         }
-        boolean running = target != null && distanceTo(target) > 14.0 && this.roarTicks <= 0;
+        boolean running = target != null && distanceTo(target) > (isFrenzied() ? 8.0 : 14.0) && this.roarTicks <= 0;
         if (running != isRunning()) {
             this.entityData.set(DATA_RUNNING, running);
         }
@@ -321,7 +427,8 @@ public class OdoIslandMonsterEntity extends Monster implements GeoEntity {
                         continue;
                     }
                     float hardness = state.getDestroySpeed(level, pos);
-                    if (hardness >= 0.0F && hardness <= 2.0F && Destruction.canBreak(level, pos, state, this)) {
+                    float strength = isFrenzied() ? 3.0F : 2.0F; // in a frenzy, wooden doors and planks give too
+                    if (hardness >= 0.0F && hardness <= strength && Destruction.canBreak(level, pos, state, this)) {
                         level.destroyBlock(pos, true, this);
                         if (++broken >= 60) {
                             return;
@@ -360,6 +467,9 @@ public class OdoIslandMonsterEntity extends Monster implements GeoEntity {
         this.pendingStomp = stomp;
         this.pendingHitTicks = stomp ? STOMP_HIT : BITE_HIT;
         this.attackCooldown = stomp ? 44 : 24;
+        if (isFrenzied()) {
+            this.attackCooldown /= 2; // twice as often
+        }
         // (like the add-on, he bites one of two ways: the second with a swipe of his arm too)
         triggerAnim("action", stomp ? "stomp" : this.random.nextBoolean() ? "bite" : "bite2");
     }
@@ -394,7 +504,11 @@ public class OdoIslandMonsterEntity extends Monster implements GeoEntity {
         if (isBurnt() && !source.is(DamageTypeTags.BYPASSES_INVULNERABILITY)) {
             return false;
         }
-        return super.hurt(source, amount);
+        boolean hurt = super.hurt(source, amount);
+        if (hurt && isAlive() && source.getEntity() instanceof Player player) {
+            frenzy(player, false);
+        }
+        return hurt;
     }
 
     @Override
@@ -456,6 +570,7 @@ public class OdoIslandMonsterEntity extends Monster implements GeoEntity {
         tag.putInt("OdoState", getState());
         tag.putInt("BurntTicks", this.burntTicks);
         tag.putInt("RageTicks", this.rageTicks);
+        tag.putInt("FrenzyTicks", this.frenzyTicks);
     }
 
     @Override
@@ -464,6 +579,10 @@ public class OdoIslandMonsterEntity extends Monster implements GeoEntity {
         setState(Mth.clamp(tag.getInt("OdoState"), STATE_CALM, STATE_BURNT));
         this.burntTicks = tag.getInt("BurntTicks");
         this.rageTicks = tag.getInt("RageTicks");
+        this.frenzyTicks = tag.getInt("FrenzyTicks");
+        if (this.frenzyTicks > 0) {
+            setFrenzyModifiers(true);
+        }
     }
 
     // ------------------------------------------------------------------ GeckoLib
@@ -559,7 +678,7 @@ public class OdoIslandMonsterEntity extends Monster implements GeoEntity {
                 return;
             }
 
-            double speed = this.odo.rageTicks > 0 && this.odo.distanceTo(target) > 14.0 ? RUN_SPEED : 1.0;
+            double speed = this.odo.rageTicks > 0 && this.odo.distanceTo(target) > (this.odo.isFrenzied() ? 8.0 : 14.0) ? RUN_SPEED : 1.0;
             // aim a little short, so his jaws (10 blocks ahead of his middle) end up on the target
             Vec3 toTarget = target.position().subtract(this.odo.position());
             Vec3 goal = toTarget.lengthSqr() > 100.0 ? target.position().subtract(toTarget.normalize().scale(8.0)) : target.position();

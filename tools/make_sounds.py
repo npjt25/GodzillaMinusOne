@@ -6,6 +6,9 @@
                            in the charge animation (tools/edit_animations.py, INHALE_LENGTH = 4 s).
   * nuke_alarm.ogg       - the air-raid siren that wails from the moment a nuclear bomb is called in until it goes
                            off: exactly its 20 second fall (entity/NuclearBombEntity.java, FALL_TICKS).
+  * shinden_gun.ogg      - one shot of the Shinden's cannons (one per click): the first of the three shots in the
+                           add-on's kplane_fire.ogg burst, with a short echo instead of the next two.
+  * shinsei_maru_gun.ogg - one shot of the Shinsei Maru's Type 93 13 mm machine gun: the same shot, lighter and sharper.
 
 Needs numpy and imageio-ffmpeg (for the Vorbis encoder).
 """
@@ -119,6 +122,33 @@ def alarm(rng):
     return out * 0.8 + hiss * loud * 0.06
 
 
+def read_ogg(name):
+    raw = subprocess.run([ffmpeg(), "-v", "error", "-i", os.path.join(OUT, name + ".ogg"), "-f", "s16le", "-ac", "1",
+                          "-ar", str(RATE), "-"], capture_output=True, check=True).stdout
+    return np.frombuffer(raw, np.int16).astype(float) / 32768.0
+
+
+def single_shot(rng, pitch=1.0, tail=0.25):
+    """The first shot of the add-on's three-shot cannon burst (it starts 75 ms in; the second comes at 205 ms), cut
+    off before the second and given a short echo so it still sounds full. pitch > 1 makes it lighter."""
+    burst = read_ogg("kplane_fire")
+    shot = burst[int(0.075 * RATE):int(0.195 * RATE)].copy()
+    fade = int(0.03 * RATE)
+    shot[-fade:] *= np.linspace(1.0, 0.0, fade) ** 2
+    shot[:int(0.003 * RATE)] *= np.linspace(0.0, 1.0, int(0.003 * RATE))
+    if pitch != 1.0:
+        idx = np.arange(0, len(shot) - 1, pitch)
+        shot = np.interp(idx, np.arange(len(shot)), shot)
+    # echo: the shot convolved with decaying noise, low-passed
+    n = int(tail * RATE)
+    impulse = rng.standard_normal(n) * np.exp(-np.arange(n) / (0.06 * RATE))
+    impulse = np.convolve(impulse, np.ones(40) / 40, mode="same")
+    echo = np.convolve(shot, impulse)
+    echo *= 0.35 * np.max(np.abs(shot)) / max(np.max(np.abs(echo)), 1e-9)
+    echo[:len(shot)] += shot
+    return echo
+
+
 def write_ogg(samples, name):
     samples = samples / np.max(np.abs(samples)) * 0.89
     pcm = (samples * 32767).astype(np.int16)
@@ -140,6 +170,8 @@ def main():
     rng = np.random.default_rng(1954)
     write_ogg(inhale(rng), "godzilla_inhale")
     write_ogg(alarm(rng), "nuke_alarm")
+    write_ogg(single_shot(rng), "shinden_gun")
+    write_ogg(single_shot(rng, pitch=1.35, tail=0.18), "shinsei_maru_gun")
 
 
 if __name__ == "__main__":

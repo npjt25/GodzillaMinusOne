@@ -51,7 +51,7 @@
    }
   },
   "animation.kplane.fire": {
-   "loop": true,
+   "loop": false,
    "animation_length": 0.33333,
    "sound_effects": {
     "0.0000": {
@@ -64,14 +64,6 @@
      "locator": "locator"
     },
     "0.0010": {
-     "effect": "gun_flash",
-     "locator": "locator2"
-    },
-    "0.0020": {
-     "effect": "gun_flash",
-     "locator": "locator"
-    },
-    "0.0030": {
      "effect": "gun_flash",
      "locator": "locator2"
     }

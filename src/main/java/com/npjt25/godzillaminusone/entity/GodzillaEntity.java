@@ -122,6 +122,7 @@ public class GodzillaEntity extends Monster implements GeoEntity {
     private static final int AURA_INTERVAL = 10;        // idle timeline loops every 0.5 s
     private static final int REGEN_INTERVAL = 100;      // calm timeline loops every 5 s
     private static final int STUN_TICKS = 100;          // naval mine: slowness for 5 s
+    private static final int ROAR_TICKS = 109;          // animation.gojira.roar: 5.46 s
 
     /** He walks a little slower than the add-on: the walk cycle plays at 70% speed... */
     public static final double WALK_ANIM_SPEED = 0.7;
@@ -198,6 +199,12 @@ public class GodzillaEntity extends Monster implements GeoEntity {
     private int angryTicks;
     private int chargeTicks = -1;
     private int breathCooldown;
+    /** Ticks after he appears before he may use his atomic breath for the first time (firstBreathMin/MaxSeconds). */
+    private int firstBreathDelay;
+    /** Ticks until he roars on his own again (roarIntervalSeconds). */
+    private int roarTimer;
+    /** Ticks left of a roar he let out on his own (he stands his ground while it lasts). */
+    private int roaringTicks;
     private int attackCooldown;
     private int stunTicks;
     private int walkTicks;
@@ -249,6 +256,10 @@ public class GodzillaEntity extends Monster implements GeoEntity {
         this.setPersistenceRequired();
         if (!level.isClientSide) {
             applyConfig();
+            int min = Config.FIRST_BREATH_MIN_DELAY.get();
+            int max = Math.max(min, Config.FIRST_BREATH_MAX_DELAY.get());
+            this.firstBreathDelay = (min + this.random.nextInt(max - min + 1)) * 20;
+            this.roarTimer = Config.ROAR_INTERVAL.get() * 20;
         }
     }
 
@@ -373,6 +384,16 @@ public class GodzillaEntity extends Monster implements GeoEntity {
         this.breathCooldown = ticks;
     }
 
+    /** Ticks before he may use his atomic breath for the first time since he appeared. */
+    public int getFirstBreathDelay() {
+        return this.firstBreathDelay;
+    }
+
+    /** For the game tests: lets him use his atomic breath right away (or not for a while). */
+    public void setFirstBreathDelay(int ticks) {
+        this.firstBreathDelay = ticks;
+    }
+
     private void setChargeState(int state) {
         this.entityData.set(DATA_CHARGE, state);
     }
@@ -419,7 +440,7 @@ public class GodzillaEntity extends Monster implements GeoEntity {
     @Override
     protected boolean isImmobile() {
         boolean rootedByAttack = this.pendingHitTicks >= 0 && this.pendingAttack != Attack.SWIM_BITE;
-        return super.isImmobile() || !isActive() || isCharging() || this.stunTicks > 0 || rootedByAttack;
+        return super.isImmobile() || !isActive() || isCharging() || this.stunTicks > 0 || rootedByAttack || this.roaringTicks > 0;
     }
 
     @Override
@@ -511,6 +532,9 @@ public class GodzillaEntity extends Monster implements GeoEntity {
             this.angryTicks++;
         }
 
+        if (this.firstBreathDelay > 0) {
+            this.firstBreathDelay--;
+        }
         if (this.breathCooldown > 0) {
             // (a shorter interval set in the config menu takes effect right away)
             this.breathCooldown = Math.min(this.breathCooldown - 1, Config.ATOMIC_BREATH_COOLDOWN.get() * 20);
@@ -524,12 +548,13 @@ public class GodzillaEntity extends Monster implements GeoEntity {
         if (this.stunTicks > 0) {
             this.stunTicks--;
         }
+        tickRoarTimer();
 
         if (this.chargeTicks >= 0) {
             tickCharge(level, target);
         } else {
             updateAim(null);
-            if (target != null && this.angryTicks >= ANGER_DELAY && this.breathCooldown <= 0 && this.stunTicks <= 0
+            if (target != null && this.angryTicks >= ANGER_DELAY && this.breathCooldown <= 0 && this.firstBreathDelay <= 0 && this.stunTicks <= 0
                     && this.pendingHitTicks < 0 && !isSwimmingAtSurface()) {
                 this.chargeTicks = 0;
                 setChargeState(CHARGE_GLOWING);
@@ -855,6 +880,40 @@ public class GodzillaEntity extends Monster implements GeoEntity {
     public static final double ROAR_RANGE = 3000.0;
     /** How loud a roar is up close: loud, not deafening. */
     private static final float ROAR_VOLUME = 0.8F;
+
+    /** Every roarIntervalSeconds he stops and roars (when he isn't busy charging, attacking, stunned or swimming). */
+    private void tickRoarTimer() {
+        if (this.roaringTicks > 0) {
+            this.roaringTicks--;
+        }
+        int interval = Config.ROAR_INTERVAL.get() * 20;
+        if (interval <= 0) {
+            return;
+        }
+        // (a shorter interval set in the config menu takes effect right away)
+        this.roarTimer = Math.min(this.roarTimer, interval);
+        if (--this.roarTimer > 0) {
+            return;
+        }
+        if (isCharging() || this.pendingHitTicks >= 0 || this.stunTicks > 0 || isSwimmingAtSurface()) {
+            this.roarTimer = 20; // not now: another try in a second
+            return;
+        }
+        this.roarTimer = interval;
+        this.roaringTicks = ROAR_TICKS;
+        getNavigation().stop();
+        roar();
+    }
+
+    /** For the game tests: whether he's in the middle of a roar he let out on his own. */
+    public boolean isRoaring() {
+        return this.roaringTicks > 0;
+    }
+
+    /** For the game tests: the ticks until he roars on his own. */
+    public void setRoarTimer(int ticks) {
+        this.roarTimer = ticks;
+    }
 
     private void roar() {
         triggerAnim("action", "roar");
@@ -1276,13 +1335,20 @@ public class GodzillaEntity extends Monster implements GeoEntity {
         }
     }
 
+    /** Whether something he'd go after is in sight: then it's not the time to knock buildings down. */
+    boolean hasPreyInSight() {
+        double range = Math.min(getAttributeValue(Attributes.FOLLOW_RANGE), 64.0);
+        return !level().getEntitiesOfClass(LivingEntity.class, getBoundingBox().inflate(range),
+                e -> e != this && e.isAlive() && isValidTarget(e) && hasLineOfSight(e)).isEmpty();
+    }
+
     boolean canDemolish() {
         return isActive() && getTarget() == null && !isCharging() && !isSwimmingAtSurface() && this.demolitionRest <= 0
                 && Config.KNOCKS_DOWN_TALL_BUILDINGS.get() && Config.GODZILLA_BREAKS_BLOCKS.get()
                 && level() instanceof ServerLevel level && ForgeEventFactory.getMobGriefingEvent(level, this);
     }
 
-    /** The nearest building in sight standing tallBuildingHeight blocks or more above the ground, if any. */
+    /** The nearest building in sight standing demolishFromHeight blocks or more above the ground, if any. */
     @Nullable
     private Building findTallBuilding(ServerLevel level) {
         int threshold = Config.TALL_BUILDING_HEIGHT.get();
@@ -1349,14 +1415,19 @@ public class GodzillaEntity extends Monster implements GeoEntity {
         triggerAnim("action", attack.anim);
     }
 
+    /** How tall (blocks above its ground) he leaves a building he knocks down: demolishDownToHeight, below the threshold. */
+    private static int keptHeight() {
+        return Math.min(Config.KNOCK_DOWN_TO_HEIGHT.get(), Config.TALL_BUILDING_HEIGHT.get() - 1);
+    }
+
     /**
      * A swipe at the building he's knocking down: the top {@link #KNOCK_LAYERS} layers of what stands within
-     * {@link #KNOCK_RADIUS} blocks of its tallest point come down, but never below tallBuildingHeight - 1 blocks above
-     * its ground. Then he sizes up what is left of it.
+     * {@link #KNOCK_RADIUS} blocks of its tallest point come down, but never below {@link #keptHeight} blocks above its
+     * ground. Then he sizes up what is left of it.
      */
     private void knockDown(ServerLevel level) {
         Building building = this.demolishing;
-        int keep = building.ground() + Config.TALL_BUILDING_HEIGHT.get() - 1;
+        int keep = building.ground() + keptHeight();
         int bottom = Math.max(keep + 1, building.top() - KNOCK_LAYERS + 1);
         BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
         int knocked = 0;
@@ -1390,10 +1461,10 @@ public class GodzillaEntity extends Monster implements GeoEntity {
         this.demolishing = tallestStanding(level, building, keep);
     }
 
-    /** What is left of a building after a swipe: its tallest column still too tall, if any. */
+    /** What is left of a building after a swipe: its tallest column still standing above {@link #keptHeight}, if any. */
     @Nullable
     private static Building tallestStanding(ServerLevel level, Building was, int keep) {
-        int threshold = Config.TALL_BUILDING_HEIGHT.get();
+        int threshold = keptHeight() + 1;
         int reach = KNOCK_RADIUS + 4;
         int from = Math.min(level.getMaxBuildHeight() - 1, was.top() + 40);
         BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
@@ -1491,6 +1562,8 @@ public class GodzillaEntity extends Monster implements GeoEntity {
         tag.putInt("Phase", getPhase().ordinal());
         tag.putInt("PhaseTicks", this.phaseTicks);
         tag.putInt("BreathCooldown", this.breathCooldown);
+        tag.putInt("FirstBreathDelay", this.firstBreathDelay);
+        tag.putInt("RoarTimer", this.roarTimer);
         tag.putInt("Burns", getBurnTicks());
     }
 
@@ -1504,6 +1577,10 @@ public class GodzillaEntity extends Monster implements GeoEntity {
             this.bossEvent.setVisible(phase != Phase.COLLAPSING.ordinal() && phase != Phase.DEAD.ordinal());
         }
         this.breathCooldown = tag.getInt("BreathCooldown");
+        this.firstBreathDelay = tag.getInt("FirstBreathDelay");   // (0 for a Godzilla saved before there was a delay)
+        if (tag.contains("RoarTimer")) {
+            this.roarTimer = tag.getInt("RoarTimer");
+        }
         this.entityData.set(DATA_BURNS, Mth.clamp(tag.getInt("Burns"), 0, BURN_TICKS));
         // Godzillas saved by an older version of the mod walked faster.
         AttributeInstance speed = getAttribute(Attributes.MOVEMENT_SPEED);
@@ -1649,7 +1726,7 @@ public class GodzillaEntity extends Monster implements GeoEntity {
             }
             this.godzilla.getLookControl().setLookAt(target, 10.0F, 10.0F);
             if (this.godzilla.canReach(target, 0.0)) {
-                if (this.godzilla.attackCooldown <= 0) {
+                if (this.godzilla.attackCooldown <= 0 && this.godzilla.roaringTicks <= 0) {
                     this.godzilla.startAttack(target);
                 } else {
                     this.godzilla.faceTowards(target, 3.0F, 0.0F);
@@ -1664,7 +1741,10 @@ public class GodzillaEntity extends Monster implements GeoEntity {
         }
     }
 
-    /** Tall buildings he sees get knocked down, a swipe at a time, until they no longer stand tallBuildingHeight high. */
+    /**
+     * When there's nothing for him to kill, a building he sees standing half his height (demolishFromHeight) or more gets
+     * knocked down, a swipe at a time, to a quarter of his height (demolishDownToHeight); then he leaves it alone.
+     */
     static class DemolishGoal extends Goal {
         /** He stops this close to the building (horizontally) and swipes at it. */
         private static final double REACH = 16.0;
@@ -1684,6 +1764,9 @@ public class GodzillaEntity extends Monster implements GeoEntity {
                     return false;
                 }
                 this.scanDelay = 20;
+                if (this.godzilla.hasPreyInSight()) {
+                    return false; // (his targeting picks it up; the killing comes first)
+                }
                 this.godzilla.demolishing = this.godzilla.findTallBuilding((ServerLevel) this.godzilla.level());
             }
             return this.godzilla.demolishing != null && this.godzilla.canDemolish();
@@ -1718,7 +1801,7 @@ public class GodzillaEntity extends Monster implements GeoEntity {
             if (dx * dx + dz * dz > REACH * REACH) {
                 this.godzilla.getMoveControl().setWantedPosition(x, building.ground() + 1, z, 0.8);
             } else if (this.godzilla.faceTowards(x, z, 4.0F) < 25.0F && this.godzilla.attackCooldown <= 0
-                    && this.godzilla.pendingHitTicks < 0) {
+                    && this.godzilla.pendingHitTicks < 0 && this.godzilla.roaringTicks <= 0) {
                 this.godzilla.startDemolitionSwipe();
             }
         }

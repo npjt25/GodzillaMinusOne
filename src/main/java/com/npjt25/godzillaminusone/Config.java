@@ -26,9 +26,13 @@ public final class Config {
     public static final ForgeConfigSpec.BooleanValue FOOTPRINTS;
     public static final ForgeConfigSpec.BooleanValue KNOCKS_DOWN_TALL_BUILDINGS;
     public static final ForgeConfigSpec.IntValue TALL_BUILDING_HEIGHT;
+    public static final ForgeConfigSpec.IntValue KNOCK_DOWN_TO_HEIGHT;
+    public static final ForgeConfigSpec.IntValue ROAR_INTERVAL;
 
     // ---- Atomic breath
     public static final ForgeConfigSpec.IntValue ATOMIC_BREATH_COOLDOWN;
+    public static final ForgeConfigSpec.IntValue FIRST_BREATH_MIN_DELAY;
+    public static final ForgeConfigSpec.IntValue FIRST_BREATH_MAX_DELAY;
     public static final ForgeConfigSpec.IntValue ATOMIC_BLAST_KILL_RADIUS;
     public static final ForgeConfigSpec.IntValue ATOMIC_BLAST_RADIATION_RADIUS;
     public static final ForgeConfigSpec.IntValue ATOMIC_BLAST_RADIATION_AMPLIFIER;
@@ -93,18 +97,33 @@ public final class Config {
                 .comment("Each step crushes what he walks on into a footprint of rubble (also needs breaksBlocks and mobGriefing).")
                 .define("footprints", true);
         KNOCKS_DOWN_TALL_BUILDINGS = BUILDER
-                .comment("When he sees a building (or anything else built) standing tallBuildingHeight blocks or more above the ground,",
-                        "he goes over and smashes it down until it is lower than that, then moves on (also needs breaksBlocks and mobGriefing).")
+                .comment("When there's nothing for him to kill and he sees a building (or anything else built) standing",
+                        "demolishFromHeight blocks or more above the ground, he goes over and smashes it down to demolishDownToHeight,",
+                        "then leaves it alone (also needs breaksBlocks and mobGriefing).")
                 .define("knocksDownTallBuildings", true);
         TALL_BUILDING_HEIGHT = BUILDER
-                .comment("How tall (in blocks above the ground) a building must be for him to knock it down.")
-                .defineInRange("tallBuildingHeight", 15, 4, 256);
+                .comment("How tall (in blocks above the ground) a building must be for him to knock it down: half his height (45).")
+                .defineInRange("demolishFromHeight", 23, 4, 256);
+        KNOCK_DOWN_TO_HEIGHT = BUILDER
+                .comment("How tall (in blocks above the ground) he leaves a building he knocks down: a quarter of his height.")
+                .defineInRange("demolishDownToHeight", 11, 0, 256);
+        ROAR_INTERVAL = BUILDER
+                .comment("Seconds between the roars he lets out on his own (0 = only when he fires or is hit). Also in the",
+                        "config menu: Mods, Godzilla Minus One, Config.")
+                .defineInRange("roarIntervalSeconds", 120, 0, 3600);
         BUILDER.pop();
 
         BUILDER.push("atomic_breath");
         ATOMIC_BREATH_COOLDOWN = BUILDER
                 .comment("Seconds he needs to recharge after an atomic breath before he can charge the next one (add-on: ~18).")
                 .defineInRange("rechargeSeconds", 180, 0, 3600);
+        FIRST_BREATH_MIN_DELAY = BUILDER
+                .comment("After he appears, he waits between firstBreathMinSeconds and firstBreathMaxSeconds (picked at random)",
+                        "before he can use his atomic breath for the first time.")
+                .defineInRange("firstBreathMinSeconds", 120, 0, 3600);
+        FIRST_BREATH_MAX_DELAY = BUILDER
+                .comment("See firstBreathMinSeconds.")
+                .defineInRange("firstBreathMaxSeconds", 180, 0, 3600);
         ATOMIC_BLAST_KILL_RADIUS = BUILDER
                 .comment("Everything within this many blocks of the blast is killed, except Shinden pilots (add-on: 2000 around Godzilla).")
                 .defineInRange("killRadius", 64, 0, 2000);
@@ -121,13 +140,13 @@ public final class Config {
                 .comment("Around the crater the blast wave flattens trees and buildings and scorches the ground out to this radius.")
                 .defineInRange("blastWaveRadius", 64, 0, 160);
         ATOMIC_FLATTEN_RADIUS = BUILDER
-                .comment("Everything above flattenLevel within this many blocks of where the atomic breath lands (trees, grass, buildings,",
-                        "hills) is erased, leaving the land flat; nothing drops. Chunks loaded later are flattened as they load.",
+                .comment("Everything above flattenDownToY within this many blocks of where the atomic breath lands (trees, grass,",
+                        "buildings, hills) is erased, leaving the land flat; nothing drops. Chunks loaded later are flattened as they load.",
                         "0 = off; also needs mobGriefing.")
-                .defineInRange("flattenRadius", 600, 0, 2000);
+                .defineInRange("flattenRange", 140, 0, 2000);
         ATOMIC_FLATTEN_LEVEL = BUILDER
-                .comment("The height (Y) the atomic breath flattens the land down to.")
-                .defineInRange("flattenLevel", 60, -64, 320);
+                .comment("The height (Y) the atomic breath flattens the land down to: anything above it is obliterated.")
+                .defineInRange("flattenDownToY", 65, -64, 320);
         CHARGE_FREEZE_RADIUS = BUILDER
                 .comment("While he charges, mobs within this radius are frozen in place (add-on: 2000).")
                 .defineInRange("freezeRadius", 128, 0, 2000);

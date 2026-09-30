@@ -4,8 +4,9 @@ its model, skins and animations, unchanged, adapted to how the mod drives them.
     python3 tools/make_odo_model.py <the add-on's resource pack folder, G-1(RE)>
 
   * geometry: "Godzillasaurus by Monster122.geo.json" as it is (87 bones, 395 cubes), renamed,
-  * textures: godzillasaurus.png as the skin; godzillasaurus_burned.png, split into the charred skin and its
-    glowing embers (the add-on's "spider" material makes its semi-transparent pixels glow),
+  * textures: godzillasaurus.png as the skin, its olive brown turned grey and brown (gray_brown below);
+    godzillasaurus_burned.png, split into the charred skin and its glowing embers (the add-on's "spider"
+    material makes its semi-transparent pixels glow),
   * animations: the add-on's Bedrock controller plays several animations at once and adds them up (idle is
     always playing underneath; "target" opens the jaw while it hunts). GeckoLib lets one animation drive a bone
     at a time, so those sums are baked into single clips here:
@@ -194,6 +195,32 @@ def build_animations(src):
 
 
 # ---------------------------------------------------------------- textures
+def gray_brown(rgba):
+    """Monster122's olive-brown hide made grey and brown: the lighter scales go an ashen, stony grey, the darker
+    grooves between them a warmer brown. The red mouth, the eyes and anything else that isn't olive/brown stay."""
+    rgb = rgba[..., :3].astype(float) / 255.0
+    mx, mn = rgb.max(-1), rgb.min(-1)
+    val, sat = mx, np.where(mx > 0, (mx - mn) / np.maximum(mx, 1e-6), 0.0)
+    r, g, b = rgb[..., 0], rgb[..., 1], rgb[..., 2]
+    d = np.maximum(mx - mn, 1e-6)
+    hue = np.where(mx == r, ((g - b) / d) % 6, np.where(mx == g, (b - r) / d + 2, (r - g) / d + 4)) * 60.0
+    hide = (rgba[..., 3] > 0) & (hue >= 15) & (hue <= 75) & (sat < 0.65)
+    # how light the pixel is among the hide's pixels: 0 in the grooves, 1 on the lightest scales
+    lo, hi = np.percentile(val[hide], 10), np.percentile(val[hide], 90)
+    light = np.clip((val - lo) / max(hi - lo, 1e-6), 0.0, 1.0)
+    grey = light * 0.8                                   # share of grey: most on the light scales
+    new_hue = 28.0                                       # brown, a little warmer than the olive
+    new_sat = sat * (1.0 - grey) * 0.95
+    new_val = val * (1.0 + 0.1 * light)                  # the grey scales a touch paler
+    c = new_val * new_sat
+    x = c * (1 - abs((new_hue / 60.0) % 2 - 1))
+    m = new_val - c
+    out = np.stack([c + m, x + m, m + np.zeros_like(c)], -1)   # hue 28 lies between red and yellow: (c, x, 0)
+    res = rgba.copy()
+    res[..., :3] = np.where(hide[..., None], np.clip(out * 255.0 + 0.5, 0, 255), rgba[..., :3]).astype(np.uint8)
+    return res
+
+
 def split_emissive(rgba):
     """Bedrock's alpha-emissive materials: alpha 0 is cut out, other pixels are drawn opaque and glow by
     (1 - alpha). Returns (opaque skin, glow)."""
@@ -220,7 +247,7 @@ def main():
     tex = os.path.join(rp, "textures", "entity", "godzilla_minus_one")
     out = os.path.join(ASSETS, "textures", "entity")
     skin = np.array(Image.open(os.path.join(tex, "godzillasaurus.png")).convert("RGBA"))
-    base, _ = split_emissive(skin)
+    base, _ = split_emissive(gray_brown(skin))
     Image.fromarray(base).save(os.path.join(out, NAME + ".png"))
     burnt = np.array(Image.open(os.path.join(tex, "godzillasaurus_burned.png")).convert("RGBA"))
     base, glow = split_emissive(burnt)

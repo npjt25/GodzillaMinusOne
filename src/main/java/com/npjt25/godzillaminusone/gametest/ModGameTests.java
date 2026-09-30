@@ -196,6 +196,7 @@ public final class ModGameTests {
     @GameTest(template = FLOOR, batch = "gmo_atomic_breath", timeoutTicks = 560)
     public static void atomicBreathKillsHisTargetThenRecharges(GameTestHelper helper) {
         GodzillaEntity godzilla = spawnActiveGodzilla(helper);
+        godzilla.setFirstBreathDelay(0);
         int floor = floorY(helper);
         BlockPos cell = new BlockPos(4, floor + 1, 44);
         for (BlockPos wall : new BlockPos[]{cell.below(), cell.above(), cell.north(), cell.south(), cell.east(), cell.west()}) {
@@ -470,8 +471,59 @@ public final class ModGameTests {
             helper.assertTrue(light.isLit(), "manned, the searchlight should be lit");
             helper.assertTrue(odo.getTarget() == operator, "caught in the beam he should go for the operator, target " + odo.getTarget());
             helper.assertTrue(odo.getState() == OdoIslandMonsterEntity.STATE_ANGRY, "he should be enraged");
+            helper.assertTrue(odo.isFrenzied(), "a searchlight should send him into a frenzy");
+            helper.assertTrue(light.getLights().size() >= 2, "the beam should light up a pool around where it lands, lights "
+                    + light.getLights());
             remove(odo, operator, light);
         });
+    }
+
+    /** He waits two to three minutes after he appears before he can use his atomic breath, target or not. */
+    @GameTest(template = FLOOR, batch = "gmo_first_breath", timeoutTicks = 120)
+    public static void heWaitsBeforeHisFirstAtomicBreath(GameTestHelper helper) {
+        GodzillaEntity godzilla = spawnActiveGodzilla(helper);
+        int delay = godzilla.getFirstBreathDelay();
+        helper.assertTrue(delay >= Config.FIRST_BREATH_MIN_DELAY.get() * 20 - 1 && delay <= Config.FIRST_BREATH_MAX_DELAY.get() * 20,
+                "the first breath should be 2 to 3 minutes off, " + delay + " ticks");
+        Pig pig = helper.spawn(EntityType.PIG, new Vec3(4.5, floorY(helper) + 1, 4.5));
+        pig.setInvulnerable(true);
+        godzilla.setTarget(pig);
+        helper.runAtTickTime(100, () -> {
+            helper.assertFalse(godzilla.isCharging(), "he shouldn't charge his atomic breath so soon after appearing");
+            remove(godzilla, pig);
+            helper.succeed();
+        });
+    }
+
+    /** Every roarIntervalSeconds he stops and roars. */
+    @GameTest(template = FLOOR, batch = "gmo_roar", timeoutTicks = 60)
+    public static void heRoarsNowAndThen(GameTestHelper helper) {
+        GodzillaEntity godzilla = spawnActiveGodzilla(helper);
+        helper.assertTrue(Config.ROAR_INTERVAL.get() > 0, "roaring should be on by default");
+        helper.assertFalse(godzilla.isRoaring(), "he shouldn't roar straight away");
+        godzilla.setRoarTimer(5);
+        helper.succeedWhen(() -> {
+            helper.assertTrue(godzilla.isRoaring(), "when the time comes he should roar");
+            remove(godzilla);
+        });
+    }
+
+    /** A player coming into his sight sends the Odo Island Monster into a frenzy after them. */
+    @GameTest(template = FLOOR, batch = "gmo_odo_frenzy", timeoutTicks = 40)
+    public static void theOdoMonsterGoesIntoAFrenzyWhenSeen(GameTestHelper helper) {
+        int floor = floorY(helper);
+        OdoIslandMonsterEntity odo = spawnOdo(helper, floor, 2);
+        odo.setNoAi(true);
+        Player player = helper.makeMockPlayer();
+        Vec3 at = helper.absoluteVec(new Vec3(4.5, floor + 1, 8.5));
+        player.moveTo(at.x, at.y, at.z, 180.0F, 0.0F);   // looking north, at him
+        helper.assertFalse(odo.isFrenzied(), "he shouldn't be in a frenzy yet");
+        helper.assertTrue(odo.noticePlayer(player), "he should notice a player looking at him from close by");
+        helper.assertTrue(odo.isFrenzied() && odo.getTarget() == player, "seen, he should go into a frenzy after the player");
+        helper.assertTrue(odo.getAttributeValue(net.minecraft.world.entity.ai.attributes.Attributes.MOVEMENT_SPEED) > 0.3,
+                "in a frenzy he should be faster");
+        remove(odo);
+        helper.succeed();
     }
 
     @GameTest(template = FLOOR, batch = "gmo_crash")
@@ -495,19 +547,21 @@ public final class ModGameTests {
     }
 
     /**
-     * A tower 18 blocks tall right in front of him: he swipes at it until it stands less than tallBuildingHeight (15)
-     * blocks high, and no lower. (Kept on task: other tests' pigs might catch his eye.)
+     * A tower 26 blocks tall (more than half his height) right in front of him: he swipes at it until it stands a
+     * quarter of his height (demolishDownToHeight, 11), and no lower. (Kept on task: other tests' pigs might catch his
+     * eye.)
      */
-    @GameTest(template = FLOOR, batch = "gmo_demolish", timeoutTicks = 300)
+    @GameTest(template = FLOOR, batch = "gmo_demolish", timeoutTicks = 400)
     public static void heKnocksTallBuildingsDownToSize(GameTestHelper helper) {
         GodzillaEntity godzilla = spawnActiveGodzilla(helper);
         int floor = floorY(helper);
-        int limit = Config.TALL_BUILDING_HEIGHT.get();
-        for (int y = floor + 1; y <= floor + 18; y++) {
+        int kept = Config.KNOCK_DOWN_TO_HEIGHT.get();
+        helper.assertTrue(26 >= Config.TALL_BUILDING_HEIGHT.get(), "the tower should count as tall");
+        for (int y = floor + 1; y <= floor + 26; y++) {
             helper.setBlock(new BlockPos(4, y, 10), Blocks.STONE_BRICKS.defaultBlockState());
         }
         BlockPos base = helper.absolutePos(new BlockPos(4, floor + 1, 10));
-        BlockPos tooHigh = new BlockPos(4, floor + limit, 10);
+        BlockPos tooHigh = new BlockPos(4, floor + kept + 1, 10);
         godzilla.knockDown(base);
         helper.onEachTick(() -> {
             godzilla.setTarget(null);
@@ -516,7 +570,7 @@ public final class ModGameTests {
             }
         });
         helper.succeedWhen(() -> {
-            helper.assertTrue(helper.getBlockState(tooHigh).isAir(), "the tower should be knocked down to less than " + limit + " blocks");
+            helper.assertTrue(helper.getBlockState(tooHigh).isAir(), "the tower should be knocked down to " + kept + " blocks");
             helper.assertTrue(helper.getBlockState(tooHigh.below()).is(Blocks.STONE_BRICKS), "he should only knock it down to size");
             helper.assertFalse(godzilla.isDemolishing(), "then he should move on");
             remove(godzilla);

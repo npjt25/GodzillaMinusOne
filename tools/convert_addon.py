@@ -283,6 +283,10 @@ def steady_shinden(path):
     anims = data["animations"]
     anims["animation.kplane.fly"]["bones"].pop("bone", None)
     anims.pop("animation.kplane.turning", None)
+    # One click, one shot: a single flash from each gun (the add-on flashes each twice, with a three-shot sound).
+    anims["animation.kplane.fire"]["particle_effects"] = {"0.0000": {"effect": "gun_flash", "locator": "locator"},
+                                                         "0.0010": {"effect": "gun_flash", "locator": "locator2"}}
+    anims["animation.kplane.fire"]["loop"] = False
     write_json(path, data)
 
 
@@ -326,11 +330,12 @@ SOUNDS = {
     "godzilla.full_charge": (["gojira/full_charge"], True),
     "godzilla.atomic_blast": (["gojira/gojira_nuke"], True),
     "shinden.engine": (["kplane/fly"], False),
-    "shinden.gun": (["kplane/fire"], False),
+    "shinden.gun": (["@shinden_gun"], False),
     "naval_mine.explode": (["naval_mine/naval_mine"], False),
     # "@name": made by tools/make_sounds.py, not converted from the add-on.
     "godzilla.inhale": (["@godzilla_inhale"], False),
     "nuke.alarm": (["@nuke_alarm"], True),
+    "shinsei_maru.gun": (["@shinsei_maru_gun"], False),
     # The Odo Island Monster, a younger, smaller Godzilla: his sounds, pitched up ("@": already converted above).
     "odo.ambient": (["@godzilla_stand", "@godzilla_stand2", "@godzilla_stand3"], False, 1.3),
     "odo.roar": (["@godzilla_roar"], True, 1.3),

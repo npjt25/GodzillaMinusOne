@@ -131,7 +131,7 @@
   "subtitle": "subtitles.godzillaminusone.shinden.gun",
   "sounds": [
    {
-    "name": "godzillaminusone:kplane_fire"
+    "name": "godzillaminusone:shinden_gun"
    }
   ]
  },
@@ -230,6 +230,14 @@
     "name": "godzillaminusone:godzilla_roar",
     "stream": true,
     "pitch": 1.1
+   }
+  ]
+ },
+ "shinsei_maru.gun": {
+  "subtitle": "subtitles.godzillaminusone.shinsei_maru.gun",
+  "sounds": [
+   {
+    "name": "godzillaminusone:shinsei_maru_gun"
    }
   ]
  }

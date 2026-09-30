@@ -2,7 +2,10 @@ package com.npjt25.godzillaminusone.entity;
 
 import com.npjt25.godzillaminusone.registry.ModItems;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.ListTag;
+import net.minecraft.nbt.Tag;
 import net.minecraft.nbt.NbtUtils;
 import net.minecraft.network.protocol.Packet;
 import net.minecraft.network.protocol.game.ClientGamePacketListener;
@@ -40,16 +43,22 @@ import software.bernie.geckolib.core.animatable.instance.AnimatableInstanceCache
 import software.bernie.geckolib.core.animation.AnimatableManager;
 import software.bernie.geckolib.util.GeckoLibUtil;
 
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.Set;
+
 /**
  * A WWII searchlight. Right-click to sit at it: it turns and tilts with where you look, and while someone is
- * manning it the lamp is lit: a beam of light reaching {@link #RANGE} blocks, lighting up whatever it lands on.
+ * manning it the lamp is lit: a cone of light reaching {@link #RANGE} blocks that widens as it goes
+ * ({@link #beamRadius}), lighting up a wide pool around wherever it lands (a ring of light sources, {@link #spotRadius}).
  * An Odo Island Monster caught in the beam goes berserk and comes for whoever is working the light. Hit it like a
  * boat to knock it back into its item.
  */
 public class SearchlightEntity extends Entity implements GeoEntity {
     public static final double RANGE = 160.0;
-    /** How wide the beam is (blocks from its axis) for spotting things in it. */
-    private static final double BEAM_RADIUS = 3.0;
+    /** The ring of light sources around where the beam lands: how many, and at most how far from the middle. */
+    private static final int SPOT_LIGHTS = 8;
+    private static final double MAX_SPOT_LIGHT_RING = 7.0;
     /** Where the lamp's lens is (blocks up from the base, and ahead of the lamp's pivot). */
     public static final double LENS_HEIGHT = 1.25;
     public static final double LENS_FORWARD = 0.75;
@@ -61,8 +70,8 @@ public class SearchlightEntity extends Entity implements GeoEntity {
     private static final EntityDataAccessor<Float> DATA_DAMAGE = SynchedEntityData.defineId(SearchlightEntity.class, EntityDataSerializers.FLOAT);
 
     private final AnimatableInstanceCache cache = GeckoLibUtil.createInstanceCache(this);
-    @Nullable
-    private BlockPos lightPos;
+    /** The light sources (light blocks) it has put where the beam lands. */
+    private final Set<BlockPos> lights = new HashSet<>();
 
     public SearchlightEntity(EntityType<? extends SearchlightEntity> type, Level level) {
         super(type, level);
@@ -113,9 +122,24 @@ public class SearchlightEntity extends Entity implements GeoEntity {
         return Vec3.directionFromRotation(getAimPitch(), getAimYaw());
     }
 
+    /** How wide the cone of light is (blocks from its axis) this far from the lens. */
+    public static double beamRadius(double distance) {
+        return 0.8 + distance * 0.06;
+    }
+
+    /** How wide the pool of light is where a beam this long lands. */
+    public static double spotRadius(double length) {
+        return 2.5 + beamRadius(length) * 1.4;
+    }
+
     /** Where the beam ends: the first block it hits, or its full reach. */
     public Vec3 beamEnd() {
         return beamHit(level()).getLocation();
+    }
+
+    /** What the beam hits (for where to draw the pool of light, and which way it faces). */
+    public HitResult beamHit() {
+        return beamHit(level());
     }
 
     private HitResult beamHit(Level level) {
@@ -224,48 +248,92 @@ public class SearchlightEntity extends Entity implements GeoEntity {
         }
     }
 
-    /** Lights up where the beam lands, and catches any Odo Island Monster standing in it. */
+    /** Lights up a pool around where the beam lands, and catches any Odo Island Monster standing in the cone. */
     private void shine(ServerLevel level, LivingEntity operator) {
         Vec3 from = lens();
         Vec3 dir = beamDirection();
         HitResult hit = beamHit(level);
         Vec3 end = hit.getLocation();
-        BlockPos light = null;
-        if (hit instanceof BlockHitResult blockHit && hit.getType() == HitResult.Type.BLOCK) {
-            light = blockHit.getBlockPos().relative(blockHit.getDirection());
-        }
-        moveLight(level, light);
-
         double length = end.distanceTo(from);
-        AABB area = new AABB(from, end).inflate(BEAM_RADIUS + 16.0);
+        Set<BlockPos> wanted = new HashSet<>();
+        if (hit instanceof BlockHitResult blockHit && hit.getType() == HitResult.Type.BLOCK) {
+            Direction face = blockHit.getDirection();
+            addLight(level, wanted, blockHit.getBlockPos().relative(face), face);
+            // a ring of lights around it, in the plane of the face it lands on
+            Vec3 normal = Vec3.atLowerCornerOf(face.getNormal());
+            Vec3 u = Math.abs(normal.y) > 0.5 ? new Vec3(1, 0, 0) : new Vec3(0, 1, 0);
+            Vec3 v = normal.cross(u);
+            double ring = Math.min(MAX_SPOT_LIGHT_RING, spotRadius(length) * 0.6);
+            Vec3 middle = end.add(normal.scale(0.5));
+            for (int i = 0; i < SPOT_LIGHTS; i++) {
+                double angle = Math.PI * 2.0 * i / SPOT_LIGHTS;
+                Vec3 p = middle.add(u.scale(Math.cos(angle) * ring)).add(v.scale(Math.sin(angle) * ring));
+                addLight(level, wanted, BlockPos.containing(p), face);
+            }
+        }
+        moveLights(level, wanted);
+
+        AABB area = new AABB(from, end).inflate(beamRadius(length) + 16.0);
         for (OdoIslandMonsterEntity odo : level.getEntitiesOfClass(OdoIslandMonsterEntity.class, area, e -> e.isAlive() && !e.isBurnt())) {
-            AABB box = odo.getBoundingBox().inflate(BEAM_RADIUS);
+            // how far along the beam he is, and how wide the cone is there
+            Vec3 centre = odo.getBoundingBox().getCenter();
+            double along = Mth.clamp(centre.subtract(from).dot(dir), 0.0, length + 2.0);
+            AABB box = odo.getBoundingBox().inflate(beamRadius(along));
             if (box.contains(from) || box.clip(from, from.add(dir.scale(length + 2.0))).isPresent()) {
                 odo.spottedBy(operator);
             }
         }
     }
 
-    private void moveLight(ServerLevel level, @Nullable BlockPos pos) {
-        if (pos != null && pos.equals(this.lightPos)) {
-            return;
+    /** The air block at (or just in front of, along {@code face}) {@code pos} gets a light, if it's loaded. */
+    private static void addLight(ServerLevel level, Set<BlockPos> wanted, BlockPos pos, Direction face) {
+        for (int step = 0; step < 3; step++) {
+            BlockPos at = pos.relative(face, step);
+            if (!level.isLoaded(at)) {
+                return;
+            }
+            BlockState state = level.getBlockState(at);
+            if (state.isAir() || state.is(Blocks.LIGHT)) {
+                wanted.add(at.immutable());
+                return;
+            }
         }
-        clearLight(level);
-        if (pos != null && level.isLoaded(pos) && level.getBlockState(pos).isAir()) {
-            level.setBlock(pos, Blocks.LIGHT.defaultBlockState().setValue(LightBlock.LEVEL, 15), 3);
-            this.lightPos = pos;
+    }
+
+    /** Puts light blocks where they're wanted now and takes away the ones that aren't. */
+    private void moveLights(ServerLevel level, Set<BlockPos> wanted) {
+        for (Iterator<BlockPos> it = this.lights.iterator(); it.hasNext(); ) {
+            BlockPos pos = it.next();
+            if (!wanted.contains(pos)) {
+                removeLight(level, pos);
+                it.remove();
+            }
+        }
+        for (BlockPos pos : wanted) {
+            if (!this.lights.contains(pos) && level.getBlockState(pos).isAir()) {
+                level.setBlock(pos, Blocks.LIGHT.defaultBlockState().setValue(LightBlock.LEVEL, 15), 3);
+                this.lights.add(pos);
+            }
+        }
+    }
+
+    private static void removeLight(Level level, BlockPos pos) {
+        // (a light left in a chunk that has since unloaded stays: loading the chunk just for it isn't worth it)
+        if (level.hasChunkAt(pos) && level.getBlockState(pos).is(Blocks.LIGHT)) {
+            level.setBlock(pos, Blocks.AIR.defaultBlockState(), 3);
         }
     }
 
     private void clearLight(Level level) {
-        if (this.lightPos != null) {
-            // (a light left in a chunk that has since unloaded stays: loading the chunk just for it isn't worth it)
-            BlockState state = level.hasChunkAt(this.lightPos) ? level.getBlockState(this.lightPos) : Blocks.AIR.defaultBlockState();
-            if (state.is(Blocks.LIGHT)) {
-                level.setBlock(this.lightPos, Blocks.AIR.defaultBlockState(), 3);
-            }
-            this.lightPos = null;
+        for (BlockPos pos : this.lights) {
+            removeLight(level, pos);
         }
+        this.lights.clear();
+    }
+
+    /** For the game tests: the light sources it has put down. */
+    public Set<BlockPos> getLights() {
+        return this.lights;
     }
 
     @Override
@@ -315,9 +383,13 @@ public class SearchlightEntity extends Entity implements GeoEntity {
     @Override
     protected void readAdditionalSaveData(CompoundTag tag) {
         setAim(tag.getFloat("AimYaw"), tag.getFloat("AimPitch"));
+        // lights left behind when the world was saved with the lamp lit: cleared on the next tick
         if (tag.contains("Light")) {
-            // a light left behind when the world was saved with the lamp lit: cleared on the next tick
-            this.lightPos = NbtUtils.readBlockPos(tag.getCompound("Light"));
+            this.lights.add(NbtUtils.readBlockPos(tag.getCompound("Light")));   // (saved by older versions)
+        }
+        ListTag saved = tag.getList("Lights", Tag.TAG_COMPOUND);
+        for (int i = 0; i < saved.size(); i++) {
+            this.lights.add(NbtUtils.readBlockPos(saved.getCompound(i)));
         }
     }
 
@@ -325,8 +397,12 @@ public class SearchlightEntity extends Entity implements GeoEntity {
     protected void addAdditionalSaveData(CompoundTag tag) {
         tag.putFloat("AimYaw", getAimYaw());
         tag.putFloat("AimPitch", getAimPitch());
-        if (this.lightPos != null) {
-            tag.put("Light", NbtUtils.writeBlockPos(this.lightPos));
+        if (!this.lights.isEmpty()) {
+            ListTag saved = new ListTag();
+            for (BlockPos pos : this.lights) {
+                saved.add(NbtUtils.writeBlockPos(pos));
+            }
+            tag.put("Lights", saved);
         }
     }
 
