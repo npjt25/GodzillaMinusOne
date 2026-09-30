@@ -69,6 +69,19 @@ public final class Fx {
                 case "stomp_dust" -> dust(pos, 30, 1.8F);
                 case "roar_ring" -> roarRings(pos);
                 case "beam_smoke" -> beamSmoke(godzilla, pos);
+                case "tail_sweep" -> {
+                    // animation.gojira.spin_whip: the tail scours the ground all round him
+                    groundRing(godzilla.position(), 64.0F, 12, 0xA3FFFFFF);
+                    for (int i = 0; i < 16; i++) {
+                        double angle = i / 16.0 * Math.PI * 2;
+                        dust(godzilla.position().add(Math.cos(angle) * 22.0, 0.0, Math.sin(angle) * 22.0), 2, 1.2F);
+                    }
+                }
+                case "tail_snap" -> {
+                    // ...and cracks like a whip
+                    groundRing(godzilla.position(), 80.0F, 8, 0xC0FFFFFF);
+                    dust(godzilla.locator(0.0, 0.5, -30.0), 16, 1.6F);
+                }
                 case "splash" -> {
                     if (locator.equals("y")) {
                         // animation.gojira.swim_bite: the jaws slam into the water

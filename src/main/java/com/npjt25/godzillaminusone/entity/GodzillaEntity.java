@@ -162,7 +162,12 @@ public class GodzillaEntity extends Monster implements GeoEntity {
     private static final RawAnimation LIE_DEAD = RawAnimation.begin().thenLoop("animation.gojira.dead");
     private static final RawAnimation ATTACK = RawAnimation.begin().thenPlay("animation.gojira.attack");
     private static final RawAnimation STOMP = RawAnimation.begin().thenPlay("animation.gojira.stomp");
-    private static final RawAnimation TAIL = RawAnimation.begin().thenPlay("animation.gojira.tail_attack");
+    private static final RawAnimation SWIPE_RIGHT = RawAnimation.begin().thenPlay("animation.gojira.swipe_right");
+    private static final RawAnimation SWIPE_LEFT = RawAnimation.begin().thenPlay("animation.gojira.swipe_left");
+    private static final RawAnimation SPIN_WHIP = RawAnimation.begin().thenPlay("animation.gojira.spin_whip");
+    private static final RawAnimation SWIM_PEEK = RawAnimation.begin().thenPlay("animation.gojira.swim_peek");
+    /** While he swims, his head comes up out of the water every 10 seconds to glare around (for 4 of them). */
+    public static final int SWIM_PEEK_INTERVAL = 10 * 20;
     private static final RawAnimation SWIM_BITE_ANIM = RawAnimation.begin().thenPlay("animation.gojira.swim_bite");
     private static final RawAnimation ROAR = RawAnimation.begin().thenPlay("animation.gojira.roar");
 
@@ -191,6 +196,9 @@ public class GodzillaEntity extends Monster implements GeoEntity {
     private int pendingHitTicks = -1;
     @Nullable
     private Attack pendingAttack;
+    private int comboStep;
+    private int swimPeekTicks;
+    private int swimPeeks;
     private int blackRainTicks = -1;
     private Vec3 blackRainPos = Vec3.ZERO;
     private double swimY;
@@ -202,7 +210,9 @@ public class GodzillaEntity extends Monster implements GeoEntity {
     private boolean walkAnimation;
 
     private enum Attack {
-        BITE("attack", 10, 20), STOMP("stomp", 25, 65), TAIL("tail", 16, 35), SWIM_BITE("swim_bite", 14, 26);
+        BITE("attack", 10, 20), STOMP("stomp", 25, 65), SWIM_BITE("swim_bite", 14, 26),
+        // the melee combo: two claw swipes, then a heavy spin whose tail sweeps round him and then snaps
+        SWIPE_RIGHT("swipe_right", 10, 22), SWIPE_LEFT("swipe_left", 10, 22), SPIN("spin_whip", 17, 44), TAIL_SNAP(null, 9, 0);
 
         final String anim;
         final int hitDelay;
@@ -340,6 +350,11 @@ public class GodzillaEntity extends Monster implements GeoEntity {
 
     public int getBreathCooldown() {
         return this.breathCooldown;
+    }
+
+    /** For the game tests: keeps him from charging his atomic breath. */
+    public void setBreathCooldown(int ticks) {
+        this.breathCooldown = ticks;
     }
 
     private void setChargeState(int state) {
@@ -496,13 +511,24 @@ public class GodzillaEntity extends Monster implements GeoEntity {
             }
         }
 
+        if (isSwimmingAtSurface() && this.pendingHitTicks < 0) {
+            if (++this.swimPeekTicks >= SWIM_PEEK_INTERVAL) {
+                this.swimPeekTicks = 0;
+                this.swimPeeks++;
+                triggerAnim("action", "swim_peek");
+            }
+        } else {
+            this.swimPeekTicks = 0;
+        }
+
         if (this.pendingHitTicks >= 0) {
             if (target != null) {
                 faceTowards(target, 3.0F, 0.0F);
             }
             if (--this.pendingHitTicks < 0 && this.pendingAttack != null) {
-                performAttack(level, this.pendingAttack, target);
+                Attack attack = this.pendingAttack;
                 this.pendingAttack = null;
+                performAttack(level, attack, target); // (it may line up a follow-up hit)
             }
         }
 
@@ -855,27 +881,43 @@ public class GodzillaEntity extends Monster implements GeoEntity {
 
     // ------------------------------------------------------------------ melee
 
+    /** His melee combo, in order: a swipe of each hand, then the spin and tail whip. */
+    private static final Attack[] COMBO = {Attack.SWIPE_RIGHT, Attack.SWIPE_LEFT, Attack.SPIN};
+
     private void startAttack(LivingEntity target) {
         Attack attack;
         if (isSwimmingAtSurface()) {
             attack = Attack.SWIM_BITE;
         } else {
             double heightAbove = target.getY() - getY();
-            Vec3 toTarget = target.position().subtract(position()).multiply(1.0, 0.0, 1.0).normalize();
+            Vec3 offset = target.position().subtract(position()).multiply(1.0, 0.0, 1.0);
             Vec3 facing = Vec3.directionFromRotation(0.0F, getYRot());
-            if (toTarget.dot(facing) < -0.3) {
-                attack = Attack.TAIL;
-            } else if (heightAbove > 10.0) {
-                attack = Attack.BITE;
+            if (heightAbove > 10.0) {
+                attack = Attack.BITE;           // up on a roof or a hill: he bites
+            } else if (offset.normalize().dot(facing) < -0.3) {
+                attack = Attack.SPIN;           // behind him: the tail comes round
+                this.comboStep = 0;
+            } else if (offset.length() < getBbWidth() * 0.5 + 4.0) {
+                attack = Attack.STOMP;          // right under his feet
             } else {
-                int roll = this.random.nextInt(10);
-                attack = roll < 4 ? Attack.BITE : roll < 8 ? Attack.STOMP : Attack.TAIL;
+                attack = COMBO[this.comboStep];
+                this.comboStep = (this.comboStep + 1) % COMBO.length;
             }
         }
         this.pendingAttack = attack;
         this.pendingHitTicks = attack.hitDelay;
-        this.attackCooldown = attack.length + 10;
+        this.attackCooldown = attack.length + (attack == Attack.SWIPE_RIGHT || attack == Attack.SWIPE_LEFT ? 4 : 10);
         triggerAnim("action", attack.anim);
+    }
+
+    /** For the game tests: how many times his head has come up to peek while swimming. */
+    public int getSwimPeeks() {
+        return this.swimPeeks;
+    }
+
+    /** For the game tests: the attack he makes next against a target in front of him. */
+    public String nextComboAttack() {
+        return COMBO[this.comboStep].anim;
     }
 
     private void performAttack(ServerLevel level, Attack attack, @Nullable LivingEntity target) {
@@ -892,9 +934,32 @@ public class GodzillaEntity extends Monster implements GeoEntity {
                 ModNetwork.sendNear(level, foot, 256.0, new FxPacket(FxPacket.Type.STOMP, foot, 1.5F, 0.0F));
                 ModNetwork.shake(level, foot, 128.0, 1.2F, 2.0F);
             }
-            case TAIL -> {
-                areaAttack(level, position(), 26.0, (float) getAttributeValue(Attributes.ATTACK_DAMAGE) * 0.3F);
-                ModNetwork.shake(level, position(), 64.0, 0.6F, 1.2F);
+            case SWIPE_RIGHT, SWIPE_LEFT -> {
+                // the claws rake across in front of him, flinging what they hit aside
+                double side = attack == Attack.SWIPE_RIGHT ? 1.0 : -1.0;
+                Vec3 claws = locator(2.0 * side, 10.0, 15.0);
+                if (target != null && target.isAlive() && canReach(target, 4.0)) {
+                    doHurtTarget(target);
+                }
+                Vec3 fwd = Vec3.directionFromRotation(0.0F, this.yBodyRot);
+                Vec3 across = new Vec3(fwd.z, 0.0, -fwd.x).scale(side * 2.2).add(0.0, 0.7, 0.0);
+                areaAttack(level, claws, 15.0, (float) getAttributeValue(Attributes.ATTACK_DAMAGE) * 0.6F, target, across);
+                level.playSound(null, claws.x, claws.y, claws.z, SoundEvents.PLAYER_ATTACK_SWEEP, SoundSource.HOSTILE, 8.0F, 0.45F);
+                ModNetwork.shake(level, claws, 48.0, 0.4F, 0.8F);
+            }
+            case SPIN -> {
+                // the tail sweeps round him at the ground...
+                areaAttack(level, position(), 30.0, (float) getAttributeValue(Attributes.ATTACK_DAMAGE) * 0.4F, null, null);
+                level.playSound(null, getX(), getY() + 4.0, getZ(), SoundEvents.PLAYER_ATTACK_SWEEP, SoundSource.HOSTILE, 10.0F, 0.3F);
+                ModNetwork.shake(level, position(), 64.0, 0.7F, 1.2F);
+                // ...and then snaps
+                this.pendingAttack = Attack.TAIL_SNAP;
+                this.pendingHitTicks = Attack.TAIL_SNAP.hitDelay;
+            }
+            case TAIL_SNAP -> {
+                areaAttack(level, position(), 38.0, (float) getAttributeValue(Attributes.ATTACK_DAMAGE) * 0.35F, null, null);
+                level.playSound(null, getX(), getY() + 4.0, getZ(), SoundEvents.PLAYER_ATTACK_CRIT, SoundSource.HOSTILE, 12.0F, 0.4F);
+                ModNetwork.shake(level, position(), 96.0, 1.0F, 1.0F);
             }
             case SWIM_BITE -> swimBite(level, target);
         }
@@ -926,12 +991,18 @@ public class GodzillaEntity extends Monster implements GeoEntity {
     }
 
     private void areaAttack(ServerLevel level, Vec3 center, double radius, float damage) {
+        areaAttack(level, center, radius, damage, null, null);
+    }
+
+    /** Hurts everything within radius (but {@code spared}) and knocks it away from the centre, or along {@code push}. */
+    private void areaAttack(ServerLevel level, Vec3 center, double radius, float damage, @Nullable LivingEntity spared, @Nullable Vec3 push) {
         DamageSource source = damageSources().mobAttack(this);
         for (LivingEntity entity : Blasts.livingNear(level, center, radius, this)) {
-            if (!(entity instanceof GodzillaEntity) && !Blasts.isPilot(entity)) {
+            if (entity != spared && !(entity instanceof GodzillaEntity) && !Blasts.isPilot(entity)) {
                 entity.hurt(source, damage);
-                Vec3 push = entity.position().subtract(center).multiply(1.0, 0.0, 1.0).normalize().scale(2.0).add(0.0, 0.8, 0.0);
-                entity.setDeltaMovement(entity.getDeltaMovement().add(push));
+                Vec3 away = push != null ? push
+                        : entity.position().subtract(center).multiply(1.0, 0.0, 1.0).normalize().scale(2.0).add(0.0, 0.8, 0.0);
+                entity.setDeltaMovement(entity.getDeltaMovement().add(away));
                 entity.hurtMarked = true;
             }
         }
@@ -1199,7 +1270,10 @@ public class GodzillaEntity extends Monster implements GeoEntity {
         controllers.add(new AnimationController<>(this, "action", 3, state -> PlayState.STOP)
                 .triggerableAnim("attack", ATTACK)
                 .triggerableAnim("stomp", STOMP)
-                .triggerableAnim("tail", TAIL)
+                .triggerableAnim("swipe_right", SWIPE_RIGHT)
+                .triggerableAnim("swipe_left", SWIPE_LEFT)
+                .triggerableAnim("spin_whip", SPIN_WHIP)
+                .triggerableAnim("swim_peek", SWIM_PEEK)
                 .triggerableAnim("swim_bite", SWIM_BITE_ANIM)
                 .triggerableAnim("roar", ROAR)
                 .setSoundKeyframeHandler(this::onSoundKeyframe)

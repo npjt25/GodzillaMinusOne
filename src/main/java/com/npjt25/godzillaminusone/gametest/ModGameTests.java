@@ -9,16 +9,20 @@ import com.npjt25.godzillaminusone.entity.NuclearBombEntity;
 import com.npjt25.godzillaminusone.entity.OdoIslandMonsterEntity;
 import com.npjt25.godzillaminusone.entity.SearchlightEntity;
 import com.npjt25.godzillaminusone.entity.ShindenEntity;
+import com.npjt25.godzillaminusone.item.RemoteDetonatorItem;
 import com.npjt25.godzillaminusone.registry.ModDamageTypes;
 import com.npjt25.godzillaminusone.registry.ModEntities;
 import com.npjt25.godzillaminusone.registry.ModItems;
+import net.minecraft.commands.arguments.EntityAnchorArgument;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.animal.Pig;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
@@ -26,6 +30,7 @@ import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.gametest.GameTestHolder;
 import net.minecraftforge.gametest.PrefixGameTestTemplate;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -176,6 +181,7 @@ public final class ModGameTests {
             helper.assertFalse(pig.isAlive(), "the atomic breath should kill his target");
             helper.assertTrue(godzilla.getBreathCooldown() > 170 * 20, "after firing he needs ~3 minutes to recharge, cooldown "
                     + godzilla.getBreathCooldown());
+            helper.assertTrue(godzilla.getBurnTicks() > 0, "once the beam is over his mouth should be burnt");
             remove(godzilla);
             helper.getLevel().setChunkForced(abs.getX() >> 4, abs.getZ() >> 4, false);
         });
@@ -195,7 +201,7 @@ public final class ModGameTests {
         });
     }
 
-    @GameTest(template = FLOOR, batch = "gmo_swim", timeoutTicks = 300)
+    @GameTest(template = FLOOR, batch = "gmo_swim", timeoutTicks = 420)
     public static void godzillaSwimsAtTheSurfaceOfDeepWater(GameTestHelper helper) {
         // A 20 deep pool with unbreakable walls and bottom.
         int depth = 20;
@@ -209,6 +215,7 @@ public final class ModGameTests {
             double expected = surface - GodzillaEntity.SWIM_SINK;
             helper.assertTrue(Math.abs(godzilla.getY() - expected) < 1.0,
                     "he should float with his back just under the surface: y " + godzilla.getY() + ", expected ~" + expected);
+            helper.assertTrue(godzilla.getSwimPeeks() >= 1, "every 10 seconds his head should come up out of the water");
             remove(godzilla);
             fillPool(helper, floor, depth, true);
         });
@@ -267,6 +274,68 @@ public final class ModGameTests {
         plane.hurt(helper.getLevel().damageSources().playerAttack(player), 5.0F);
         helper.assertTrue(plane.isRemoved(), "a few hits should knock it down like a boat");
         helper.assertItemEntityPresent(ModItems.SHINDEN_SPAWN_EGG.get(), new BlockPos(4, 1, 4), 3.0);
+        helper.succeed();
+    }
+
+    @GameTest(template = FLOOR, batch = "gmo_combo", timeoutTicks = 300)
+    public static void meleeComboIsTwoSwipesThenASpin(GameTestHelper helper) {
+        GodzillaEntity godzilla = spawnActiveGodzilla(helper);
+        godzilla.setBreathCooldown(100000);
+        godzilla.setYRot(0.0F);
+        godzilla.setYBodyRot(0.0F);
+        godzilla.setYHeadRot(0.0F);
+        Pig pig = helper.spawn(EntityType.PIG, new Vec3(4.5, floorY(helper) + 1, 20.5));   // right in front of him
+        pig.setNoAi(true);
+        pig.setInvulnerable(true);
+        godzilla.setTarget(pig);
+        List<String> seen = new ArrayList<>();
+        seen.add(godzilla.nextComboAttack());
+        helper.succeedWhen(() -> {
+            String next = godzilla.nextComboAttack();
+            if (!next.equals(seen.get(seen.size() - 1))) {
+                seen.add(next);
+            }
+            helper.assertTrue(seen.size() >= 4, "waiting for three attacks, so far " + seen);
+            helper.assertTrue(seen.subList(0, 4).equals(List.of("swipe_right", "swipe_left", "spin_whip", "swipe_right")),
+                    "a swipe of each hand, then the spin: " + seen);
+            remove(godzilla, pig);
+        });
+    }
+
+    @GameTest(template = FLOOR, batch = "gmo_mine_pickup")
+    public static void hittingANavalMineKnocksItLoose(GameTestHelper helper) {
+        NavalMineEntity mine = helper.spawn(ModEntities.NAVAL_MINE.get(), new Vec3(4.5, floorY(helper) + 1, 4.5));
+        Player player = helper.makeMockPlayer();
+        for (int i = 1; i < NavalMineEntity.HITS_TO_PICK_UP; i++) {
+            mine.hurt(helper.getLevel().damageSources().playerAttack(player), 3.0F);
+            helper.assertFalse(mine.isRemoved(), "hit " + i + " should only rock it");
+        }
+        helper.assertTrue(mine.getHealth() == mine.getMaxHealth(), "hitting it by hand mustn't hurt (or set off) the mine");
+        mine.hurt(helper.getLevel().damageSources().playerAttack(player), 3.0F);
+        helper.assertTrue(mine.isRemoved(), "a few hits should knock it loose");
+        helper.assertItemEntityPresent(ModItems.NAVAL_MINE_SPAWN_EGG.get(), new BlockPos(4, floorY(helper) + 1, 4), 3.0);
+        helper.succeed();
+    }
+
+    @GameTest(template = FLOOR, batch = "gmo_detonator")
+    public static void theRemoteDetonatorSetsOffTheMineInSight(GameTestHelper helper) {
+        int floor = floorY(helper);
+        for (int x = 2; x <= 6; x++) {
+            for (int y = floor + 1; y <= floor + 4; y++) {
+                for (int z = 0; z <= 12; z++) {
+                    helper.setBlock(new BlockPos(x, y, z), Blocks.AIR.defaultBlockState());
+                }
+            }
+        }
+        NavalMineEntity mine = helper.spawn(ModEntities.NAVAL_MINE.get(), new Vec3(4.5, floor + 1, 10.5));
+        Player player = helper.makeMockPlayer();
+        player.moveTo(helper.absoluteVec(new Vec3(4.5, floor + 1, 1.5)));
+        player.lookAt(EntityAnchorArgument.Anchor.EYES, mine.getBoundingBox().getCenter());
+        ItemStack remote = new ItemStack(ModItems.REMOTE_DETONATOR.get());
+        player.setItemInHand(InteractionHand.MAIN_HAND, remote);
+        helper.assertTrue(RemoteDetonatorItem.aimedMine(helper.getLevel(), player) == mine, "the mine should be in its sights");
+        remote.use(helper.getLevel(), player, InteractionHand.MAIN_HAND);
+        helper.assertTrue(mine.isRemoved(), "the mine should go off");
         helper.succeed();
     }
 

@@ -8,7 +8,12 @@ twice):
   * atomic breath: a 4 second in-breath (head and chest rear back, jaw opens, with its own breathing sound)
     inserted just before the beam, the head angled 10 degrees higher while firing, and a longer, thicker beam
     that comes straight out of his open mouth,
-  * a new "animation.gojira.swim_bite" (a lunging bite in the swimming pose, so he doesn't stand up to attack).
+  * a new "animation.gojira.swim_bite" (a lunging bite in the swimming pose, so he doesn't stand up to attack),
+  * his melee combo: "animation.gojira.swipe_right" and "swipe_left" (claw swipes, the torso twisting into
+    them) and "animation.gojira.spin_whip" (a heavy spin of his whole body, the tail trailing behind it and
+    then snapping through in a wave from its base to its tip),
+  * "animation.gojira.swim_peek": while he swims, his head rises out of the water (eyes just above the surface,
+    the snout level) and glares ahead for 4 seconds, then sinks back.
 """
 import json
 import math
@@ -217,6 +222,146 @@ def swim_bite(anims):
     }
 
 
+# ---------------------------------------------------------------- melee combo
+
+TAIL = ("bone11", "bone13", "bone14", "bone16", "bone17", "bone18")
+
+
+def keyed(frames):
+    """{time: [x, y, z]} with the times formatted; values rounded."""
+    return {fmt(t): [round(q, 3) for q in v] for t, v in sorted(frames.items())}
+
+
+def swipe(anims, side):
+    """A claw swipe: the arm is raised up and out, then slashes down and across the body as the torso twists into
+    it. side 1 is his right arm, -1 his left (Bedrock x is his left, so the sideways rotations mirror)."""
+    idle = anims["animation.gojira.idle"]["bones"]
+    arm, forearm = ("Right_arm", "bone") if side > 0 else ("Left_arm", "bone4")
+    s = side
+    frames = {
+        arm: {0.0: [0, 0, 0], 0.32: [-72, 12 * s, 48 * s], 0.42: [-78, 16 * s, 52 * s], 0.56: [8, -18 * s, -38 * s],
+              0.72: [14, -20 * s, -30 * s], 1.1: [0, 0, 0]},
+        forearm: {0.0: [0, 0, 0], 0.32: [-28, 0, 0], 0.42: [-32, 0, 0], 0.56: [10, 0, 0], 0.72: [14, 0, 0], 1.1: [0, 0, 0]},
+        "Metalbody": {0.0: [0, 0, 0], 0.32: [-6, 16 * s, 0], 0.42: [-7, 20 * s, 0], 0.56: [6, -18 * s, 0], 0.72: [6, -16 * s, 0],
+                      1.1: [0, 0, 0]},
+        "Chest": {0.0: [0, 0, 0], 0.32: [-4, 8 * s, 0], 0.42: [-4, 10 * s, 0], 0.56: [5, -10 * s, 0], 0.72: [4, -9 * s, 0],
+                  1.1: [0, 0, 0]},
+        "Neck": {0.0: [0, 0, 0], 0.32: [0, -8 * s, 0], 0.56: [6, 6 * s, 0], 1.1: [0, 0, 0]},
+        "Head": {0.0: [-5, 0, 0], 0.32: [-12, -6 * s, 0], 0.56: [4, 8 * s, 0], 1.1: [-5, 0, 0]},
+        "Jew": {0.0: [0, 0, 0], 0.3: [22, 0, 0], 0.5: [26, 0, 0], 0.62: [4, 0, 0], 1.1: [0, 0, 0]},
+    }
+    bones = {name: {"rotation": keyed(k)} for name, k in frames.items()}
+    # the tail swings the other way to balance him
+    for i, name in enumerate(TAIL):
+        base = sample(idle[name]["rotation"], 0.0)
+        swing = -10 * s * (0.5 + 0.2 * i)
+        bones[name] = {"rotation": keyed({0.0: base, 0.42: [base[0], base[1] - swing * 0.5, 0], 0.66: [base[0], base[1] + swing, 0],
+                                          1.1: base})}
+    return {
+        "animation_length": 1.1,
+        "bones": bones,
+        "sound_effects": {"0.2800": {"effect": "godzilla.attack"}},
+    }
+
+
+def spin_whip(anims):
+    """A heavy spin of his whole body, the tail trailing behind and then snapping through in a wave."""
+    idle = anims["animation.gojira.idle"]["bones"]
+    length, dt = 2.2, 1.0 / 240
+
+    def spin(t):
+        # wind up a little the other way, spin a full turn with a heavy start and a hard stop
+        if t < 0.35:
+            return -25.0 * smooth(t / 0.35)
+        if t < 1.15:
+            return -25.0 + 385.0 * smooth((t - 0.35) / 0.8)
+        return 360.0
+
+    # the tail: a chain of damped springs, each segment pulled towards the angle of the one before it
+    k, c = 220.0, 9.0
+    n = len(TAIL)
+    ang = [0.0] * n
+    vel = [0.0] * n
+    samples = {}
+    t = 0.0
+    prev_root = spin(0.0)
+    while t <= length + 1e-9:
+        root = spin(t)
+        root_vel = (root - prev_root) / dt
+        prev_root = root
+        for i in range(n):
+            parent = root if i == 0 else ang[i - 1]
+            parent_vel = root_vel if i == 0 else vel[i - 1]
+            acc = k * (parent - ang[i]) + c * (parent_vel - vel[i]) - 1.2 * vel[i]
+            vel[i] += acc * dt
+            ang[i] += vel[i] * dt
+        step = round(t / 0.05)
+        if abs(t - step * 0.05) < dt / 2:
+            samples[round(step * 0.05, 4)] = (root, list(ang))
+        t += dt
+
+    bones = {"Root": {"rotation": keyed({tt: [0, v[0], 0] for tt, v in samples.items()})}}
+    for i, name in enumerate(TAIL):
+        base = sample(idle[name]["rotation"], 0.0)
+        frames = {}
+        for tt, (root, a) in samples.items():
+            parent = root if i == 0 else a[i - 1]
+            rel = max(-45.0, min(45.0, a[i] - parent))
+            # the snap also cracks up and down, travelling from the base to the tip
+            snap = 0.0
+            ts = tt - 1.05 - 0.06 * i
+            if 0.0 < ts < 0.6:
+                snap = -14.0 * math.sin(ts / 0.6 * 2 * math.pi) * (1 - ts / 0.6) * (0.6 + 0.2 * i)
+            frames[tt] = [base[0] + snap, base[1] + rel, 0]
+        bones[name] = {"rotation": keyed(frames)}
+    # he hunches into the spin, arms tucked in, then straightens
+    hunch = {0.0: [0, 0, 0], 0.35: [6, 0, 0], 0.9: [8, 0, 0], 1.3: [4, 0, 0], 1.8: [0, 0, 0]}
+    bones["Body"] = {"rotation": keyed(hunch)}
+    bones["Metalbody"] = {"rotation": keyed({0.0: [0, 0, 0], 0.35: [4, -12, 0], 0.9: [6, 14, 0], 1.3: [3, 6, 0], 1.8: [0, 0, 0]})}
+    for arm, s in (("Right_arm", 1), ("Left_arm", -1)):
+        bones[arm] = {"rotation": keyed({0.0: [0, 0, 0], 0.35: [-20, 0, -10 * s], 1.3: [-20, 0, -10 * s], 1.8: [0, 0, 0]})}
+    bones["Head"] = {"rotation": keyed({0.0: [-5, 0, 0], 0.35: [-2, 10, 0], 1.0: [-8, -12, 0], 1.4: [-12, 0, 0], 2.2: [-5, 0, 0]})}
+    bones["Jew"] = {"rotation": keyed({0.0: [0, 0, 0], 1.1: [0, 0, 0], 1.3: [24, 0, 0], 1.6: [20, 0, 0], 1.9: [0, 0, 0]})}
+    return {
+        "animation_length": length,
+        "bones": bones,
+        "sound_effects": {"1.2000": {"effect": "godzilla.attack"}},
+        "particle_effects": {"0.8500": {"effect": "tail_sweep", "locator": ""}, "1.3000": {"effect": "tail_snap", "locator": ""}},
+    }
+
+
+def swim_peek(anims):
+    """Head up out of the water, glaring ahead, then back under: measured so that his eyes end up ~1.2 blocks
+    above the surface with the snout level (the jaw stays under water)."""
+    swim = anims["animation.gojira.swim2"]["bones"]
+    head0 = sample(swim["Head"]["rotation"], 0.0)
+    neck0 = sample(swim["Neck"]["rotation"], 0.0)
+    rise, hold = 0.7, 4.0
+    down = rise + hold
+
+    def over(base, d):
+        return [round(a + b, 4) for a, b in zip(base, d)]
+
+    up_neck, up_neck2, up_head = (-55, 0, 0), (-10, 0, 0), (55, 0, 0)
+    head_frames = {0.0: head0, rise: over(head0, up_head)}
+    # the glare: he slowly looks from side to side, then fixes straight ahead
+    for i, (t, yaw) in enumerate(((1.5, -7), (2.5, 6), (3.3, 0))):
+        head_frames[t] = over(head0, (up_head[0], yaw, -head0[2]))
+    head_frames[down] = over(head0, (up_head[0], 0, -head0[2]))
+    head_frames[down + 0.8] = head0
+    return {
+        "animation_length": round(down + 0.8, 4),
+        "bones": {
+            "Neck": {"rotation": keyed({0.0: neck0, rise: over(neck0, up_neck), down: over(neck0, up_neck), down + 0.8: neck0})},
+            "neck2": {"rotation": keyed({0.0: [0, 0, 0], rise: list(up_neck2), down: list(up_neck2), down + 0.8: [0, 0, 0]})},
+            "Head": {"rotation": keyed(head_frames)},
+            "Jew": {"rotation": keyed({0.0: [0, 0, 0], rise: [4, 0, 0], down: [4, 0, 0], down + 0.8: [0, 0, 0]})},
+        },
+        "sound_effects": {fmt(rise + 0.2): {"effect": "godzilla.ambient"}},
+        "particle_effects": {fmt(rise * 0.6): {"effect": "splash", "locator": "y"}, fmt(down + 0.4): {"effect": "splash", "locator": "y"}},
+    }
+
+
 def main():
     data = json.load(open(PATH))
     anims = data["animations"]
@@ -227,6 +372,10 @@ def main():
     print("beam leaves the mouth at %s px (head space), pointing %.1f degrees below the snout"
           % (np.round(mouth, 2), math.degrees(math.asin(-d[1]))))
     anims["animation.gojira.swim_bite"] = swim_bite(anims)
+    anims["animation.gojira.swipe_right"] = swipe(anims, 1)
+    anims["animation.gojira.swipe_left"] = swipe(anims, -1)
+    anims["animation.gojira.spin_whip"] = spin_whip(anims)
+    anims["animation.gojira.swim_peek"] = swim_peek(anims)
     with open(PATH, "w") as f:
         json.dump(data, f, indent=1)
         f.write("\n")
