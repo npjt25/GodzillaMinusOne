@@ -9,7 +9,7 @@ from PIL import Image
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT = os.path.join(ROOT, "src", "main", "resources", "assets", "godzillaminusone", "textures", "effect")
-SIZE = 128
+SIZE = 256
 
 
 def value_noise(size, cells, rng):
@@ -54,24 +54,72 @@ def billows(size, rng):
     return (t - t.min()) / (t.max() - t.min())
 
 
+def puffs(size, rng, count=420):
+    """Heaped-up round puffs of smoke (tileable): a height field of overlapping domes, lit from above, with dark
+    creases where they meet, like the billows of a mushroom cloud."""
+    height = np.zeros((size, size))
+    yy, xx = np.mgrid[0:size, 0:size]
+    for _ in range(count):
+        cx, cy = rng.random(2) * size
+        r = size * (0.035 + 0.075 * rng.random() ** 2)
+        lift = rng.random() * 0.6
+        dx = (xx - cx + size / 2) % size - size / 2
+        dy = (yy - cy + size / 2) % size - size / 2
+        d2 = (dx * dx + dy * dy) / (r * r)
+        dome = np.where(d2 < 1, np.sqrt(np.clip(1 - d2, 0, 1)) * r / size * 8 + lift, 0)
+        height = np.maximum(height, dome)
+    # soften, then light it from above (the smoke is lit by the sky and shaded by itself)
+    height = blur(height, 3)
+    gy, gx = np.gradient(height)
+    light = np.clip(0.55 - gy * size * 0.06 - gx * size * 0.02, 0, 1)
+    crease = height - blur(height, 8)
+    return np.clip(0.4 + light * 0.6 + crease * 1.0, 0, 1)
+
+
+def blur(a, passes):
+    """Tileable soft blur (repeated binomial filter)."""
+    k = np.array([1, 4, 6, 4, 1], float)
+    k /= k.sum()
+    for _ in range(passes):
+        for axis in (0, 1):
+            a = sum(np.roll(a, i - 2, axis) * k[i] for i in range(5))
+    return a
+
+
+def blur_v(a, passes):
+    k = np.array([1, 4, 6, 4, 1], float)
+    k /= k.sum()
+    for _ in range(passes):
+        a = sum(np.roll(a, (i - 2) * 2, 0) * k[i] for i in range(5))
+    return a
+
+
 def save(arr, name):
     Image.fromarray(np.clip(arr * 255, 0, 255).astype(np.uint8), "RGBA").save(os.path.join(OUT, name))
 
 
 def main():
     rng = np.random.default_rng(1945)
-    b = billows(SIZE, rng)
+    shade = puffs(SIZE, rng)
     detail = fbm(SIZE, rng, 4, 8)
-    shade = 0.62 + 0.38 * (0.75 * b + 0.25 * detail)
-    smoke = np.dstack([shade * 1.0, shade * 0.97, shade * 0.93, np.ones_like(shade)])
+    shade = np.clip(shade * (0.82 + 0.3 * detail), 0, 1)
+    shade = 0.45 + 0.55 * (shade - shade.min()) / (shade.max() - shade.min())
+    smoke = np.dstack([shade * 1.0, shade * 0.97, shade * 0.94, np.ones_like(shade)])
     save(smoke, "nuclear_smoke.png")
 
-    fbm(SIZE, rng, 5, 4)   # (was the smooth cloud's fluffy edge texture; kept so the fire texture stays the same)
-
-    t = fbm(SIZE, rng, 5, 4)
-    turb = 1 - np.abs(t * 2 - 1)
-    turb = (turb - turb.min()) / (turb.max() - turb.min())
-    fire = np.clip(0.35 + 0.65 * turb ** 2.5 + 0.15 * (fbm(SIZE, rng, 3, 8) - 0.5), 0, 1)
+    # fire: tongues of flame streaming along v (up the cloud): turbulence stretched out lengthways
+    t = np.zeros((SIZE, SIZE))
+    amp, norm = 1.0, 0.0
+    for o in range(5):
+        n = value_noise(SIZE, 4 * 2 ** o, rng)
+        n = blur_v(n, 3 + 2 * o)                  # smeared out along v into streaks
+        n = (n - n.min()) / (n.max() - n.min())
+        t += (1 - np.abs(n * 2 - 1)) * amp
+        norm += amp
+        amp *= 0.55
+    t /= norm
+    t = (t - t.min()) / (t.max() - t.min())
+    fire = np.clip(0.28 + 0.8 * t ** 1.8, 0, 1)
     save(np.dstack([fire, fire, fire, np.ones_like(fire)]), "nuclear_fire.png")
     print("wrote", OUT)
 
