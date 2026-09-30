@@ -154,7 +154,7 @@ def burnt():
         "animation_length": 1.5,
         "bones": {
             "root": {"rotation": key(zip(t, [rot(0), rot(0, 0, 30), rot(0, 0, 84)])),
-                     "position": key(zip(t, [[0, 0, 0], [0, -2, 0], [0, 14.9, 0]]))},
+                     "position": key(zip(t, [[0, 0, 0], [0, -2, 0], [0, 16.7, 0]]))},
             "body": {"position": key(zip(t, [[0, 0, 0], [0, -8, 0], [0, -21, 0]]))},
             "neck": {"rotation": key(zip(t, [rot(0), rot(10), rot(24, 0, -10)]))},
             "neck2": {"rotation": key(zip(t, [rot(0), rot(6), rot(12)]))},
