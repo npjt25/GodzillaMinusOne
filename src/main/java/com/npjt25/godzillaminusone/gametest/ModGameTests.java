@@ -1,5 +1,6 @@
 package com.npjt25.godzillaminusone.gametest;
 
+import com.mojang.authlib.GameProfile;
 import com.npjt25.godzillaminusone.Config;
 import com.npjt25.godzillaminusone.GodzillaMinusOne;
 import com.npjt25.godzillaminusone.entity.Blasts;
@@ -39,6 +40,7 @@ import net.minecraftforge.gametest.PrefixGameTestTemplate;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 /**
  * Server-side checks of the add-on behaviour, run headless in CI with {@code ./gradlew runGameTestServer}.
@@ -512,9 +514,22 @@ public final class ModGameTests {
     @GameTest(template = FLOOR, batch = "gmo_odo_frenzy", timeoutTicks = 40)
     public static void theOdoMonsterGoesIntoAFrenzyWhenSeen(GameTestHelper helper) {
         int floor = floorY(helper);
+        // room for all 14 blocks of him, so he and the player can see each other
+        Runnable release = room(helper, floor, 0, 0, 8, 12, 16);
         OdoIslandMonsterEntity odo = spawnOdo(helper, floor, 2);
         odo.setNoAi(true);
-        Player player = helper.makeMockPlayer();
+        // (helper.makeMockPlayer() is in creative mode, and creative players don't set him off)
+        Player player = new Player(helper.getLevel(), BlockPos.ZERO, 0.0F, new GameProfile(UUID.randomUUID(), "odo-spotter")) {
+            @Override
+            public boolean isSpectator() {
+                return false;
+            }
+
+            @Override
+            public boolean isCreative() {
+                return false;
+            }
+        };
         Vec3 at = helper.absoluteVec(new Vec3(4.5, floor + 1, 8.5));
         player.moveTo(at.x, at.y, at.z, 180.0F, 0.0F);   // looking north, at him
         helper.assertFalse(odo.isFrenzied(), "he shouldn't be in a frenzy yet");
@@ -523,6 +538,7 @@ public final class ModGameTests {
         helper.assertTrue(odo.getAttributeValue(net.minecraft.world.entity.ai.attributes.Attributes.MOVEMENT_SPEED) > 0.3,
                 "in a frenzy he should be faster");
         remove(odo);
+        release.run();
         helper.succeed();
     }
 
