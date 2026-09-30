@@ -2,7 +2,12 @@
 
   * the searchlight: a WWII-style drum searchlight on a yoke, on a turntable with a seat for its operator;
     bone "turret" turns with the operator, bone "lamp" tilts up and down (client/render/SearchlightRenderer),
-  * the nuclear bomb: a stubby, finned bomb in olive drab, built nose-down (it falls nose first).
+  * the nuclear bomb: a stubby, finned bomb in olive drab, built nose-down (it falls nose first),
+  * the Shinsei Maru: the film's small, run-down wooden minesweeper (a converted fishing boat), built at half size
+    (the renderer doubles it): dark tarred hull, a weathered wheelhouse with the wheel up on its roof, a mast, cages
+    on the foredeck, a davit and a rack of recovered naval mines astern, and the Type 93 13 mm machine gun on a
+    platform at the stern pointing aft (bones "gun" turns, "gun_barrel" tilts; "mine1".."mine3" show the mines
+    aboard; client/render/ShinseiMaruRenderer).
 
     python3 tools/make_props.py
 """
@@ -56,7 +61,11 @@ def pack(bones, size):
         shelf = max(shelf, hgt)
 
 
-def paint(bones, size, palette, glow_kinds, seed):
+def paint(bones, size, palette, glow_kinds, seed, texels=TEXELS, planks=None):
+    """Each cube's UV net in its kind's colour, worn; kinds in {@code planks} get plank seams: "h" across the
+    texture's rows (strakes along a hull's side), "v" down its columns (deck boards along the top face)."""
+    TEXELS = texels  # noqa: N806
+    planks = planks or {}
     rng = np.random.default_rng(seed)
     n = size * TEXELS
     f1, f2 = noise.worley(n, 9, rng)
@@ -74,6 +83,16 @@ def paint(bones, size, palette, glow_kinds, seed):
             region *= (0.95 + 0.1 * rng.random((h, w)))[..., None]
             if c["kind"] == "band":
                 region[:] = palette["band"]
+            direction = planks.get(c["kind"])
+            if direction:
+                step = 3 * TEXELS
+                axis = 0 if direction == "h" else 1
+                count = region.shape[axis]
+                idx = np.arange(count)
+                tint = 0.85 + 0.3 * rng.random(count // step + 2)[idx // step]   # each plank a little different
+                seam = np.where(idx % step == 0, 0.55, 1.0)
+                shade = tint * seam
+                region *= shade[:, None, None] if axis == 0 else shade[None, :, None]
             img[v * TEXELS:v * TEXELS + h, u * TEXELS:u * TEXELS + w, :3] = np.clip(region, 0, 255)
             img[v * TEXELS:v * TEXELS + h, u * TEXELS:u * TEXELS + w, 3] = 255
             if c["kind"] in glow_kinds:
@@ -81,9 +100,9 @@ def paint(bones, size, palette, glow_kinds, seed):
     return img, glow
 
 
-def write(name, bones, size, palette, glow_kinds=None, seed=1):
+def write(name, bones, size, palette, glow_kinds=None, seed=1, texels=TEXELS, planks=None, bounds=4):
     pack(bones, size)
-    img, glow = paint(bones, size, palette, glow_kinds or {}, seed)
+    img, glow = paint(bones, size, palette, glow_kinds or {}, seed, texels, planks)
     tex = os.path.join(ASSETS, "textures", "entity")
     Image.fromarray(img.astype(np.uint8), "RGBA").save(os.path.join(tex, name + ".png"))
     if glow_kinds:
@@ -105,7 +124,7 @@ def write(name, bones, size, palette, glow_kinds=None, seed=1):
         out.append(entry)
     geo = {"format_version": "1.12.0", "minecraft:geometry": [{
         "description": {"identifier": "geometry." + name, "texture_width": size, "texture_height": size,
-                        "visible_bounds_width": 4, "visible_bounds_height": 4, "visible_bounds_offset": [0, 1.5, 0]},
+                        "visible_bounds_width": bounds, "visible_bounds_height": bounds, "visible_bounds_offset": [0, 1.5, 0]},
         "bones": out}]}
     with open(os.path.join(ASSETS, "geo", "entity", name + ".geo.json"), "w") as f:
         json.dump(geo, f, indent=1)
@@ -165,9 +184,115 @@ def nuclear_bomb():
     write("nuclear_bomb", bones, 256, palette, seed=5)
 
 
+# ---------------------------------------------------------------- the Shinsei Maru
+# Designed in blocks at full size (x to starboard, y up, z aft: the bow is at -z), built at half size (8 model pixels
+# to a block; the renderer draws it twice as big). ShinseiMaruEntity uses the same numbers for its seats, gun and stern.
+HALF = 8.0
+GUN_PIVOT = (0.0, 3.35, 5.1)     # where the machine gun turns
+DRIVER_SEAT = (0.0, 4.45, 0.1)   # on the wheelhouse roof, behind the wheel
+GUNNER_SEAT = (0.0, 2.35, 4.3)   # on the stern platform, behind the gun, facing aft
+
+
+def hb(x0, y0, z0, x1, y1, z1, kind, rot=None, pivot=None):
+    """A box between two corners given in (full-size) blocks."""
+    c = [(x0 + x1) / 2 * HALF, (y0 + y1) / 2 * HALF, (z0 + z1) / 2 * HALF]
+    size = [abs(x1 - x0) * HALF, abs(y1 - y0) * HALF, abs(z1 - z0) * HALF]
+    return box(*c, *size, kind, rot=rot, pivot=[q * HALF for q in pivot] if pivot else None)
+
+
+def shinsei_maru():
+    """About 13.5 blocks long, 3.6 across; the wheelhouse roof is 4.5 blocks above the keel, the mast 9.5."""
+    boat = {"pivot": [0, 0, 0], "cubes": []}
+    c = boat["cubes"]
+    # the hull: a rounded bottom in steps, the bow narrowing and rising, a flat transom
+    c += [hb(-1.1, 0.0, -5.2, 1.1, 0.6, 5.4, "bottom"), hb(-1.55, 0.5, -5.6, 1.55, 1.2, 5.8, "bottom"),
+          hb(-1.8, 1.1, -5.0, 1.8, 2.1, 5.9, "hull"), hb(-1.45, 0.7, -6.0, 1.45, 2.35, -5.0, "hull"),
+          hb(-1.0, 1.0, -6.6, 1.0, 2.5, -6.0, "hull"), hb(-0.5, 1.4, -7.0, 0.5, 2.7, -6.6, "hull"),
+          hb(-1.7, 1.0, 5.9, 1.7, 2.2, 6.3, "hull")]
+    c += [hb(side * 1.8, 1.92, -5.0, side * 1.88, 2.06, 5.9, "rail") for side in (-1, 1)]        # rubbing strakes
+    c += [hb(side * 1.4, 2.1, -6.0, side * 1.48, 2.3, -5.0, "rail") for side in (-1, 1)]
+    # deck and bulwarks
+    c.append(hb(-1.65, 2.1, -5.9, 1.65, 2.2, 5.8, "deck"))
+    c += [hb(side * 1.66, 2.2, -5.0, side * 1.78, 2.6, 3.2, "hull") for side in (-1, 1)]
+    c += [hb(side * 1.2, 2.3, -6.0, side * 1.45, 2.85, -5.0, "hull") for side in (-1, 1)]
+    c.append(hb(-1.0, 2.5, -6.6, 1.0, 2.95, -6.0, "hull"))
+    # the wheelhouse, its windows and roof
+    c.append(hb(-1.25, 2.2, -1.2, 1.25, 4.3, 2.4, "cabin"))
+    c += [hb(x - 0.28, 3.3, -1.26, x + 0.28, 3.9, -1.2, "window") for x in (-0.75, 0.0, 0.75)]
+    c += [hb(side * 1.25, 3.3, z - 0.35, side * 1.31, 3.9, z + 0.35, "window") for side in (-1, 1) for z in (0.1, 1.5)]
+    c.append(hb(-0.35, 2.2, 2.4, 0.35, 3.8, 2.46, "wood"))                                          # the door
+    c.append(hb(-1.4, 4.3, -1.4, 1.4, 4.45, 2.6, "roof"))
+    # the flying bridge: rails round the roof, the wheel on its stand
+    for side in (-1, 1):
+        c.append(hb(side * 1.32, 4.45, -1.35, side * 1.38, 5.2, 2.5, "rail"))
+        c.append(hb(side * 1.32, 5.15, -1.35, side * 1.38, 5.25, 2.5, "rail"))
+    c.append(hb(-1.38, 4.45, -1.4, 1.38, 5.25, -1.34, "rail"))
+    c.append(hb(-0.12, 4.45, -0.85, 0.12, 5.05, -0.65, "wood"))
+    c += octagon(0.0, 5.2 * HALF, -0.92 * HALF, 0.95 * HALF, 0.06 * HALF, "wood")                 # the wheel
+    c.append(hb(0.75, 4.45, 1.9, 1.15, 6.0, 2.3, "metal"))                                          # the stack
+    c.append(hb(0.7, 6.0, 1.85, 1.2, 6.15, 2.35, "rust"))
+    # the mast, its yard and lamp
+    c.append(hb(-0.1, 2.2, -2.5, 0.1, 9.2, -2.3, "wood"))
+    c.append(hb(-1.05, 7.7, -2.46, 1.05, 7.82, -2.34, "wood"))
+    c.append(hb(-0.18, 9.2, -2.58, 0.18, 9.5, -2.22, "lamp"))
+    c.append(hb(-0.3, 9.5, -2.7, 0.3, 9.55, -2.1, "metal"))
+    # cages and a coil of rope on the foredeck
+    for x, y, z in ((-0.7, 2.2, -4.2), (0.6, 2.2, -4.0), (-0.05, 3.0, -4.1), (0.7, 2.2, -3.0), (-0.6, 2.2, -3.1)):
+        c.append(hb(x - 0.45, y, z - 0.45, x + 0.45, y + 0.8, z + 0.45, "crate"))
+    c += octagon(0.0, 2.35 * HALF, -5.3 * HALF, 0.7 * HALF, 0.3 * HALF, "rope", axis="y")
+    # the stern platform and its rails
+    c.append(hb(-1.6, 2.2, 3.4, 1.6, 2.35, 6.1, "deck"))
+    for side in (-1, 1):
+        c += [hb(side * 1.6, 2.35, z - 0.05, side * 1.68, 3.1, z + 0.05, "rail") for z in (3.5, 4.8, 6.05)]
+        c.append(hb(side * 1.6, 3.0, 3.45, side * 1.68, 3.1, 6.1, "rail"))
+    c.append(hb(-1.68, 3.0, 6.05, 1.68, 3.1, 6.15, "rail"))
+    # the davit: a bent pipe over the port quarter, with a block hanging from it
+    c.append(hb(-1.5, 2.35, 5.45, -1.34, 4.9, 5.61, "metal"))
+    c.append(hb(-1.5, 4.8, 5.45, -1.34, 4.96, 6.4, "metal"))
+    c.append(hb(-1.5, 4.3, 6.3, -1.34, 4.96, 6.46, "metal"))
+    c.append(hb(-1.46, 3.5, 6.33, -1.38, 4.3, 6.41, "rope"))
+    c.append(hb(-1.52, 3.3, 6.27, -1.32, 3.5, 6.47, "metal"))
+    # the winch forward of the wheelhouse
+    c.append(hb(-0.7, 2.2, -2.0, 0.7, 2.75, -1.5, "metal"))
+    # the machine gun's pedestal and the gunner's seat
+    gx, gy, gz = GUN_PIVOT
+    c.append(hb(gx - 0.15, 2.35, gz - 0.15, gx + 0.15, gy - 0.05, gz + 0.15, "metal"))
+    c.append(hb(-0.35, 2.35, 4.05, 0.35, 2.55, 4.5, "wood"))
+    bones = {"boat": boat}
+    # three recovered naval mines in a rack aft of the wheelhouse (shown as many as are aboard, up to three)
+    for i, x in enumerate((-1.05, 0.0, 1.05)):
+        mine = {"parent": "boat", "pivot": [x * HALF, 2.65 * HALF, 3.0 * HALF], "cubes": []}
+        mine["cubes"] += octagon(x * HALF, 2.65 * HALF, 3.0 * HALF, 0.85 * HALF, 0.85 * HALF, "mine")
+        for dx, dy, dz, sx, sy, sz in ((0, 0.5, 0, 0.1, 0.2, 0.1), (0.46, 0, 0, 0.2, 0.1, 0.1), (-0.46, 0, 0, 0.2, 0.1, 0.1),
+                                       (0, 0, 0.46, 0.1, 0.1, 0.2), (0, 0, -0.46, 0.1, 0.1, 0.2)):
+            mine["cubes"].append(box((x + dx) * HALF, (2.65 + dy) * HALF, (3.0 + dz) * HALF, sx * HALF, sy * HALF, sz * HALF, "rust"))
+        bones["mine%d" % (i + 1)] = mine
+    # the Type 93 13 mm machine gun: turns on its pedestal, the barrel tilts; it points aft
+    gun = {"parent": "boat", "pivot": [gx * HALF, gy * HALF, gz * HALF], "cubes": []}
+    gun["cubes"].append(hb(gx - 0.22, gy - 0.1, gz - 0.2, gx + 0.22, gy + 0.05, gz + 0.2, "metal"))    # the cradle
+    barrel = {"parent": "gun", "pivot": [gx * HALF, gy * HALF, gz * HALF], "cubes": []}
+    b = barrel["cubes"]
+    b.append(hb(gx - 0.17, gy + 0.02, gz - 0.55, gx + 0.17, gy + 0.36, gz + 0.45, "gun"))              # receiver
+    b += octagon(gx * HALF, (gy + 0.19) * HALF, (gz + 0.95) * HALF, 0.28 * HALF, 1.0 * HALF, "gun")    # cooling jacket
+    b += octagon(gx * HALF, (gy + 0.19) * HALF, (gz + 1.75) * HALF, 0.13 * HALF, 0.6 * HALF, "gun")    # barrel
+    b.append(hb(gx - 0.1, gy + 0.09, gz + 2.0, gx + 0.1, gy + 0.29, gz + 2.1, "gun"))                  # muzzle
+    b.append(hb(gx - 0.2, gy + 0.36, gz - 0.25, gx + 0.2, gy + 0.62, gz + 0.1, "drab"))                # magazine
+    b.append(hb(gx - 0.05, gy - 0.12, gz - 0.85, gx + 0.05, gy + 0.2, gz - 0.55, "metal"))             # spade grips
+    b.append(hb(gx - 0.22, gy - 0.12, gz - 0.9, gx + 0.22, gy - 0.02, gz - 0.8, "metal"))
+    bones["gun"] = gun
+    bones["gun_barrel"] = barrel
+    palette = {"bottom": (70, 36, 30), "hull": (48, 36, 30), "rail": (92, 68, 48), "deck": (112, 92, 68),
+               "cabin": (106, 98, 86), "window": (28, 36, 44), "roof": (64, 62, 60), "wood": (96, 70, 46),
+               "crate": (140, 112, 74), "rope": (150, 132, 96), "metal": (58, 60, 58), "rust": (112, 64, 38),
+               "lamp": (214, 204, 168), "mine": (46, 48, 46), "gun": (40, 42, 40), "drab": (78, 84, 56)}
+    write("shinsei_maru", bones, 512, palette, seed=7, texels=1, bounds=16,
+          planks={"hull": "h", "bottom": "h", "cabin": "v", "deck": "v", "crate": "h"})
+
+
 def main():
     searchlight()
     nuclear_bomb()
+    shinsei_maru()
 
 
 if __name__ == "__main__":

@@ -10,6 +10,7 @@ import com.npjt25.godzillaminusone.network.ModNetwork;
 import com.npjt25.godzillaminusone.registry.ModCreativeTabs;
 import com.npjt25.godzillaminusone.registry.ModEntities;
 import com.npjt25.godzillaminusone.registry.ModItems;
+import com.npjt25.godzillaminusone.registry.ModMenus;
 import com.npjt25.godzillaminusone.registry.ModParticles;
 import com.npjt25.godzillaminusone.registry.ModSounds;
 import net.minecraft.resources.ResourceLocation;
@@ -37,6 +38,7 @@ public class GodzillaMinusOne {
         ModSounds.SOUNDS.register(modBus);
         ModParticles.PARTICLES.register(modBus);
         ModCreativeTabs.TABS.register(modBus);
+        ModMenus.MENUS.register(modBus);
 
         modBus.addListener(this::commonSetup);
         modBus.addListener(this::registerAttributes);

@@ -17,6 +17,7 @@ public final class ModDamageTypes {
     public static final ResourceKey<DamageType> STOMP = key("stomp");
     public static final ResourceKey<DamageType> TORRID = key("torrid");
     public static final ResourceKey<DamageType> NUCLEAR_BOMB = key("nuclear_bomb");
+    public static final ResourceKey<DamageType> MACHINE_GUN = key("machine_gun");
 
     private static ResourceKey<DamageType> key(String name) {
         return ResourceKey.create(Registries.DAMAGE_TYPE, GodzillaMinusOne.id(name));

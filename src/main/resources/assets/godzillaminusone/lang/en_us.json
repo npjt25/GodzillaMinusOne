@@ -83,5 +83,15 @@
   "subtitles.godzillaminusone.odo.stomp": "Odo Island Monster stomps",
   "subtitles.godzillaminusone.odo.step": "Heavy footsteps",
   "subtitles.godzillaminusone.odo.hurt": "Odo Island Monster hurts",
-  "subtitles.godzillaminusone.odo.death": "Odo Island Monster collapses"
+  "subtitles.godzillaminusone.odo.death": "Odo Island Monster collapses",
+  "entity.godzillaminusone.shinsei_maru": "Shinsei Maru",
+  "item.godzillaminusone.shinsei_maru": "Shinsei Maru",
+  "item.godzillaminusone.shinsei_maru.desc": "A run-down minesweeper. Right-click her to take the wheel (W/S, A/D), or, second aboard, to man the stern machine gun (right-click fires). Sneak and right-click: her naval mine hold. R: drop a naval mine astern.",
+  "container.godzillaminusone.shinsei_maru": "Shinsei Maru: Naval Mines",
+  "key.godzillaminusone.drop_mine": "Drop Naval Mine (Shinsei Maru)",
+  "key.categories.godzillaminusone": "Godzilla Minus One",
+  "message.godzillaminusone.shinsei_maru.no_mines": "No naval mines aboard: sneak and right-click the Shinsei Maru to load some",
+  "subtitles.godzillaminusone.shinsei_maru.gun": "Machine gun fires",
+  "death.attack.godzillaminusone.machine_gun": "%1$s was gunned down",
+  "death.attack.godzillaminusone.machine_gun.player": "%1$s was gunned down by %2$s"
 }

@@ -9,9 +9,12 @@ import com.npjt25.godzillaminusone.client.render.NuclearBombRenderer;
 import com.npjt25.godzillaminusone.client.render.OdoIslandMonsterRenderer;
 import com.npjt25.godzillaminusone.client.render.SearchlightRenderer;
 import com.npjt25.godzillaminusone.client.render.ShindenRenderer;
+import com.npjt25.godzillaminusone.client.render.ShinseiMaruRenderer;
 import com.npjt25.godzillaminusone.entity.EffectHooks;
 import com.npjt25.godzillaminusone.registry.ModEntities;
+import com.npjt25.godzillaminusone.registry.ModMenus;
 import com.npjt25.godzillaminusone.registry.ModParticles;
+import net.minecraft.client.gui.screens.MenuScreens;
 import net.minecraft.core.particles.SimpleParticleType;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.ConfigScreenHandler;
@@ -30,6 +33,7 @@ public final class ClientSetup {
     @SubscribeEvent
     public static void onClientSetup(FMLClientSetupEvent event) {
         EffectHooks.particleKeyframe = Fx::keyframe;
+        event.enqueueWork(() -> MenuScreens.register(ModMenus.SHINSEI_MARU.get(), ShinseiMaruScreen::new));
     }
 
     @SubscribeEvent
@@ -40,6 +44,7 @@ public final class ClientSetup {
         event.registerEntityRenderer(ModEntities.ODO_ISLAND_MONSTER.get(), OdoIslandMonsterRenderer::new);
         event.registerEntityRenderer(ModEntities.SEARCHLIGHT.get(), SearchlightRenderer::new);
         event.registerEntityRenderer(ModEntities.NUCLEAR_BOMB.get(), NuclearBombRenderer::new);
+        event.registerEntityRenderer(ModEntities.SHINSEI_MARU.get(), ShinseiMaruRenderer::new);
         event.registerEntityRenderer(ModEntities.GODZILLA_POSE_CHARGING_ROAR.get(), GodzillaStatueRenderer::new);
         event.registerEntityRenderer(ModEntities.GODZILLA_POSE_TAIL_WHIP.get(), GodzillaStatueRenderer::new);
         event.registerEntityRenderer(ModEntities.GODZILLA_POSE_SKY_ROAR.get(), GodzillaStatueRenderer::new);

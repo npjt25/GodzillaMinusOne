@@ -18,7 +18,9 @@ public record FxPacket(Type type, Vec3 pos, float a, float b) {
         /** gojira:black_rain around pos. a = radius, b = seconds. */
         BLACK_RAIN,
         /** Stomp / tail impact ring and dust. a = size. */
-        STOMP
+        STOMP,
+        /** One round from the Shinsei Maru's machine gun: pos = its muzzle, a = yaw, b = pitch. */
+        BOAT_GUN
     }
 
     public FxPacket(Type type, Vec3 pos) {

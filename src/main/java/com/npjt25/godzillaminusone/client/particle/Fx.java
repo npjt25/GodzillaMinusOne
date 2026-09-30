@@ -226,6 +226,20 @@ public final class Fx {
         }
     }
 
+    /** One round from the Shinsei Maru's Type 93: a muzzle flash and a tracer streaking off along the barrel. */
+    public static void boatGun(Vec3 muzzle, float yaw, float pitch) {
+        Vec3 dir = Vec3.directionFromRotation(pitch, yaw);
+        of(ModParticles.GUNLIGHT).at(muzzle).life(3).size(0.5F, 0.3F).additive().spin(0.9F)
+                .colors(0.0F, 0xFFFFD448, 1.0F, 0x66FFFFFF).spawn();
+        Vec3 v = dir.scale(5.0);
+        of(ModParticles.GLOW).at(muzzle).velocity(v.x, v.y, v.z).life(16).size(0.16F, 0.12F).additive().friction(1.0F)
+                .colors(0.0F, 0xFFFFFFFF, 0.5F, 0xFFF2A625, 1.0F, 0x00F2A625).spawn();
+        for (int i = 0; i < 3; i++) {
+            of(ModParticles.SMOKE).at(muzzle).velocity(dir.x * 0.1 + rand(-0.02, 0.02), 0.02, dir.z * 0.1 + rand(-0.02, 0.02))
+                    .life(14).size(0.3F, 0.8F).colors(0.0F, 0x88AAAAAA, 1.0F, 0x00AAAAAA).spawn();
+        }
+    }
+
     // ------------------------------------------------------------------ explosions
 
     /** animation.gojira.mine: goji:mind_explosion fireball + goji:mine_shockwave ring. */

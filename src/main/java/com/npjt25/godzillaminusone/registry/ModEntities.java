@@ -8,6 +8,7 @@ import com.npjt25.godzillaminusone.entity.NuclearBombEntity;
 import com.npjt25.godzillaminusone.entity.OdoIslandMonsterEntity;
 import com.npjt25.godzillaminusone.entity.SearchlightEntity;
 import com.npjt25.godzillaminusone.entity.ShindenEntity;
+import com.npjt25.godzillaminusone.entity.ShinseiMaruEntity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.MobCategory;
 import net.minecraftforge.registries.DeferredRegister;
@@ -57,6 +58,13 @@ public final class ModEntities {
                     .clientTrackingRange(16)
                     .updateInterval(1)
                     .build(GodzillaMinusOne.id("nuclear_bomb").toString()));
+
+    public static final RegistryObject<EntityType<ShinseiMaruEntity>> SHINSEI_MARU = ENTITIES.register("shinsei_maru",
+            () -> EntityType.Builder.<ShinseiMaruEntity>of(ShinseiMaruEntity::new, MobCategory.MISC)
+                    .sized(6.5F, 3.0F)
+                    .clientTrackingRange(16)
+                    .updateInterval(1)
+                    .build(GodzillaMinusOne.id("shinsei_maru").toString()));
 
     // Posed Godzilla statues for thumbnails: /summon only (no egg, no natural spawns).
     public static final RegistryObject<EntityType<GodzillaStatueEntity>> GODZILLA_POSE_CHARGING_ROAR =

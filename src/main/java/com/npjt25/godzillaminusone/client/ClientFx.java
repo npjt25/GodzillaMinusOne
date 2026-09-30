@@ -82,6 +82,7 @@ public final class ClientFx {
                 NuclearCloud.spawn(msg.pos(), msg.a(), msg.b() < 0.5F);
             }
             case STOMP -> Fx.stomp(msg.pos(), Math.max(0.5F, msg.a()));
+            case BOAT_GUN -> Fx.boatGun(msg.pos(), msg.a(), msg.b());
             case BLACK_RAIN -> {
                 rainCenter = msg.pos();
                 rainRadius = msg.a();

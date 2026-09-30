@@ -4,6 +4,7 @@ import com.npjt25.godzillaminusone.GodzillaMinusOne;
 import com.npjt25.godzillaminusone.item.NuclearBombItem;
 import com.npjt25.godzillaminusone.item.RemoteDetonatorItem;
 import com.npjt25.godzillaminusone.item.SearchlightItem;
+import com.npjt25.godzillaminusone.item.ShinseiMaruItem;
 import com.npjt25.godzillaminusone.item.TorridItem;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.Rarity;
@@ -23,6 +24,8 @@ public final class ModItems {
             () -> new NuclearBombItem(new Item.Properties().stacksTo(16).rarity(Rarity.EPIC)));
     public static final RegistryObject<Item> REMOTE_DETONATOR = ITEMS.register("remote_detonator",
             () -> new RemoteDetonatorItem(new Item.Properties().stacksTo(1)));
+    public static final RegistryObject<Item> SHINSEI_MARU = ITEMS.register("shinsei_maru",
+            () -> new ShinseiMaruItem(new Item.Properties().stacksTo(1).rarity(Rarity.RARE)));
 
     // The eggs use their own textures from the add-on, so both tint colours are white (no tint).
     public static final RegistryObject<Item> GODZILLA_SPAWN_EGG = ITEMS.register("godzilla_spawn_egg",

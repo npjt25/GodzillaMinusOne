@@ -40,6 +40,7 @@ public final class ModSounds {
     public static final RegistryObject<SoundEvent> ODO_STEP = register("odo.step");
     public static final RegistryObject<SoundEvent> ODO_HURT = register("odo.hurt");
     public static final RegistryObject<SoundEvent> ODO_DEATH = register("odo.death");
+    public static final RegistryObject<SoundEvent> SHINSEI_MARU_GUN = register("shinsei_maru.gun");
 
     private static RegistryObject<SoundEvent> register(String name) {
         RegistryObject<SoundEvent> sound = SOUNDS.register(name, () -> SoundEvent.createVariableRangeEvent(GodzillaMinusOne.id(name)));

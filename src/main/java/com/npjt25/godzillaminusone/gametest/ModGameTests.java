@@ -13,7 +13,9 @@ import com.npjt25.godzillaminusone.entity.NuclearBombEntity;
 import com.npjt25.godzillaminusone.entity.OdoIslandMonsterEntity;
 import com.npjt25.godzillaminusone.entity.SearchlightEntity;
 import com.npjt25.godzillaminusone.entity.ShindenEntity;
+import com.npjt25.godzillaminusone.entity.ShinseiMaruEntity;
 import com.npjt25.godzillaminusone.item.RemoteDetonatorItem;
+import com.npjt25.godzillaminusone.menu.ShinseiMaruMenu;
 import com.npjt25.godzillaminusone.registry.ModDamageTypes;
 import com.npjt25.godzillaminusone.registry.ModEntities;
 import com.npjt25.godzillaminusone.registry.ModItems;
@@ -539,6 +541,80 @@ public final class ModGameTests {
                 "in a frenzy he should be faster");
         remove(odo);
         release.run();
+        helper.succeed();
+    }
+
+    /** Put in the water, the Shinsei Maru floats with her keel DRAFT below the surface. */
+    @GameTest(template = FLOOR, batch = "gmo_boat_float", timeoutTicks = 100)
+    public static void theShinseiMaruFloats(GameTestHelper helper) {
+        int floor = floorY(helper);
+        Runnable release = room(helper, floor, 0, 0, 8, 14, 6);
+        for (int x = 0; x <= 8; x++) {
+            for (int z = 0; z <= 14; z++) {
+                for (int y = floor + 1; y <= floor + 4; y++) {
+                    helper.setBlock(new BlockPos(x, y, z), Blocks.WATER.defaultBlockState());
+                }
+            }
+        }
+        ShinseiMaruEntity boat = helper.spawn(ModEntities.SHINSEI_MARU.get(), new Vec3(4.5, floor + 2, 7.5));
+        helper.runAtTickTime(60, () -> {
+            double surface = boat.waterSurface();
+            helper.assertFalse(Double.isNaN(surface), "she should be in the water");
+            helper.assertTrue(Math.abs(boat.getY() - (surface - ShinseiMaruEntity.DRAFT)) < 0.3,
+                    "she should ride with her keel " + ShinseiMaruEntity.DRAFT + " below the surface, y " + boat.getY() + ", surface " + surface);
+            remove(boat);
+            release.run();
+            helper.succeed();
+        });
+    }
+
+    /** The helmsman's key drops a naval mine from her hold over the stern. */
+    @GameTest(template = FLOOR, batch = "gmo_boat_mine")
+    public static void theShinseiMaruDropsAMineAstern(GameTestHelper helper) {
+        int floor = floorY(helper);
+        Runnable release = room(helper, floor, 0, 0, 8, 16, 5);
+        ShinseiMaruEntity boat = helper.spawn(ModEntities.SHINSEI_MARU.get(), new Vec3(4.5, floor + 1, 4.5));
+        boat.setYRot(180.0F); // bow to the north: her stern is towards the far end of the room
+        boat.getMines().setItem(0, new ItemStack(ModItems.NAVAL_MINE_SPAWN_EGG.get(), 2));
+        helper.assertTrue(boat.getMinesAboard() == 2, "two mines should be aboard, " + boat.getMinesAboard());
+        helper.assertTrue(boat.dropMine(null), "with mines aboard she should drop one");
+        List<NavalMineEntity> mines = helper.getLevel().getEntitiesOfClass(NavalMineEntity.class, boat.getBoundingBox().inflate(12.0));
+        helper.assertTrue(mines.size() == 1, "one mine should be over the side, " + mines.size());
+        helper.assertTrue(mines.get(0).getZ() > boat.getZ() + 5.0, "it should go over the stern");
+        helper.assertTrue(boat.getMinesAboard() == 1, "it should come out of her hold, " + boat.getMinesAboard() + " left");
+        mines.forEach(Entity::discard);
+        remove(boat);
+        release.run();
+        helper.succeed();
+    }
+
+    /** A round from her stern gun sets off a naval mine floating astern. */
+    @GameTest(template = FLOOR, batch = "gmo_boat_gun")
+    public static void theShinseiMarusGunSetsOffAMine(GameTestHelper helper) {
+        int floor = floorY(helper);
+        Runnable release = room(helper, floor, 0, 0, 8, 20, 7);
+        ShinseiMaruEntity boat = helper.spawn(ModEntities.SHINSEI_MARU.get(), new Vec3(4.5, floor + 1, 3.5));
+        boat.setYRot(180.0F); // her stern (and the gun, dead astern) towards the mine
+        NavalMineEntity mine = helper.spawn(ModEntities.NAVAL_MINE.get(), new Vec3(4.5, floor + 3, 16.5));
+        mine.setNoAi(true);
+        mine.setNoGravity(true);
+        helper.assertTrue(boat.fireGun(null, true), "the gun should fire");
+        helper.assertTrue(mine.isRemoved(), "the round should set the mine off");
+        remove(boat);
+        release.run();
+        helper.succeed();
+    }
+
+    /** Her hold takes naval mines and nothing else. */
+    @GameTest(template = FLOOR, batch = "gmo_boat_hold")
+    public static void theShinseiMarusHoldOnlyTakesMines(GameTestHelper helper) {
+        ShinseiMaruEntity boat = helper.spawn(ModEntities.SHINSEI_MARU.get(), new Vec3(4.5, floorY(helper) + 1, 4.5));
+        Player player = helper.makeMockPlayer();
+        ShinseiMaruMenu menu = new ShinseiMaruMenu(0, player.getInventory(), boat.getMines(), boat);
+        helper.assertFalse(menu.holdSlot(0).mayPlace(new ItemStack(Items.DIRT)), "the hold shouldn't take dirt");
+        helper.assertTrue(menu.holdSlot(0).mayPlace(new ItemStack(ModItems.NAVAL_MINE_SPAWN_EGG.get())), "the hold should take a naval mine");
+        helper.assertTrue(ShinseiMaruEntity.MAX_SPEED == GodzillaEntity.SWIM_TOP_SPEED, "she should be as fast as Godzilla swims");
+        remove(boat);
         helper.succeed();
     }
 

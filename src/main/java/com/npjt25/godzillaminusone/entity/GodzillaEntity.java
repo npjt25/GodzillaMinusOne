@@ -144,6 +144,8 @@ public class GodzillaEntity extends Monster implements GeoEntity {
     public static final double SWIM_SINK = 4.3;
     /** Swimming speed relative to walking: fast enough to run down a boat. */
     private static final double SWIM_SPEED = 1.17;
+    /** How fast he swims going after something (blocks a tick): his movement speed, 0.36, times SWIM_SPEED. */
+    public static final double SWIM_TOP_SPEED = 0.36 * SWIM_SPEED;
     private static final EntityDimensions SWIM_SIZE = EntityDimensions.scalable(10.0F, 10.0F);
     /** How far ahead of him the swimming bite lands (the jaw in animation.gojira.swim_bite). */
     public static final double SWIM_BITE_REACH = 26.4;
