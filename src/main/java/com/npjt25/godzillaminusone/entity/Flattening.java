@@ -35,7 +35,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Deque;
 import java.util.IdentityHashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
@@ -121,6 +120,8 @@ public final class Flattening {
         /** The chunk being flattened (a big one takes a few ticks). */
         @Nullable
         ChunkJob current;
+        /** Which sweep's turn it is. */
+        int turn;
 
         void tick(ServerLevel level) {
             for (Wave wave : this.waves) {
@@ -141,22 +142,35 @@ public final class Flattening {
             }
         }
 
-        /** The next chunk to flatten: the sweeps' first, then the chunks that loaded after a sweep went past. */
+        /**
+         * The next chunk to flatten: the sweeps' first (taking turns, so a big sweep doesn't hold up another), then
+         * the chunks that loaded after a sweep went past.
+         */
         @Nullable
         private ChunkJob nextJob(ServerLevel level) {
-            Iterator<Wave> it = this.waves.iterator();
-            while (it.hasNext()) {
-                Wave wave = it.next();
-                while (wave.next < wave.chunks.length && wave.distances[wave.next] <= wave.front) {
+            for (int tried = 0; tried < this.waves.size(); tried++) {
+                this.turn = this.turn % this.waves.size();
+                Wave wave = this.waves.get(this.turn);
+                ChunkJob job = null;
+                while (job == null && wave.next < wave.chunks.length && wave.distances[wave.next] <= wave.front) {
                     ChunkPos pos = new ChunkPos(wave.chunks[wave.next++]);
                     // (a chunk that isn't loaded is done when it loads)
                     if (!wave.zone.done.contains(pos.toLong()) && level.getChunkSource().getChunkNow(pos.x, pos.z) != null) {
-                        return new ChunkJob(wave.zone, pos);
+                        job = new ChunkJob(wave.zone, pos);
                     }
                 }
                 if (wave.next >= wave.chunks.length) {
                     wave.zone.front = Double.MAX_VALUE;
-                    it.remove();
+                    this.waves.remove(this.turn);
+                    tried--;
+                } else {
+                    this.turn++;
+                }
+                if (job != null) {
+                    return job;
+                }
+                if (this.waves.isEmpty()) {
+                    break;
                 }
             }
             while (!this.pending.isEmpty()) {

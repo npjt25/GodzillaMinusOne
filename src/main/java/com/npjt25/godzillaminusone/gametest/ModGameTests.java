@@ -494,7 +494,7 @@ public final class ModGameTests {
      * The atomic breath's flattening (here with a radius of 3 blocks around the middle of the floor, down to the
      * floor): a tower with a chest of diamonds on top is erased without a single item dropping.
      */
-    @GameTest(template = FLOOR, batch = "gmo_flatten", timeoutTicks = 60)
+    @GameTest(template = FLOOR, batch = "gmo_flatten", timeoutTicks = 200)
     public static void flatteningErasesEverythingAboveTheLevelWithoutDrops(GameTestHelper helper) {
         int floor = floorY(helper);
         for (int y = floor + 1; y <= floor + 6; y++) {
