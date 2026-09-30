@@ -3,6 +3,7 @@ package com.npjt25.godzillaminusone.gametest;
 import com.npjt25.godzillaminusone.GodzillaMinusOne;
 import com.npjt25.godzillaminusone.entity.Blasts;
 import com.npjt25.godzillaminusone.entity.Destruction;
+import com.npjt25.godzillaminusone.entity.Flattening;
 import com.npjt25.godzillaminusone.entity.GodzillaEntity;
 import com.npjt25.godzillaminusone.entity.GodzillaStatueEntity;
 import com.npjt25.godzillaminusone.entity.NavalMineEntity;
@@ -22,9 +23,12 @@ import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.animal.Pig;
+import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.entity.ChestBlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
@@ -444,7 +448,38 @@ public final class ModGameTests {
         Blasts.impact(helper.getLevel(), plane.position(), ShindenEntity.CRASH_EXPLOSION_POWER, plane, pilot);
         helper.assertTrue(pilot.isAlive() && pilot.getHealth() == pilot.getMaxHealth(), "the pilot should be spared");
         helper.assertFalse(bystander.isAlive(), "a 3x TNT blast should kill a pig 4 blocks away");
+        helper.assertTrue(helper.getBlockState(new BlockPos(4, floor, 4)).isAir(), "the blast should blow a hole in the floor");
+        List<ItemEntity> drops = helper.getLevel().getEntitiesOfClass(ItemEntity.class, plane.getBoundingBox().inflate(16.0));
+        helper.assertTrue(drops.isEmpty(), "the blocks it breaks should vanish, not drop: " + drops);
         remove(plane, pilot);
         helper.succeed();
+    }
+
+    /**
+     * The atomic breath's flattening (here with a radius of 3 blocks around the middle of the floor, down to the
+     * floor): a tower with a chest of diamonds on top is erased without a single item dropping.
+     */
+    @GameTest(template = FLOOR, batch = "gmo_flatten", timeoutTicks = 60)
+    public static void flatteningErasesEverythingAboveTheLevelWithoutDrops(GameTestHelper helper) {
+        int floor = floorY(helper);
+        for (int y = floor + 1; y <= floor + 6; y++) {
+            helper.setBlock(new BlockPos(3, y, 3), Blocks.OAK_LOG.defaultBlockState());
+        }
+        BlockPos top = new BlockPos(3, floor + 7, 3);
+        helper.setBlock(top, Blocks.CHEST.defaultBlockState());
+        if (helper.getBlockEntity(top) instanceof ChestBlockEntity chest) {
+            chest.setItem(0, new ItemStack(Items.DIAMOND, 5));
+        }
+        BlockPos middle = helper.absolutePos(new BlockPos(4, floor, 4));
+        Flattening.start(helper.getLevel(), Vec3.atBottomCenterOf(middle), 3, middle.getY());
+        helper.succeedWhen(() -> {
+            for (int y = floor + 1; y <= floor + 7; y++) {
+                helper.assertTrue(helper.getBlockState(new BlockPos(3, y, 3)).isAir(), "everything above the level should be gone, y " + y);
+            }
+            helper.assertTrue(helper.getBlockState(new BlockPos(3, floor, 3)).is(Blocks.STONE), "the ground at the level should stay");
+            helper.assertTrue(helper.getBlockState(new BlockPos(4, floor, 4)).is(Blocks.STONE), "the ground at the level should stay");
+            List<ItemEntity> drops = helper.getLevel().getEntitiesOfClass(ItemEntity.class, new AABB(middle).inflate(16.0));
+            helper.assertTrue(drops.isEmpty(), "nothing should drop: " + drops);
+        });
     }
 }

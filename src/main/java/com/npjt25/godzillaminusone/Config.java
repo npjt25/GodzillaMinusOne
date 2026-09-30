@@ -24,6 +24,8 @@ public final class Config {
     public static final ForgeConfigSpec.DoubleValue STEP_DAMAGE;
     public static final ForgeConfigSpec.IntValue STEP_RADIUS;
     public static final ForgeConfigSpec.BooleanValue FOOTPRINTS;
+    public static final ForgeConfigSpec.BooleanValue KNOCKS_DOWN_TALL_BUILDINGS;
+    public static final ForgeConfigSpec.IntValue TALL_BUILDING_HEIGHT;
 
     // ---- Atomic breath
     public static final ForgeConfigSpec.IntValue ATOMIC_BREATH_COOLDOWN;
@@ -32,6 +34,8 @@ public final class Config {
     public static final ForgeConfigSpec.IntValue ATOMIC_BLAST_RADIATION_AMPLIFIER;
     public static final ForgeConfigSpec.IntValue ATOMIC_BLAST_CRATER_RADIUS;
     public static final ForgeConfigSpec.IntValue ATOMIC_BLAST_DESTRUCTION_RADIUS;
+    public static final ForgeConfigSpec.IntValue ATOMIC_FLATTEN_RADIUS;
+    public static final ForgeConfigSpec.IntValue ATOMIC_FLATTEN_LEVEL;
     public static final ForgeConfigSpec.IntValue CHARGE_FREEZE_RADIUS;
 
     // ---- Shinden / Torrid / naval mine
@@ -88,6 +92,13 @@ public final class Config {
         FOOTPRINTS = BUILDER
                 .comment("Each step crushes what he walks on into a footprint of rubble (also needs breaksBlocks and mobGriefing).")
                 .define("footprints", true);
+        KNOCKS_DOWN_TALL_BUILDINGS = BUILDER
+                .comment("When he sees a building (or anything else built) standing tallBuildingHeight blocks or more above the ground,",
+                        "he goes over and smashes it down until it is lower than that, then moves on (also needs breaksBlocks and mobGriefing).")
+                .define("knocksDownTallBuildings", true);
+        TALL_BUILDING_HEIGHT = BUILDER
+                .comment("How tall (in blocks above the ground) a building must be for him to knock it down.")
+                .defineInRange("tallBuildingHeight", 15, 4, 256);
         BUILDER.pop();
 
         BUILDER.push("atomic_breath");
@@ -109,6 +120,14 @@ public final class Config {
         ATOMIC_BLAST_DESTRUCTION_RADIUS = BUILDER
                 .comment("Around the crater the blast wave flattens trees and buildings and scorches the ground out to this radius.")
                 .defineInRange("blastWaveRadius", 64, 0, 160);
+        ATOMIC_FLATTEN_RADIUS = BUILDER
+                .comment("Everything above flattenLevel within this many blocks of where the atomic breath lands (trees, grass, buildings,",
+                        "hills) is erased, leaving the land flat; nothing drops. Chunks loaded later are flattened as they load.",
+                        "0 = off; also needs mobGriefing.")
+                .defineInRange("flattenRadius", 600, 0, 2000);
+        ATOMIC_FLATTEN_LEVEL = BUILDER
+                .comment("The height (Y) the atomic breath flattens the land down to.")
+                .defineInRange("flattenLevel", 60, -64, 320);
         CHARGE_FREEZE_RADIUS = BUILDER
                 .comment("While he charges, mobs within this radius are frozen in place (add-on: 2000).")
                 .defineInRange("freezeRadius", 128, 0, 2000);

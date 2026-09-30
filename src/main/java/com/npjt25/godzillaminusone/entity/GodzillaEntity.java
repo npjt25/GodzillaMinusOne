@@ -817,7 +817,12 @@ public class GodzillaEntity extends Monster implements GeoEntity {
         }
 
         DamageSource source = ModDamageTypes.source(level, ModDamageTypes.ATOMIC_BREATH, this);
-        Blasts.nuclear(level, impact, grounded, source, this, this, ForgeEventFactory.getMobGriefingEvent(level, this), false, getYRot());
+        boolean grief = ForgeEventFactory.getMobGriefingEvent(level, this);
+        Blasts.nuclear(level, impact, grounded, source, this, this, grief, false, getYRot());
+        if (grief) {
+            // and for hundreds of blocks around, everything standing above the flatten level is swept away
+            Flattening.start(level, impact, Config.ATOMIC_FLATTEN_RADIUS.get(), Config.ATOMIC_FLATTEN_LEVEL.get());
+        }
         ModNetwork.blur(level, position(), 120.0, 1.0F, 0.15F, 2.5F, 4.0F);
 
         this.breathCooldown = Config.ATOMIC_BREATH_COOLDOWN.get() * 20;
