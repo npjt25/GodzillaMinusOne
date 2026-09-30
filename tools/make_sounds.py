@@ -4,7 +4,8 @@
 
   * godzilla_inhale.ogg  - Godzilla's in-breath before the atomic breath: exactly as long as the in-breath
                            in the charge animation (tools/edit_animations.py, INHALE_LENGTH = 4 s).
-  * nuke_whistle.ogg     - the falling nuclear bomb's whistle over its last seconds.
+  * nuke_alarm.ogg       - the air-raid siren that wails from the moment a nuclear bomb is called in until it goes
+                           off: exactly its 20 second fall (entity/NuclearBombEntity.java, FALL_TICKS).
 
 Needs numpy and imageio-ffmpeg (for the Vorbis encoder).
 """
@@ -20,7 +21,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT = os.path.join(ROOT, "src", "main", "resources", "assets", "godzillaminusone", "sounds")
 RATE = 44100
 INHALE_SECONDS = 4.0
-WHISTLE_SECONDS = 7.0
+ALARM_SECONDS = 20.0
 
 
 def ffmpeg():
@@ -89,23 +90,33 @@ def inhale(rng):
     return rush * 0.8 + rumble + crackle
 
 
-def whistle(rng):
-    """A falling bomb: a whistle sliding down in pitch and getting louder, with wind."""
-    seconds = WHISTLE_SECONDS
+def alarm(rng):
+    """An air-raid siren: a rotor siren's two tones wailing up, holding and sliding down again, twice, heard
+    across a town (with a little echo off the buildings). Loud enough to hear, not to hurt."""
+    seconds = ALARM_SECONDS
     t = np.arange(int(seconds * RATE)) / RATE
-    p = t / seconds
-    freq = 1900 * (0.28 / 1.0) ** p                  # 1900 Hz down to ~530 Hz
-    freq *= 1 + 0.006 * np.sin(2 * np.pi * 6 * t)
+    cycle = 10.0
+    q = (t % cycle) / cycle
+    rise, hold = 0.35, 0.55
+    level = np.where(q < rise, smooth(q / rise), np.where(q < hold, 1.0, 1.0 - smooth((q - hold) / (1.0 - hold))))
+    freq = 170.0 + 480.0 * level
+    freq *= 1 + 0.004 * np.sin(2 * np.pi * 5.5 * t)             # the rotor's wobble
     phase = 2 * np.pi * np.cumsum(freq) / RATE
-    tone = np.sin(phase) + 0.25 * np.sin(2 * phase) + 0.1 * np.sin(3 * phase)
-    loud = (0.15 + 0.85 * p ** 1.6) * smooth(p / 0.05) * (1 - smooth((p - 0.985) / 0.015))
+    phase2 = 2 * np.pi * np.cumsum(freq * 1.26) / RATE            # the second, higher port: a minor third up
+    tone = sum(np.sin(k * phase) / k ** 1.3 for k in range(1, 7)) + 0.7 * sum(np.sin(k * phase2) / k ** 1.3 for k in range(1, 6))
+    loud = (0.35 + 0.65 * level) * smooth(t / 0.4) * (1 - smooth((t - (seconds - 0.6)) / 0.6))
+    wail = tone * loud
+    out = wail.copy()
+    for delay, gain in ((0.19, 0.35), (0.43, 0.2), (0.77, 0.1)):   # echoes
+        d = int(delay * RATE)
+        out[d:] += wail[:-d] * gain
 
-    def wind(time, freqs):
-        return band(freqs, 900 + 500 * (time / seconds), 0.9)
+    def air(time, freqs):
+        return band(freqs, 600, 1.2)
 
-    air = shaped_noise(seconds, wind, rng)
-    air /= np.max(np.abs(air))
-    return tone * loud * 0.7 + air * loud * 0.25
+    hiss = shaped_noise(seconds, air, rng)
+    hiss /= np.max(np.abs(hiss))
+    return out * 0.8 + hiss * loud * 0.06
 
 
 def write_ogg(samples, name):
@@ -128,7 +139,7 @@ def main():
         sys.exit(__doc__)
     rng = np.random.default_rng(1954)
     write_ogg(inhale(rng), "godzilla_inhale")
-    write_ogg(whistle(rng), "nuke_whistle")
+    write_ogg(alarm(rng), "nuke_alarm")
 
 
 if __name__ == "__main__":

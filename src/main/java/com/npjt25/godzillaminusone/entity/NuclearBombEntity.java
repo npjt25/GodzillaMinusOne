@@ -8,17 +8,22 @@ import com.npjt25.godzillaminusone.registry.ModDamageTypes;
 import com.npjt25.godzillaminusone.registry.ModEntities;
 import com.npjt25.godzillaminusone.registry.ModSounds;
 import net.minecraft.ChatFormatting;
+import net.minecraft.core.Holder;
 import net.minecraft.core.particles.DustParticleOptions;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.protocol.Packet;
 import net.minecraft.network.protocol.game.ClientGamePacketListener;
+import net.minecraft.network.protocol.game.ClientboundSoundEntityPacket;
+import net.minecraft.network.protocol.game.ClientboundStopSoundPacket;
 import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.EntityDataSerializers;
 import net.minecraft.network.syncher.SynchedEntityData;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.Entity;
@@ -33,18 +38,22 @@ import software.bernie.geckolib.core.animatable.instance.AnimatableInstanceCache
 import software.bernie.geckolib.core.animation.AnimatableManager;
 import software.bernie.geckolib.util.GeckoLibUtil;
 
+import java.util.HashSet;
+import java.util.Set;
 import java.util.UUID;
 
 /**
  * A nuclear bomb called in with the Nuclear Bomb item: it is dropped from high above its target and falls for
  * exactly {@link #FALL_TICKS} (20 seconds), with a red flare marking where it will land, a countdown for everyone
- * nearby and a whistle over its last seconds. Then it goes off like Godzilla's atomic blast; an Odo Island Monster
+ * nearby and an air-raid siren wailing for all of them until it lands (the only sound it makes until then). Then it
+ * goes off like Godzilla's atomic blast; an Odo Island Monster
  * caught in it is burnt to a crisp instead of killed, and rises again as Godzilla.
  */
 public class NuclearBombEntity extends Entity implements GeoEntity {
     public static final int FALL_TICKS = 20 * 20;
     private static final double DROP_HEIGHT = 200.0;
-    private static final int WHISTLE_TICKS = 7 * 20;
+    /** The siren's volume (heard the same by everyone warned: it plays at each of them). */
+    private static final float ALARM_VOLUME = 0.55F;
     private static final double WARN_RADIUS = 320.0;
 
     private static final EntityDataAccessor<Float> DATA_TARGET_Y = SynchedEntityData.defineId(NuclearBombEntity.class, EntityDataSerializers.FLOAT);
@@ -55,6 +64,8 @@ public class NuclearBombEntity extends Entity implements GeoEntity {
     private double fallSpeed;
     @Nullable
     private UUID ownerId;
+    /** Players who have heard the siren start (newcomers in range hear it from when they arrive). */
+    private final Set<UUID> alarmed = new HashSet<>();
 
     public NuclearBombEntity(EntityType<? extends NuclearBombEntity> type, Level level) {
         super(type, level);
@@ -109,8 +120,8 @@ public class NuclearBombEntity extends Entity implements GeoEntity {
         if (this.fuse % 20 == 0 && this.fuse > 0) {
             warn(level, this.fuse / 20);
         }
-        if (this.fuse == WHISTLE_TICKS) {
-            level.playSound(null, this.target.x, this.target.y + 20.0, this.target.z, ModSounds.NUKE_WHISTLE.get(), SoundSource.HOSTILE, 16.0F, 1.0F);
+        if (this.tickCount % 10 == 1) {
+            soundAlarm(level);
         }
         // it goes off on whatever it hits on the way down (a roof, the ground over a cave) after its first second
         boolean hitSomething = this.tickCount > 20 && !level.getBlockState(blockPosition()).getCollisionShape(level, blockPosition()).isEmpty();
@@ -129,7 +140,31 @@ public class NuclearBombEntity extends Entity implements GeoEntity {
         }
     }
 
+    /** The air-raid siren, for everyone who hasn't heard it yet within the warning radius, following them about. */
+    private void soundAlarm(ServerLevel level) {
+        Holder<SoundEvent> siren = BuiltInRegistries.SOUND_EVENT.wrapAsHolder(ModSounds.NUKE_ALARM.get());
+        for (ServerPlayer player : level.players()) {
+            if (!this.alarmed.contains(player.getUUID())
+                    && player.position().distanceToSqr(this.target.x, player.getY(), this.target.z) < WARN_RADIUS * WARN_RADIUS) {
+                this.alarmed.add(player.getUUID());
+                player.connection.send(new ClientboundSoundEntityPacket(siren, SoundSource.HOSTILE, player, ALARM_VOLUME, 1.0F,
+                        level.getRandom().nextLong()));
+            }
+        }
+    }
+
+    /** The siren stops when the bomb goes off. */
+    private void silenceAlarm(ServerLevel level) {
+        ClientboundStopSoundPacket stop = new ClientboundStopSoundPacket(ModSounds.NUKE_ALARM.getId(), SoundSource.HOSTILE);
+        for (ServerPlayer player : level.players()) {
+            if (this.alarmed.contains(player.getUUID())) {
+                player.connection.send(stop);
+            }
+        }
+    }
+
     private void detonate(ServerLevel level, Vec3 at) {
+        silenceAlarm(level);
         Entity owner = this.ownerId != null ? level.getEntity(this.ownerId) : null;
         DamageSource source = ModDamageTypes.source(level, ModDamageTypes.NUCLEAR_BOMB, this, owner);
         Vec3 zero = Blasts.nuclear(level, at, true, source, this, null, Config.ATOMIC_BLAST_CRATER_RADIUS.get() > 0, true, getYRot());

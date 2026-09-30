@@ -18,7 +18,8 @@
   "sounds": [
    {
     "name": "godzillaminusone:godzilla_roar",
-    "stream": true
+    "stream": true,
+    "attenuation_distance": 3000
    }
   ]
  },
@@ -26,7 +27,8 @@
   "subtitle": "subtitles.godzillaminusone.godzilla.roar2",
   "sounds": [
    {
-    "name": "godzillaminusone:godzilla_stand"
+    "name": "godzillaminusone:godzilla_stand",
+    "attenuation_distance": 3000
    }
   ]
  },
@@ -149,11 +151,12 @@
    }
   ]
  },
- "nuke.whistle": {
-  "subtitle": "subtitles.godzillaminusone.nuke.whistle",
+ "nuke.alarm": {
+  "subtitle": "subtitles.godzillaminusone.nuke.alarm",
   "sounds": [
    {
-    "name": "godzillaminusone:nuke_whistle"
+    "name": "godzillaminusone:nuke_alarm",
+    "stream": true
    }
   ]
  },

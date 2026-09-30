@@ -7,7 +7,7 @@ was only used as a reference for how rugged he should look):
   * lumps of deformed tissue: clusters of jagged, tumor-like growths bulging from his back, neck, shoulders,
     thighs and tail,
   * rows of teeth along both jaws,
-  * sinister yellow eyes with slit pupils (they glow faintly), under heavy brow ridges,
+  * heavy brow ridges over his eyes,
   * the burns the atomic breath leaves round his mouth (godzilla_burns.png, drawn over him after he fires, and
     godzilla_burns_glow.png, the flesh still glowing hot): raw, torn, blistered and charred flesh. The burn
     texture's alpha is the order it heals in (client.render.GodzillaRenderer): the edges close up first.
@@ -36,12 +36,8 @@ ADDON_JAW_CUBES = 8               # the add-on's lower jaw; more means this scri
 # Where the new cubes' textures go: rows 208-255 of the 256x256 UV space are unused by the add-on.
 SKIN_SWATCHES = [(0, 208), (16, 208), (32, 208), (48, 208)]   # 16x16 each, sampled from his hide
 TOOTH_SWATCH = (64, 208)
-IRIS_SWATCH = (80, 208)
-PUPIL_SWATCH = (96, 208)
 TUMOR_SWATCHES = [(112, 208), (128, 208), (144, 208), (160, 208)]   # paler, knobbly scar tissue
 SWATCH = 16
-IRIS = (236, 186, 34)
-PUPIL = (22, 14, 10)
 
 # Bones that get skin bumps, with how many per 100 square pixels of surface.
 BUMP_BONES = {
@@ -62,8 +58,8 @@ TUMOR_BONES = {
 # How much each side of a cube attracts growths (+z is his back: the model faces -z).
 TUMOR_FACES = {(2, 1): 1.7, (1, 1): 1.5, (0, 1): 1.0, (0, -1): 1.0, (2, -1): 0.35}
 
-# The eyes, on both sides of the head (Head bone space, the add-on's head is 8.7 wide at the eyes): an iris, a
-# slit pupil standing just proud of it, and a heavy brow ridge slanting down over it.
+# Heavy brow ridges slanting down over the eyes, on both sides of the head (Head bone space: the add-on's head
+# is 8.7 wide there).
 EYE_Z = -30.25
 EYE_Y = 74.85
 
@@ -72,10 +68,6 @@ def eye_cubes():
     cubes = []
     for side in (-1, 1):
         surface = 4.36 * side
-        x0 = surface - 0.38 if side > 0 else surface - 0.14
-        cubes.append({"origin": [round(x0, 3), EYE_Y, EYE_Z], "size": [0.52, 0.8, 1.35], "uv": list(IRIS_SWATCH)})
-        px0 = x0 - 0.02 if side < 0 else x0 + 0.02
-        cubes.append({"origin": [round(px0, 3), EYE_Y + 0.04, EYE_Z + 0.52], "size": [0.52, 0.72, 0.3], "uv": list(PUPIL_SWATCH)})
         bx0 = surface - 0.75 if side > 0 else surface - 0.45
         cubes.append({"origin": [round(bx0, 3), EYE_Y + 0.72, EYE_Z - 0.55], "size": [1.2, 0.85, 2.6],
                       "uv": list(SKIN_SWATCHES[1]), "rotation": [14, -8 * side, 0],
@@ -162,7 +154,7 @@ def detail_texture(name, detail, emissive):
     return a
 
 
-def add_swatches(a, r, teeth, detail, iris):
+def add_swatches(a, r, teeth, detail):
     """Paints the new cubes' texture swatches, sampled from the hide already on the sheet."""
     px = UPSCALE
     body = a[40 * px:200 * px, 0:200 * px]
@@ -194,8 +186,6 @@ def add_swatches(a, r, teeth, detail, iris):
         a[v * px:(v + SWATCH) * px, u * px:(u + SWATCH) * px] = patch
 
     flat(TOOTH_SWATCH, teeth, 0.1)
-    flat(IRIS_SWATCH, iris, 0.08)
-    flat(PUPIL_SWATCH, PUPIL, 0.05)
 
 
 def build_textures():
@@ -204,16 +194,12 @@ def build_textures():
     emissive = glow[..., 3] > 0
     size = glow.shape[0]
     detail = tumor_detail(size, r)
-    for name, teeth, iris in (("godzilla.png", (172, 164, 146), IRIS), ("godzilla_dead.png", (96, 90, 84), (70, 62, 40))):
+    for name, teeth in (("godzilla.png", (172, 164, 146)), ("godzilla_dead.png", (96, 90, 84))):
         a = detail_texture(name, detail, emissive)
-        add_swatches(a, rng(), teeth, detail, iris)
+        add_swatches(a, rng(), teeth, detail)
         Image.fromarray(a.astype(np.uint8), "RGBA").save(os.path.join(TEX, name))
     for name in ("godzilla_glow.png", "godzilla_charged_glow.png"):
         img = np.asarray(upscale(Image.open(os.path.join(TEX, name)).convert("RGBA"), UPSCALE // 2)).copy()
-        if name == "godzilla_glow.png":
-            # the eyes glow a faint, sickly yellow
-            u, v = IRIS_SWATCH
-            img[v * UPSCALE:(v + SWATCH) * UPSCALE, u * UPSCALE:(u + SWATCH) * UPSCALE] = [150, 112, 16, 255]
         Image.fromarray(img, "RGBA").save(os.path.join(TEX, name))
 
 
@@ -408,7 +394,7 @@ def build_geometry():
     with open(GEO, "w") as f:
         json.dump(data, f, indent=1)
         f.write("\n")
-    print("added %d skin bumps, %d tumor cubes, %d teeth and the eyes" % (total, tumors, sum(len(v) for v in tooth_cubes.values())))
+    print("added %d skin bumps, %d tumor cubes, %d teeth and the brows" % (total, tumors, sum(len(v) for v in tooth_cubes.values())))
 
 
 # ---------------------------------------------------------------- burns

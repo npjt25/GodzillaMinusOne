@@ -6,6 +6,7 @@ import com.npjt25.godzillaminusone.network.FxPacket;
 import com.npjt25.godzillaminusone.network.ModNetwork;
 import com.npjt25.godzillaminusone.registry.ModDamageTypes;
 import com.npjt25.godzillaminusone.registry.ModSounds;
+import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.Mth;
@@ -15,6 +16,8 @@ import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
@@ -32,6 +35,8 @@ import java.util.Set;
 public final class Blasts {
     /** Entities an explosion going off right now must leave alone (a pilot bailing out of their plane). */
     private static final Set<Entity> SPARED = new HashSet<>();
+    /** Set while an explosion whose blocks should vanish rather than drop is going off. */
+    private static boolean disintegrate;
 
     /**
      * A naval mine (or a Shinden flown into Godzilla) going off: huge damage to everything nearby,
@@ -59,17 +64,20 @@ public final class Blasts {
     }
 
     /**
-     * A plane flown into the ground: an ordinary (block-breaking) explosion of the given power, which spares the
-     * pilot bailing out of it.
+     * A plane flown into the ground: a block-breaking explosion of the given power, which spares the pilot bailing
+     * out of it. The blocks it breaks just disintegrate: nothing drops (hundreds of dropped items would bring the
+     * game to a crawl).
      */
     public static void impact(ServerLevel level, Vec3 pos, float power, Entity source, @Nullable Entity pilot) {
         if (pilot != null) {
             SPARED.add(pilot);
         }
+        disintegrate = true;
         try {
             level.explode(source, pos.x, pos.y, pos.z, power, Level.ExplosionInteraction.TNT);
         } finally {
             SPARED.clear();
+            disintegrate = false;
         }
     }
 
@@ -77,6 +85,16 @@ public final class Blasts {
     public static void onExplosion(ExplosionEvent.Detonate event) {
         if (!SPARED.isEmpty()) {
             event.getAffectedEntities().removeIf(SPARED::contains);
+        }
+        if (disintegrate) {
+            // clear the blocks ourselves, without drops, and leave the explosion nothing to break (or drop)
+            Level level = event.getLevel();
+            for (BlockPos pos : event.getAffectedBlocks()) {
+                if (!level.getBlockState(pos).isAir()) {
+                    level.setBlock(pos, Blocks.AIR.defaultBlockState(), Block.UPDATE_ALL);
+                }
+            }
+            event.getAffectedBlocks().clear();
         }
     }
 

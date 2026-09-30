@@ -32,7 +32,7 @@ public final class ModSounds {
     public static final RegistryObject<SoundEvent> SHINDEN_ENGINE = register("shinden.engine");
     public static final RegistryObject<SoundEvent> SHINDEN_GUN = register("shinden.gun");
     public static final RegistryObject<SoundEvent> NAVAL_MINE_EXPLODE = register("naval_mine.explode");
-    public static final RegistryObject<SoundEvent> NUKE_WHISTLE = register("nuke.whistle");
+    public static final RegistryObject<SoundEvent> NUKE_ALARM = register("nuke.alarm");
     public static final RegistryObject<SoundEvent> ODO_AMBIENT = register("odo.ambient");
     public static final RegistryObject<SoundEvent> ODO_ROAR = register("odo.roar");
     public static final RegistryObject<SoundEvent> ODO_BITE = register("odo.bite");

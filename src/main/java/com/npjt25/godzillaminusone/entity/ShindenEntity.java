@@ -38,6 +38,8 @@ import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.registries.RegistryObject;
 import org.jetbrains.annotations.Nullable;
+import org.joml.Matrix4f;
+import org.joml.Vector3f;
 import software.bernie.geckolib.animatable.GeoEntity;
 import software.bernie.geckolib.core.animatable.instance.AnimatableInstanceCache;
 import software.bernie.geckolib.core.animation.AnimatableManager;
@@ -50,7 +52,7 @@ import software.bernie.geckolib.util.GeckoLibUtil;
 
 /**
  * The Kyushu J7W1 Shinden (goji:kyushu_j7w1). Right-click to fly it: W/S throttle, the mouse steers and
- * pitches (look up to climb, down to dive). The pilot gets the Torrid cannon while seated. Like a boat, a few
+ * pitches (look up to climb, down to dive); each right-click fires one burst from its nose cannons. Like a boat, a few
  * hits from a player knock it back into its item. If it is crashed into something at (near) full speed,
  * blown up, or flown within {@link Config#SHINDEN_KAMIKAZE_DISTANCE} blocks of Godzilla, it goes off like a
  * naval mine and the pilot bails out.
@@ -74,6 +76,9 @@ public class ShindenEntity extends Mob implements GeoEntity {
     private double flightSpeed;
     private boolean exploded;
     private boolean crashed;
+    /** Ticks between bursts of the plane's guns. */
+    private static final int GUN_COOLDOWN = 6;
+    private int lastShotTick = -GUN_COOLDOWN;
     // Client side: how far the plane leans into a turn (degrees, right wing down is positive), and how far its
     // nose is up (positive) or down along its flight path.
     private float bank;
@@ -241,30 +246,23 @@ public class ShindenEntity extends Mob implements GeoEntity {
         if (!hasPassenger(passenger)) {
             return;
         }
-        // add-on seat: [-0.05, 2.3, -0.2]
-        Vec3 offset = new Vec3(0.0, 0.0, 0.2).yRot(-getYRot() * Mth.DEG_TO_RAD);
-        move.accept(passenger, getX() + offset.x, getY() + 2.3 + passenger.getMyRidingOffset(), getZ() + offset.z);
-    }
-
-    @Override
-    protected void addPassenger(Entity passenger) {
-        super.addPassenger(passenger);
-        if (!level().isClientSide && passenger instanceof Player player && !player.getInventory().contains(new ItemStack(ModItems.TORRID.get()))) {
-            // add-on: /replaceitem ... slot.hotbar 0 goji:torrid (here: the selected slot if free, else any free slot)
-            ItemStack torrid = new ItemStack(ModItems.TORRID.get());
-            if (player.getMainHandItem().isEmpty()) {
-                player.setItemInHand(InteractionHand.MAIN_HAND, torrid);
-            } else {
-                player.getInventory().add(torrid);
-            }
-        }
+        // add-on seat: [-0.05, 2.3, -0.2] (just ahead of the middle). On the pilot's screen the plane pitches and
+        // banks about y 1.5 (ShindenRenderer); the seat turns with it, so the pilot stays in the cockpit.
+        Vector3f seat = new Matrix4f()
+                .rotateY((180.0F - getYRot()) * Mth.DEG_TO_RAD)
+                .translate(0.0F, 1.5F, 0.0F)
+                .rotateX(this.pitch * Mth.DEG_TO_RAD)
+                .rotateZ(-this.bank * Mth.DEG_TO_RAD)
+                .translate(0.0F, -1.5F, 0.0F)
+                .transformPosition(new Vector3f(0.0F, 2.3F, -0.2F));
+        move.accept(passenger, getX() + seat.x, getY() + seat.y + passenger.getMyRidingOffset(), getZ() + seat.z);
     }
 
     @Override
     protected void removePassenger(Entity passenger) {
         super.removePassenger(passenger);
         if (!level().isClientSide && passenger instanceof Player player) {
-            removeTorrid(player);
+            removeTorrid(player); // (older versions handed the pilot the Torrid as an item)
         }
     }
 
@@ -273,6 +271,14 @@ public class ShindenEntity extends Mob implements GeoEntity {
     }
 
     // ------------------------------------------------------------------ weapons & destruction
+
+    /** A right-click from the pilot: one burst, if the guns are ready (client.ShindenControls). */
+    public void tryFireGuns(Player pilot) {
+        if (this.tickCount - this.lastShotTick >= GUN_COOLDOWN || this.tickCount < this.lastShotTick) {
+            this.lastShotTick = this.tickCount;
+            fireGuns(pilot);
+        }
+    }
 
     /** The Torrid: a cannon burst along the nose (add-on: 400 damage to everything within 40 blocks). */
     public void fireGuns(Player pilot) {

@@ -4,8 +4,6 @@ import com.npjt25.godzillaminusone.entity.NuclearBombEntity;
 import com.npjt25.godzillaminusone.entity.SearchlightEntity;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
-import net.minecraft.sounds.SoundEvents;
-import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResultHolder;
 import net.minecraft.world.entity.player.Player;
@@ -47,7 +45,6 @@ public class NuclearBombItem extends Item {
         }
         if (level instanceof ServerLevel serverLevel) {
             NuclearBombEntity.drop(serverLevel, hit.getLocation(), player);
-            level.playSound(null, player.getX(), player.getY(), player.getZ(), SoundEvents.NOTE_BLOCK_BELL.value(), SoundSource.PLAYERS, 1.0F, 0.5F);
         }
         player.getCooldowns().addCooldown(this, 40);
         if (!player.getAbilities().instabuild) {

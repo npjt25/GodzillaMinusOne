@@ -10,7 +10,7 @@ import net.minecraftforge.network.PacketDistributor;
 import net.minecraftforge.network.simple.SimpleChannel;
 
 public final class ModNetwork {
-    private static final String VERSION = "2";
+    private static final String VERSION = "3";
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             GodzillaMinusOne.id("main"), () -> VERSION, VERSION::equals, VERSION::equals);
 
@@ -22,6 +22,8 @@ public final class ModNetwork {
                 .encoder(CameraPacket::encode).decoder(CameraPacket::decode).consumerMainThread(CameraPacket::handle).add();
         CHANNEL.messageBuilder(ShindenCrashPacket.class, id++, NetworkDirection.PLAY_TO_SERVER)
                 .encoder(ShindenCrashPacket::encode).decoder(ShindenCrashPacket::decode).consumerMainThread(ShindenCrashPacket::handle).add();
+        CHANNEL.messageBuilder(ShindenFirePacket.class, id++, NetworkDirection.PLAY_TO_SERVER)
+                .encoder(ShindenFirePacket::encode).decoder(ShindenFirePacket::decode).consumerMainThread(ShindenFirePacket::handle).add();
     }
 
     public static void send(ServerPlayer player, Object message) {

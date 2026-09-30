@@ -41,7 +41,10 @@ BEAM_END = 15.1667 + INHALE_LENGTH
 HEAD_UP = -10.0               # degrees; negative X pitches the head up
 BEAM_LENGTH = 1.25
 BEAM_THICKNESS = 1.2
-FIRING_SOUND = "godzilla.full_charge"   # its roar peaks 1.2 s in, as the beam fires: it moves with the beam
+FIRING_SOUND = "godzilla.full_charge"
+# Straightening up to fire (degrees): back and chest up, neck up, head down again so the beam keeps its angle;
+# measured so that his mouth is above his chest, ~36 blocks up.
+FIRE_RAISE = (("Metalbody", (-10, 0, 0)), ("Chest", (-20, 0, 0)), ("Neck", (-30, 0, 0)), ("Head", (60, 0, 0)))   # its roar peaks 1.2 s in, as the beam fires: it moves with the beam
 
 
 def val(x):
@@ -145,6 +148,11 @@ def edit_charge(anim):
     # Head angled 10 degrees up while the beam fires, so the breath reaches further.
     head = bones["Head"]
     head["rotation"] = add_offset(head["rotation"], BEAM_START - 0.15, BEAM_END + 0.25, (HEAD_UP, 0, 0), 0.15, 0.25)
+    # ...and he straightens up to fire, head held high: in the add-on's pose it sank to chest height, in front of
+    # his chest, so that seen from the ground the beam seemed to come out of his chest.
+    for bone, offset in FIRE_RAISE:
+        ch = bones.setdefault(bone, {})
+        ch["rotation"] = add_offset(ch.get("rotation", [0, 0, 0]), BEAM_START - 0.5, BEAM_END + 0.5, offset, 0.5, 0.5)
 
     # Longer, thicker beam that still starts at the mouth: bone B's offset already runs along its own axis,
     # so it grows with the beam's length.

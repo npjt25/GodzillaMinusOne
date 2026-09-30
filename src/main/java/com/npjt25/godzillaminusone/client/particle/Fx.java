@@ -169,6 +169,22 @@ public final class Fx {
                     .life(10 + RANDOM.nextInt(15)).size(1.2F, 0.2F).additive()
                     .colors(0.0F, 0xFFFFFFFF, 0.3F, 0xFF66CCFF, 1.0F, 0x003399FF).spawn();
         }
+        // for as long as the beam lasts his jaws blaze blue, so it plainly pours out of his mouth
+        ClientFx.addEmitter(84, tick -> {
+            if (g.isRemoved() || !g.isCharging()) {
+                return;
+            }
+            Vec3[] line = g.beamLine(g.getAimPitch(1.0F));
+            Vec3 dir = line[1].subtract(line[0]).normalize();
+            of(ModParticles.GLOW).at(line[0]).life(2).size(7.0F, 5.0F).additive()
+                    .colors(0.0F, 0xE0CCF2FF, 1.0F, 0x0066CCFF).spawn();
+            for (int i = 0; i < 4; i++) {
+                Vec3 v = dir.scale(rand(0.4, 1.2)).add(rand(-0.25, 0.25), rand(-0.25, 0.25), rand(-0.25, 0.25));
+                of(ModParticles.BLUE_FLAME).at(line[0]).velocity(v.x, v.y, v.z)
+                        .life(6 + RANDOM.nextInt(6)).size(1.6F, 0.3F).additive()
+                        .colors(0.0F, 0xFFFFFFFF, 0.3F, 0xFF66CCFF, 1.0F, 0x003399FF).spawn();
+            }
+        });
     }
 
     private static void splash(Vec3 center, double minRadius, double maxRadius, int count) {

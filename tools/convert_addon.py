@@ -303,7 +303,7 @@ def convert_animations(rp):
 
 SOUNDS = {
     # event: (files, stream). Hearing range is set by the volume the code plays them at (16 blocks per 1.0),
-    # like vanilla, so the add-on's min_distance values (200-900) become volumes of 12-24.
+    # like vanilla, so the add-on's min_distance values (200-900) become volumes of 12-24 (roars: see ATTENUATION).
     "godzilla.ambient": (["gojira/gojira_stand", "gojira/gojira_stand2", "gojira/gojira_stand3"], False),
     "godzilla.roar": (["gojira/gojira_roar"], True),
     "godzilla.roar2": (["gojira/gojira_stand"], False),
@@ -322,7 +322,7 @@ SOUNDS = {
     "naval_mine.explode": (["naval_mine/naval_mine"], False),
     # "@name": made by tools/make_sounds.py, not converted from the add-on.
     "godzilla.inhale": (["@godzilla_inhale"], False),
-    "nuke.whistle": (["@nuke_whistle"], False),
+    "nuke.alarm": (["@nuke_alarm"], True),
     # The Odo Island Monster, a younger, smaller Godzilla: his sounds, pitched up ("@": already converted above).
     "odo.ambient": (["@godzilla_stand", "@godzilla_stand2", "@godzilla_stand3"], False, 1.3),
     "odo.roar": (["@godzilla_roar"], True, 1.3),
@@ -332,6 +332,11 @@ SOUNDS = {
     "odo.hurt": (["@godzilla_hurts"], False, 1.35),
     "odo.death": (["@godzilla_roar"], True, 1.1),
 }
+
+
+# Sounds heard further than their volume would carry them: blocks to fade out over (linearly). Godzilla's roars
+# carry 3000 blocks: the server sends them to everyone in range (entity/GodzillaEntity.java, roar()).
+ATTENUATION = {"godzilla.roar": 3000, "godzilla.roar2": 3000}
 
 
 def ffmpeg_exe():
@@ -365,6 +370,8 @@ def convert_sounds(rp):
                 entry["stream"] = True
             if pitch:
                 entry["pitch"] = pitch[0]
+            if event in ATTENUATION:
+                entry["attenuation_distance"] = ATTENUATION[event]
             entries.append(entry)
         defs[event] = {"subtitle": "subtitles." + MODID + "." + event, "sounds": entries}
     write_json(out("sounds.json"), defs)

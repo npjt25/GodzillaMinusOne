@@ -8,9 +8,12 @@ import com.npjt25.godzillaminusone.registry.ModDamageTypes;
 import com.npjt25.godzillaminusone.registry.ModSounds;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Holder;
 import net.minecraft.core.particles.ParticleTypes;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.protocol.game.ClientboundSoundPacket;
 import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.EntityDataSerializers;
 import net.minecraft.network.syncher.SynchedEntityData;
@@ -108,7 +111,7 @@ public class GodzillaEntity extends Monster implements GeoEntity {
     private static final int DEAD_TICKS = 300;          // gojira_dead2 timer: 15 s
     private static final int ANGER_DELAY = 40;          // angry timeline: charge starts at 2.0 s
     private static final int BEAM_START_TICK = 304;     // charge animation: the beam appears at 14.96 s (after the 4 s in-breath)
-    private static final int CHARGE_BLAST_TICK = 312;   // ...and lands
+    private static final int CHARGE_BLAST_TICK = 344;   // ...and 2 s later its impact goes up in a nuclear blast
     private static final int BEAM_END_TICK = 388;       // charge animation: the beam is gone at 19.17 s
     private static final int CHARGE_LENGTH = 518;       // charge animation: 25.67 s
     private static final int AURA_INTERVAL = 10;        // idle timeline loops every 0.5 s
@@ -140,14 +143,15 @@ public class GodzillaEntity extends Monster implements GeoEntity {
     public static final double SWIM_BITE_REACH = 24.0;
 
     // The atomic breath, measured on the charge animation (blocks: right, up, forward). The head pivots about
-    // HEAD; the beam leaves his open mouth at BEAM_NEAR and reaches out to BEAM_FAR: with his head angled 10 degrees
-    // up it slopes down ~6.5 degrees, and on flat ground the blast goes off where it ends, ~185 blocks ahead.
-    private static final Vec3 HEAD = new Vec3(-0.46, 25.45, 17.48);
-    private static final Vec3 BEAM_NEAR = new Vec3(-0.55, 25.44, 20.66);
-    private static final Vec3 BEAM_FAR = new Vec3(-8.27, 5.58, 197.15);
+    // HEAD; the beam leaves his open mouth at BEAM_NEAR and reaches out to BEAM_FAR: he rears his head up above his
+    // chest to fire, the beam slopes down ~6.4 degrees from there, and on flat ground it ends ~15 blocks up, 185
+    // blocks ahead, where the blast drops to the ground.
+    private static final Vec3 HEAD = new Vec3(-0.07, 35.81, 13.06);
+    private static final Vec3 BEAM_NEAR = new Vec3(-0.15, 35.80, 16.24);
+    private static final Vec3 BEAM_FAR = new Vec3(-7.06, 15.91, 192.76);
     private static final double BEAM_REACH = 185.0;
     /** The beam veers this far left of where he faces, so he turns this far right to aim it. */
-    private static final float BEAM_YAW = (float) Math.toDegrees(Math.atan2(7.72, 176.49));
+    private static final float BEAM_YAW = (float) Math.toDegrees(Math.atan2(6.91, 176.52));
     /** Extra head pitch to aim at a target (degrees, up); the beam never slopes down more than 20 degrees. */
     private static final float MIN_AIM = -13.5F;
     private static final float MAX_AIM = 60.0F;
@@ -385,7 +389,12 @@ public class GodzillaEntity extends Monster implements GeoEntity {
                 setHealth(getMaxHealth());
                 this.bossEvent.setVisible(true);
             }
-            case RISING -> this.bossEvent.setVisible(true);
+            case RISING -> {
+                this.bossEvent.setVisible(true);
+                if (level() instanceof ServerLevel level) {
+                    broadcastRoar(level, ModSounds.GODZILLA_ROAR2.get());   // (animation.gojira.roar2)
+                }
+            }
             case ACTIVE -> {
                 this.bossEvent.setVisible(true);
                 this.angryTicks = 0;
@@ -491,7 +500,8 @@ public class GodzillaEntity extends Monster implements GeoEntity {
         }
 
         if (this.breathCooldown > 0) {
-            this.breathCooldown--;
+            // (a shorter interval set in the config menu takes effect right away)
+            this.breathCooldown = Math.min(this.breathCooldown - 1, Config.ATOMIC_BREATH_COOLDOWN.get() * 20);
         }
         if (this.attackCooldown > 0) {
             this.attackCooldown--;
@@ -717,7 +727,7 @@ public class GodzillaEntity extends Monster implements GeoEntity {
             fireAtomicBlast(level);
         } else if (this.chargeTicks == BEAM_END_TICK) {
             setChargeState(CHARGE_COOLING);
-            triggerAnim("action", "roar");
+            roar();
             // the breath has burnt his own mouth raw
             this.entityData.set(DATA_BURNS, BURN_TICKS);
             Vec3 mouth = locator(BEAM_NEAR.x, BEAM_NEAR.y, BEAM_NEAR.z);
@@ -817,6 +827,36 @@ public class GodzillaEntity extends Monster implements GeoEntity {
 
     private void atomicHit(LivingEntity entity, DamageSource source) {
         Blasts.nuclearHit(entity, source, false);
+    }
+
+    // ------------------------------------------------------------------ roaring
+
+    /** His roar carries this far (fading out linearly: sounds.json gives the roars this attenuation distance). */
+    public static final double ROAR_RANGE = 3000.0;
+    /** How loud a roar is up close: loud, not deafening. */
+    private static final float ROAR_VOLUME = 0.8F;
+
+    private void roar() {
+        triggerAnim("action", "roar");
+        if (level() instanceof ServerLevel level) {
+            broadcastRoar(level, ModSounds.GODZILLA_ROAR.get());
+        }
+    }
+
+    /**
+     * Sends a roar to every player within {@link #ROAR_RANGE} blocks (vanilla only sends a sound as far as 16 blocks
+     * times its volume, and a volume above 1 would make it deafening up close): faint at the edge of that range,
+     * louder and louder closer in.
+     */
+    private void broadcastRoar(ServerLevel level, SoundEvent sound) {
+        Holder<SoundEvent> holder = BuiltInRegistries.SOUND_EVENT.wrapAsHolder(sound);
+        long seed = this.random.nextLong();
+        double y = getY() + 30.0;
+        for (ServerPlayer player : level.players()) {
+            if (player.distanceToSqr(getX(), y, getZ()) < ROAR_RANGE * ROAR_RANGE) {
+                player.connection.send(new ClientboundSoundPacket(holder, SoundSource.HOSTILE, getX(), y, getZ(), ROAR_VOLUME, 1.0F, seed));
+            }
+        }
     }
 
     // ------------------------------------------------------------------ burns
@@ -1038,7 +1078,7 @@ public class GodzillaEntity extends Monster implements GeoEntity {
             hurt(source, amount);
         }
         if (isActive() && !isCharging()) {
-            triggerAnim("action", "roar");
+            roar();
         }
     }
 
@@ -1309,6 +1349,9 @@ public class GodzillaEntity extends Monster implements GeoEntity {
 
     private void onSoundKeyframe(SoundKeyframeEvent<GodzillaEntity> event) {
         String name = event.getKeyframeData().getSound();
+        if (name.equals("godzilla.roar") || name.equals("godzilla.roar2")) {
+            return; // the server sends his roars, so they carry for thousands of blocks (broadcastRoar)
+        }
         RegistryObject<SoundEvent> sound = ModSounds.BY_NAME.get(name);
         if (sound != null) {
             float volume = name.equals("godzilla.attack") ? 6.0F : 12.0F;
