@@ -121,27 +121,44 @@ def face_list(cube, tw, th):
         yield name, np.array(corners, dtype=float), np.array(uvs, dtype=float) / np.array([tw, th])
 
 
-def _vec(v):
+def _molang(expr, t):
+    """The little Molang the animations use: numbers, + - * /, parentheses, math.sin/cos (degrees) and
+    query.anim_time."""
+    e = expr.lower().replace("query.anim_time", "(%r)" % t).replace("q.anim_time", "(%r)" % t)
+    e = e.replace("math.sin", "_sin").replace("math.cos", "_cos")
+    if not all(ch in "0123456789.+-*/() _sinco" for ch in e):
+        raise ValueError("unsupported Molang: " + expr)
+    return float(eval(e, {"__builtins__": {}}, {"_sin": lambda d: math.sin(math.radians(d)),
+                                                 "_cos": lambda d: math.cos(math.radians(d))}))
+
+
+def _vec(v, t=0.0, side="post"):
     if isinstance(v, dict):
-        v = v.get("post", v.get("pre", v.get("vector")))
-    if isinstance(v, (int, float)):
-        return [float(v)] * 3
-    return [float(x) for x in v]
+        v = v.get(side, v.get("post", v.get("pre", v.get("vector"))))
+    if isinstance(v, (int, float, str)):
+        v = [v] * 3
+    return [_molang(x, t) if isinstance(x, str) else float(x) for x in v]
 
 
 def _sample(channel, t):
-    """Linear keyframe sampling (catmull-rom approximated as linear)."""
+    """Keyframe sampling as in Bedrock/GeckoLib: linear, or Catmull-Rom where a key asks for it."""
     if not isinstance(channel, dict):
-        return _vec(channel)
+        return _vec(channel, t)
     keys = sorted((float(k), v) for k, v in channel.items())
     if t <= keys[0][0]:
-        return _vec(keys[0][1])
-    for (t0, v0), (t1, v1) in zip(keys, keys[1:]):
+        return _vec(keys[0][1], t, "pre")
+    for i, ((t0, v0), (t1, v1)) in enumerate(zip(keys, keys[1:])):
         if t0 <= t <= t1:
-            a, b = _vec(v0), _vec(v1)
+            a, b = np.array(_vec(v0, t)), np.array(_vec(v1, t, "pre"))
             f = (t - t0) / max(t1 - t0, 1e-9)
-            return [x + (y - x) * f for x, y in zip(a, b)]
-    return _vec(keys[-1][1])
+            cat = any(isinstance(v, dict) and v.get("lerp_mode") == "catmullrom" for v in (v0, v1))
+            if not cat:
+                return list(a + (b - a) * f)
+            p0 = np.array(_vec(keys[i - 1][1], t)) if i > 0 else a
+            p3 = np.array(_vec(keys[i + 2][1], t, "pre")) if i + 2 < len(keys) else b
+            return list(0.5 * (2 * a + (-p0 + b) * f + (2 * p0 - 5 * a + 4 * b - p3) * f * f
+                               + (-p0 + 3 * a - 3 * b + p3) * f ** 3))
+    return _vec(keys[-1][1], t)
 
 
 def animation_pose(anim_path, name, t):

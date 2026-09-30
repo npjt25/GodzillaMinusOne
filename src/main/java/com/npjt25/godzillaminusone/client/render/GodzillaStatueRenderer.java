@@ -34,7 +34,7 @@ public class GodzillaStatueRenderer extends GeoEntityRenderer<GodzillaStatueEnti
 
     public GodzillaStatueRenderer(EntityRendererProvider.Context context) {
         super(context, new DefaultedEntityGeoModel<>(GodzillaMinusOne.id("godzilla")));
-        withScale(GodzillaRenderer.SCALE_WIDTH, GodzillaRenderer.SCALE_HEIGHT);
+        withScale(GodzillaRenderer.SCALE);
         this.shadowRadius = 8.0F;
         addRenderLayer(new GlowLayer(this));
     }

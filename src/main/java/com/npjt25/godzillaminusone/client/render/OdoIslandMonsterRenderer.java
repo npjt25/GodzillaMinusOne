@@ -17,14 +17,14 @@ import software.bernie.geckolib.renderer.GeoEntityRenderer;
 import software.bernie.geckolib.renderer.layer.GeoRenderLayer;
 
 /**
- * The Odo Island Monster (tools/make_odo_model.py), scaled to stand 15 blocks tall. Its eyes glow; once it has
- * been nuked it is drawn charred, with embers glowing in the cracks of its hide that die down over a minute.
+ * The Odo Island Monster: Monster122's Godzillasaurus (tools/make_odo_model.py), drawn at the add-on's scale of 2,
+ * about 14 blocks tall. Once nuked it is drawn with the add-on's burnt skin, whose embers glow in the cracks of
+ * its hide and die down over a minute.
  */
 public class OdoIslandMonsterRenderer extends GeoEntityRenderer<OdoIslandMonsterEntity> {
-    public static final float SCALE = 3.46F;
+    public static final float SCALE = 2.0F;
     private static final ResourceLocation NORMAL = GodzillaMinusOne.id("textures/entity/odo_island_monster.png");
     private static final ResourceLocation BURNT = GodzillaMinusOne.id("textures/entity/odo_island_monster_burnt.png");
-    private static final ResourceLocation EYES = GodzillaMinusOne.id("textures/entity/odo_island_monster_glow.png");
     private static final ResourceLocation EMBERS = GodzillaMinusOne.id("textures/entity/odo_island_monster_burnt_glow.png");
 
     public OdoIslandMonsterRenderer(EntityRendererProvider.Context context) {
@@ -35,7 +35,7 @@ public class OdoIslandMonsterRenderer extends GeoEntityRenderer<OdoIslandMonster
             }
         });
         withScale(SCALE);
-        this.shadowRadius = 4.0F;
+        this.shadowRadius = 3.5F;
         addRenderLayer(new GlowLayer(this));
     }
 
@@ -47,17 +47,15 @@ public class OdoIslandMonsterRenderer extends GeoEntityRenderer<OdoIslandMonster
         @Override
         public void render(PoseStack poseStack, OdoIslandMonsterEntity entity, BakedGeoModel model, RenderType renderType,
                            MultiBufferSource buffers, VertexConsumer buffer, float partialTick, int packedLight, int packedOverlay) {
-            float glow = 1.0F;
-            ResourceLocation texture = EYES;
-            if (entity.isBurnt()) {
-                float t = entity.getBurntSeconds(partialTick);
-                glow = Mth.clamp(1.0F - t / 60.0F, 0.0F, 1.0F) * (0.8F + 0.2F * Mth.sin(t * 3.0F));
-                texture = EMBERS;
+            if (!entity.isBurnt()) {
+                return;
             }
+            float t = entity.getBurntSeconds(partialTick);
+            float glow = Mth.clamp(1.0F - t / 60.0F, 0.0F, 1.0F) * (0.8F + 0.2F * Mth.sin(t * 3.0F));
             if (glow <= 0.01F) {
                 return;
             }
-            RenderType type = RenderType.eyes(texture);
+            RenderType type = RenderType.eyes(EMBERS);
             getRenderer().reRender(model, poseStack, buffers, entity, type, buffers.getBuffer(type), partialTick,
                     LightTexture.FULL_BRIGHT, OverlayTexture.NO_OVERLAY, glow, glow, glow, 1.0F);
         }

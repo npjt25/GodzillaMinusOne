@@ -74,13 +74,13 @@ public final class Fx {
                     groundRing(godzilla.position(), 64.0F, 12, 0xA3FFFFFF);
                     for (int i = 0; i < 16; i++) {
                         double angle = i / 16.0 * Math.PI * 2;
-                        dust(godzilla.position().add(Math.cos(angle) * 22.0, 0.0, Math.sin(angle) * 22.0), 2, 1.2F);
+                        dust(godzilla.position().add(Math.cos(angle) * 24.0, 0.0, Math.sin(angle) * 24.0), 2, 1.2F);
                     }
                 }
                 case "tail_snap" -> {
                     // ...and cracks like a whip
                     groundRing(godzilla.position(), 80.0F, 8, 0xC0FFFFFF);
-                    dust(godzilla.locator(0.0, 0.5, -30.0), 16, 1.6F);
+                    dust(godzilla.locator(0.0, 0.5, -33.0), 16, 1.6F);
                 }
                 case "splash" -> {
                     if (locator.equals("y")) {
@@ -97,13 +97,13 @@ public final class Fx {
         } else if (entity instanceof OdoIslandMonsterEntity odo) {
             switch (effect) {
                 case "odo_stomp" -> {
-                    Vec3 foot = odo.locator(-1.8, 0.2, 1.1);
+                    Vec3 foot = odo.locator(OdoIslandMonsterEntity.LEFT_FOOT.x, 0.2, OdoIslandMonsterEntity.LEFT_FOOT.z);
                     groundRing(foot, 14.0F, 10, 0xA3FFFFFF);
                     dust(foot, 10, 0.8F);
                 }
                 case "odo_smoke" -> {
                     // smoke rising off the burnt body
-                    Vec3 at = odo.locator(rand(-2.5, 2.5), rand(1.0, 5.0), rand(-14.0, 8.0));
+                    Vec3 at = odo.locator(rand(-3.0, 3.0), rand(1.0, 6.0), rand(-16.0, 7.0));
                     of(ModParticles.SMOKE).at(at).velocity(rand(-0.02, 0.02), rand(0.06, 0.14), rand(-0.02, 0.02))
                             .life(60 + RANDOM.nextInt(40)).size(1.5F, 4.5F).friction(0.98F)
                             .colors(0.0F, 0x00303030, 0.2F, 0xB0303030, 1.0F, 0x00505050).spawn();
@@ -120,10 +120,10 @@ public final class Fx {
         return switch (locator) {
             case "st" -> g.locator(GodzillaEntity.FOOT_SIDE, 0.4, GodzillaEntity.FOOT_FORWARD);
             case "st2" -> g.locator(-GodzillaEntity.FOOT_SIDE, 0.4, GodzillaEntity.FOOT_FORWARD);
-            case "y" -> g.locator(0.0, 35.0, 14.3);
-            case "locator2" -> g.locator(2.5, 30.0, 0.0);
-            case "locator3" -> g.locator(-2.5, 30.0, 0.0);
-            default -> g.locator(0.0, 36.0, 8.0);
+            case "y" -> g.locator(0.0, 35.0, 15.7);
+            case "locator2" -> g.locator(2.75, 30.0, 0.0);
+            case "locator3" -> g.locator(-2.75, 30.0, 0.0);
+            default -> g.locator(0.0, 36.0, 8.8);
         };
     }
 

@@ -15,7 +15,7 @@ import numpy as np
 from PIL import Image
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import detail_godzilla  # noqa: E402  (worley noise for the metal's wear)
+import noise  # noqa: E402  (worley noise for the metal's wear)
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ASSETS = os.path.join(ROOT, "src", "main", "resources", "assets", "godzillaminusone")
@@ -59,7 +59,7 @@ def pack(bones, size):
 def paint(bones, size, palette, glow_kinds, seed):
     rng = np.random.default_rng(seed)
     n = size * TEXELS
-    f1, f2 = detail_godzilla.worley(n, 9, rng)
+    f1, f2 = noise.worley(n, 9, rng)
     wear = 0.9 + 0.12 * np.clip(1 - f1 / 6, 0, 1) - 0.1 * np.clip(1 - (f2 - f1) / 1.5, 0, 1) ** 2
     img = np.zeros((n, n, 4))
     glow = np.zeros((n, n, 4))

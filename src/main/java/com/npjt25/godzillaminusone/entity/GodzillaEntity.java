@@ -130,10 +130,10 @@ public class GodzillaEntity extends Monster implements GeoEntity {
     private static final int RIGHT_STEP = 27;
     private static final int LEFT_STEP = 61;
     /** Where his feet land (blocks right, forward) and the footprint's half width and half length. */
-    public static final double FOOT_SIDE = 7.25;
-    public static final double FOOT_FORWARD = 3.8;
-    private static final double FOOT_HALF_WIDTH = 2.6;
-    private static final double FOOT_HALF_LENGTH = 4.6;
+    public static final double FOOT_SIDE = 7.96;
+    public static final double FOOT_FORWARD = 4.17;
+    private static final double FOOT_HALF_WIDTH = 2.85;
+    private static final double FOOT_HALF_LENGTH = 5.05;
 
     // Swimming: in water at least this deep he floats with his back just under the surface (his belly hangs
     // 12 blocks below his back in the swimming pose).
@@ -145,18 +145,18 @@ public class GodzillaEntity extends Monster implements GeoEntity {
     private static final double SWIM_SPEED = 1.17;
     private static final EntityDimensions SWIM_SIZE = EntityDimensions.scalable(10.0F, 10.0F);
     /** How far ahead of him the swimming bite lands (the jaw in animation.gojira.swim_bite). */
-    public static final double SWIM_BITE_REACH = 24.0;
+    public static final double SWIM_BITE_REACH = 26.4;
 
     // The atomic breath, measured on the charge animation (blocks: right, up, forward). The head pivots about
     // HEAD; the beam leaves his open mouth at BEAM_NEAR and reaches out to BEAM_FAR: he rears his head up above his
-    // chest to fire, the beam slopes down ~6.4 degrees from there, and on flat ground it ends ~15 blocks up, 185
-    // blocks ahead, where the blast drops to the ground.
-    private static final Vec3 HEAD = new Vec3(-0.07, 35.81, 13.06);
-    private static final Vec3 BEAM_NEAR = new Vec3(-0.15, 35.80, 16.24);
-    private static final Vec3 BEAM_FAR = new Vec3(-7.06, 15.91, 192.76);
-    private static final double BEAM_REACH = 185.0;
+    // chest to fire, the beam slopes down ~5.9 degrees from there, and on flat ground it ends ~16 blocks up,
+    // 195 blocks ahead, where the blast drops to the ground.
+    private static final Vec3 HEAD = new Vec3(-0.08, 35.81, 14.35);
+    private static final Vec3 BEAM_NEAR = new Vec3(-0.17, 35.80, 17.83);
+    private static final Vec3 BEAM_FAR = new Vec3(-7.76, 15.91, 211.68);
+    private static final double BEAM_REACH = 195.0;
     /** The beam veers this far left of where he faces, so he turns this far right to aim it. */
-    private static final float BEAM_YAW = (float) Math.toDegrees(Math.atan2(6.91, 176.52));
+    private static final float BEAM_YAW = (float) Math.toDegrees(Math.atan2(7.59, 193.85));
     /** Extra head pitch to aim at a target (degrees, up); the beam never slopes down more than 20 degrees. */
     private static final float MIN_AIM = -13.5F;
     private static final float MAX_AIM = 60.0F;
@@ -825,7 +825,7 @@ public class GodzillaEntity extends Monster implements GeoEntity {
         boolean grounded = hit.getType() != HitResult.Type.MISS;
         if (!grounded) {
             int ground = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, Mth.floor(impact.x), Mth.floor(impact.z));
-            if (impact.y - ground < 16.0) {
+            if (impact.y - ground < 20.0) {
                 impact = new Vec3(impact.x, ground, impact.z);
                 grounded = true;
             }
@@ -901,11 +901,11 @@ public class GodzillaEntity extends Monster implements GeoEntity {
         float burns = getBurns(0.0F);
         Vec3 mouth;
         if (isSwimmingAtSurface()) {
-            mouth = locator(0.0, SWIM_SINK + 1.0, 20.0);
+            mouth = locator(0.0, SWIM_SINK + 1.0, 22.0);
         } else if (isCharging()) {
             mouth = locator(BEAM_NEAR.x, BEAM_NEAR.y + 4.0, BEAM_NEAR.z - 2.0);
         } else {
-            mouth = locator(0.0, 38.5, 12.5);
+            mouth = locator(0.0, 38.5, 13.7);
         }
         Level level = level();
         if (this.random.nextFloat() < 0.3F + burns) {
@@ -1000,7 +1000,7 @@ public class GodzillaEntity extends Monster implements GeoEntity {
                 }
                 // the claws rake across in front of him, flinging what they hit aside
                 double side = attack == Attack.SWIPE_RIGHT ? 1.0 : -1.0;
-                Vec3 claws = locator(2.0 * side, 10.0, 15.0);
+                Vec3 claws = locator(2.2 * side, 10.0, 16.5);
                 if (target != null && target.isAlive() && canReach(target, 4.0)) {
                     doHurtTarget(target);
                 }

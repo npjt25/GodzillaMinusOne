@@ -50,7 +50,8 @@ import software.bernie.geckolib.util.GeckoLibUtil;
 import java.util.EnumSet;
 
 /**
- * The Odo Island Monster: Godzilla Minus One in his earlier, dinosaur-like form (15 blocks tall).
+ * The Odo Island Monster: Godzilla Minus One in his earlier, dinosaur-like form (Monster122's Godzillasaurus,
+ * about 14 blocks tall).
  *
  * <ul>
  *   <li>Left alone he wanders. Come within {@link #PROXIMITY} blocks and he charges you, biting and stomping.</li>
@@ -72,17 +73,24 @@ public class OdoIslandMonsterEntity extends Monster implements GeoEntity {
     private static final int PROXIMITY_RAGE = 20 * 20;
     private static final double RUN_SPEED = 1.75;
 
-    // Measured on the model (blocks: right, up, forward).
-    private static final Vec3 JAWS = new Vec3(0.0, 8.8, 8.7);
+    // Measured on the model (blocks: right, up, forward): where the jaws snap shut as his head lunges down in the
+    // bite (animation.odo.bite at 0.75 s), and where his left foot comes down in the stomp (at 1.08 s).
+    private static final Vec3 JAWS = new Vec3(0.6, 3.6, 7.2);
     private static final double BITE_RADIUS = 4.5;
-    private static final Vec3 LEFT_FOOT = new Vec3(-2.7, 0.0, 0.7);
+    public static final Vec3 LEFT_FOOT = new Vec3(-2.3, 0.0, -0.5);
     private static final double STOMP_RADIUS = 6.0;
+    /** Ticks into the bite, the stomp and the roar: the jaws close, the foot lands, the roar is over. */
+    private static final int BITE_HIT = 15;
+    private static final int STOMP_HIT = 22;
+    private static final int ROAR_LENGTH = 110;
 
     private static final RawAnimation IDLE = RawAnimation.begin().thenLoop("animation.odo.idle");
+    private static final RawAnimation IDLE_ANGRY = RawAnimation.begin().thenLoop("animation.odo.idle_angry");
     private static final RawAnimation WALK = RawAnimation.begin().thenLoop("animation.odo.walk");
     private static final RawAnimation RUN = RawAnimation.begin().thenLoop("animation.odo.run");
     private static final RawAnimation BURNT = RawAnimation.begin().thenPlayAndHold("animation.odo.burnt");
     private static final RawAnimation BITE = RawAnimation.begin().thenPlay("animation.odo.bite");
+    private static final RawAnimation BITE2 = RawAnimation.begin().thenPlay("animation.odo.bite2");
     private static final RawAnimation STOMP = RawAnimation.begin().thenPlay("animation.odo.stomp");
     private static final RawAnimation ROAR = RawAnimation.begin().thenPlay("animation.odo.roar");
 
@@ -209,7 +217,7 @@ public class OdoIslandMonsterEntity extends Monster implements GeoEntity {
         this.rageTicks = Math.max(this.rageTicks, ticks);
         setState(STATE_ANGRY);
         if (wasCalm && this.roarCooldown <= 0) {
-            this.roarTicks = 40;
+            this.roarTicks = ROAR_LENGTH;
             this.roarCooldown = 200;
             triggerAnim("action", "roar");
         }
@@ -350,9 +358,10 @@ public class OdoIslandMonsterEntity extends Monster implements GeoEntity {
     private void startAttack(LivingEntity target) {
         boolean stomp = inStompReach(target) && (!inBiteReach(target) || this.random.nextInt(3) == 0);
         this.pendingStomp = stomp;
-        this.pendingHitTicks = stomp ? 17 : 11;           // the stomp lands 0.72 s in, the jaws close 0.42 s in
-        this.attackCooldown = stomp ? 34 : 22;
-        triggerAnim("action", stomp ? "stomp" : "bite");
+        this.pendingHitTicks = stomp ? STOMP_HIT : BITE_HIT;
+        this.attackCooldown = stomp ? 44 : 24;
+        // (like the add-on, he bites one of two ways: the second with a swipe of his arm too)
+        triggerAnim("action", stomp ? "stomp" : this.random.nextBoolean() ? "bite" : "bite2");
     }
 
     private void bite(ServerLevel level, @Nullable LivingEntity target) {
@@ -466,6 +475,7 @@ public class OdoIslandMonsterEntity extends Monster implements GeoEntity {
                 .setSoundKeyframeHandler(this::onSoundKeyframe));
         controllers.add(new AnimationController<>(this, "action", 3, state -> PlayState.STOP)
                 .triggerableAnim("bite", BITE)
+                .triggerableAnim("bite2", BITE2)
                 .triggerableAnim("stomp", STOMP)
                 .triggerableAnim("roar", ROAR)
                 .setSoundKeyframeHandler(this::onSoundKeyframe)
@@ -478,8 +488,8 @@ public class OdoIslandMonsterEntity extends Monster implements GeoEntity {
             return 1.0;
         }
         double speed = odo.getDeltaMovement().horizontalDistance();
-        double nominal = odo.isRunning() ? 0.47 : 0.15;   // blocks per tick the cycles are made for
-        return speed < 0.01 ? 1.0 : Mth.clamp(speed / nominal, 0.6, 1.5);
+        double nominal = odo.isRunning() ? 0.48 : 0.3;   // blocks per tick the cycles are made for (their strides)
+        return speed < 0.01 ? 1.0 : Mth.clamp(speed / nominal, 0.5, 1.6);
     }
 
     private PlayState mainAnimation(AnimationState<OdoIslandMonsterEntity> state) {
@@ -489,7 +499,7 @@ public class OdoIslandMonsterEntity extends Monster implements GeoEntity {
         if (state.isMoving()) {
             return state.setAndContinue(isRunning() ? RUN : WALK);
         }
-        return state.setAndContinue(IDLE);
+        return state.setAndContinue(getState() == STATE_ANGRY ? IDLE_ANGRY : IDLE);
     }
 
     private void onSoundKeyframe(SoundKeyframeEvent<OdoIslandMonsterEntity> event) {

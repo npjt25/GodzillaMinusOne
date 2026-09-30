@@ -20,7 +20,7 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * Renders Godzilla (the add-on's model, with the mod's extra detail) in these passes:
+ * Renders Godzilla (GojiDraw's add-on model and textures, unchanged) in these passes:
  * <ol>
  *   <li>the model (cut-out),</li>
  *   <li>the glowing eyes,</li>
@@ -31,12 +31,11 @@ import java.util.Set;
  *       moment the charge animation punches each of them up,</li>
  *   <li>the atomic breath: bone "B", which the charge animation stretches into the beam, drawn as glowing energy.</li>
  * </ol>
- * The add-on's model is scaled 7.13x across and 7.83x up: 10 blocks taller (45) and 10 blocks longer than the
- * add-on's Godzilla.
+ * The add-on draws him at 6.1x (about 35 blocks tall); here he is scaled up evenly, 7.83x, to stand 10 blocks
+ * taller: about 45 blocks tall, 22 wide and 76 long, tail and dorsal plates included.
  */
 public class GodzillaRenderer extends GeoEntityRenderer<GodzillaEntity> {
-    public static final float SCALE_WIDTH = 7.13F;
-    public static final float SCALE_HEIGHT = 7.83F;
+    public static final float SCALE = 7.83F;
 
     private static final ResourceLocation EYES = GodzillaMinusOne.id("textures/entity/godzilla_glow.png");
     private static final ResourceLocation PLATE_GLOW = GodzillaMinusOne.id("textures/entity/godzilla_charged_glow.png");
@@ -69,7 +68,7 @@ public class GodzillaRenderer extends GeoEntityRenderer<GodzillaEntity> {
 
     public GodzillaRenderer(EntityRendererProvider.Context context) {
         super(context, new GodzillaModel());
-        withScale(SCALE_WIDTH, SCALE_HEIGHT);
+        withScale(SCALE);
         this.shadowRadius = 8.0F;
         addRenderLayer(new GlowLayer(this));
         addRenderLayer(new BeamLayer(this));

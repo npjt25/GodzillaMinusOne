@@ -11,8 +11,8 @@ What it does:
   * copies the Bedrock geometry files (GeckoLib reads them as-is),
   * cleans the Bedrock animation files so GeckoLib can load them (flattens keyframe
     arrays, renames sound/particle effect keys, lower-cases Molang functions),
-  * recolours Godzilla's brown skin to a neutral dark grey and splits the Bedrock
-    "emissive alpha" textures into an opaque cut-out texture plus a glow mask,
+  * splits Godzilla's Bedrock "emissive alpha" textures (the add-on's live gojira2 set, kept exactly as they are)
+    into an opaque cut-out texture plus a glow mask,
   * converts the audio (which ships as MP4/AAC with .wav/.ogg names) to mono Ogg Vorbis,
   * copies item, particle and boss-bar textures.
 """
@@ -101,15 +101,23 @@ def convert_textures(rp):
     t = os.path.join(rp, "textures")
     g2 = os.path.join(t, "entity", "gojira2")
 
-    base, glow = split_emissive(to_gray(load(os.path.join(g2, "no_powered.png"))))
+    # The add-on draws default.png (cut out), then no_powered.png or, charged, powered.png over it with the
+    # emissive-alpha material. no_powered.png is default.png plus the dorsal plates, so it is his skin.
+    no_powered = load(os.path.join(g2, "no_powered.png"))
+    base, glow = split_emissive(no_powered)
     save(base, "textures", "entity", "godzilla.png")
     save(glow, "textures", "entity", "godzilla_glow.png")
 
-    # While charging, only the glow of the "powered" skin is used: the plates light up one by one (renderer).
-    _, glow = split_emissive(to_gray(load(os.path.join(g2, "powered.png"))))
+    # Charged, the plates turn icy cyan (powered.png differs from no_powered.png only there): mostly glowing,
+    # nearly transparent pixels, plus a few opaque cyan ones. The renderer adds this over each plate as the
+    # charge animation punches it up.
+    powered = load(os.path.join(g2, "powered.png"))
+    _, glow = split_emissive(powered)
+    solid = (np.abs(powered.astype(int) - no_powered.astype(int)).sum(-1) > 0) & (powered[..., 3] == 255)
+    glow[solid] = powered[solid]
     save(glow, "textures", "entity", "godzilla_charged_glow.png")
 
-    dead, _ = split_emissive(to_gray(load(os.path.join(g2, "dead.png")), keep_blue=False))
+    dead, _ = split_emissive(load(os.path.join(g2, "dead.png")))
     save(dead, "textures", "entity", "godzilla_dead.png")
 
     # Core colour of the atomic breath beam (bone "B"); not part of the add-on, which used a Bedrock material.
