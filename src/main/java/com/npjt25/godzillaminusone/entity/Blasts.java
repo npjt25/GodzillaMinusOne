@@ -44,8 +44,8 @@ public final class Blasts {
 
     /**
      * A naval mine (or a Shinden flown into Godzilla) going off: huge damage to everything nearby,
-     * Shinden pilots (and the one who just bailed out, {@code attacker} when {@code mine} is their plane) only get
-     * scratched, and Godzilla loses a slice of his health and is stunned.
+     * Shinden pilots (and the one who just bailed out, {@code attacker} when {@code mine} is their plane) and the
+     * Shinsei Maru's crew only get scratched, and Godzilla loses a slice of his health and is stunned.
      */
     public static void navalMine(ServerLevel level, Vec3 pos, @Nullable Entity mine, @Nullable Entity attacker) {
         double radius = Config.MINE_BLAST_RADIUS.get();
@@ -59,7 +59,7 @@ public final class Blasts {
         for (LivingEntity target : livingNear(level, pos, radius, mine)) {
             if (target instanceof GodzillaEntity godzilla) {
                 godzilla.hitByNavalMine(source);
-            } else if (isPilot(target) || (mine instanceof ShindenEntity && target == attacker)) {
+            } else if (isPilot(target) || isMinesweeperCrew(target) || (mine instanceof ShindenEntity && target == attacker)) {
                 target.hurt(source, Config.PILOT_BLAST_DAMAGE.get().floatValue());
             } else {
                 target.hurt(source, clampDamage(Config.MINE_BLAST_DAMAGE.get()));
@@ -172,6 +172,14 @@ public final class Blasts {
     /** Players (or anything) flying a Shinden have the add-on's "plot armor". */
     public static boolean isPilot(Entity entity) {
         return entity.getVehicle() instanceof ShindenEntity;
+    }
+
+    /**
+     * Aboard the Shinsei Maru: its crew handle naval mines for a living, so a mine going off (say the one they just
+     * dropped astern for Godzilla) only scratches them, like a Shinden's pilot.
+     */
+    public static boolean isMinesweeperCrew(Entity entity) {
+        return entity.getVehicle() instanceof ShinseiMaruEntity;
     }
 
     /** Living entities whose hitbox is within {@code radius} of {@code pos}. */
