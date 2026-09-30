@@ -202,7 +202,7 @@ public final class NuclearCloud {
         float ringMajor = this.airburst ? a * 1.3F + 4.0F * t : w * 2.6F + 8.0F + 10.0F * smooth(2.0F, 10.0F, t);
 
         // the grid: wide enough for the widest part, tall enough for the top of the cap
-        float half = Math.max(a * 1.2F, Math.max(baseRadius * 1.1F, ringMajor + 16.0F));
+        float half = Math.max(a * 1.35F, Math.max(baseRadius * 1.2F, ringMajor + 16.0F));
         int n = Mth.ceil(half / VOXEL) + 1;
         this.minX = -n;
         this.minZ = -n;
