@@ -2,11 +2,13 @@
 
 A Minecraft Java Edition (Forge 1.20.1, GeckoLib 4) port of the Bedrock add-on
 **"Godzilla Minus One" V3 by GojiDraw**. Godzilla is the add-on's own model, textures and animations, exactly
-(scaled up evenly to stand 10 blocks taller), and so are the Shinden, naval mine, sounds, effects and the atomic
-blast's mushroom cloud. The mod also adds the **Odo Island Monster** (Godzilla's smaller, dinosaur-like form
-from the start of the film): Monster122's **Godzillasaurus** from the "G-1" Bedrock add-on, with its own model,
-skins and animations. There are also a **searchlight**, a **nuclear bomb**, a **remote detonator** for the naval
-mines, and posed **Godzilla statues** for screenshots and thumbnails.
+(scaled up evenly to stand 10 blocks taller), and so are the Shinden, naval mine, sounds and effects. The atomic
+blast's mushroom cloud is **Alex's Caves'** orange nuclear mushroom cloud, ported. The mod also adds the **Odo
+Island Monster** (Godzilla's smaller, dinosaur-like form from the start of the film): Monster122's
+**Godzillasaurus** from the "G-1" Bedrock add-on, with its own model and animations. There are also the **Shinsei
+Maru**, the film's little minesweeper with its stern machine gun and a hold of naval mines, a **searchlight**, a
+**nuclear bomb**, a **remote detonator** for the naval mines, and posed **Godzilla statues** for screenshots and
+thumbnails.
 
 ![Godzilla: front, side, three-quarter and charged](docs/godzilla_preview.png)
 
@@ -20,8 +22,14 @@ tall.*
 
 ![The Odo Island Monster](docs/odo_preview.png)
 
-*The Odo Island Monster (Monster122's Godzillasaurus): front, side and three-quarters, walking, roaring, and
-burnt to a crisp by a nuclear bomb. Same grid and player as above.*
+*The Odo Island Monster (Monster122's Godzillasaurus, his hide turned grey and brown): front, side and
+three-quarters, walking, roaring, and burnt to a crisp by a nuclear bomb. Same grid and player as above.*
+
+![The Shinsei Maru](docs/shinsei_maru_preview.png)
+
+*The Shinsei Maru: the wheel up on the wheelhouse roof, cages on the foredeck, a rack of recovered naval mines
+astern, and the Type 93 machine gun on the stern platform pointing aft. Offline renders on a one-block grid, with
+a player.*
 
 ![Searchlight and nuclear bomb](docs/props_preview.png)
 
@@ -31,9 +39,11 @@ burnt to a crisp by a nuclear bomb. Same grid and player as above.*
 
 ![The mushroom cloud](docs/cloud_preview.png)
 
-*The atomic blast's mushroom cloud, GojiDraw's: his five smoke layers (a dark stalk, a broad grey cap 400 blocks
-across with a darker rim, a brown sooty top), 0.5, 2, 5, 15 and 26 seconds after the blast, from 800 blocks
-away and from about where Godzilla stands (offline simulation of the same layers, over 20-block squares).*
+*The atomic blast's mushroom cloud, Alex's Caves' (its model, textures and animation, 240 blocks tall here):
+the white-hot fireball, the mushroom bursting out of it, the full cap over the fiery plume with the rings spreading,
+the glow cooling to smoke, and the fade at the end (0.25, 1, 5, 20, 40 and 59.5 s), from the side, three-quarters,
+below, above and far away. Offline renders of the same model and passes (tools/preview_cloud.py), over 20-block
+squares; the red post is Godzilla's height. The fiery puffs are drawn as plain blobs there.*
 
 ## Requirements
 
@@ -51,9 +61,10 @@ away and from about where Godzilla stands (offline simulation of the same layers
 | `goji:torrid` | **Torrid**, the Shinden's cannons: right-click while flying it |
 | `goji:mine_spawn` / `goji:mine` | **Naval Mine**, craftable (4 netherite ingots, 4 netherite blocks, TNT in the middle), and a **Remote Detonator** for it |
 | `goji:nuclear_hole` | The crater and blast wave left by the atomic breath |
-| Nuclear explosion particles | The flash, shockwaves and black rain as particles; the mushroom cloud's five smoke layers drawn by `client/render/NuclearCloud.java` |
+| Nuclear explosion particles | The flash, shockwaves and black rain as particles; the mushroom cloud is Alex's Caves' (`client/render/NuclearCloud.java`, `MushroomCloudModel.java`) |
 | Particles, camera shakes, custom boss bar | Recreated in Java (see `client/`); the fade to black is a blur instead |
 | *(from Monster122's G-1 add-on)* | **Odo Island Monster** (`godzillaminusone:odo_island_monster`), with its spawn egg |
+| *(new, from the film)* | **Shinsei Maru**, the minesweeper: a boat with a stern machine gun and a hold of naval mines |
 | *(new)* | **Searchlight**, a mountable WWII searchlight |
 | *(new)* | **Nuclear Bomb**, called in from the sky |
 | *(new)* | **Godzilla statues** in three poses, `/summon` only |
@@ -67,21 +78,26 @@ away and from about where Godzilla stands (offline simulation of the same layers
 - **Radiation aura**: anything within 16 blocks gets "RADIATION POISONING" and Wither.
 - Every footfall shakes the camera, hurts everything near him and **crushes a footprint** of rubble into the
   ground. He smashes through blocks (needs `mobGriefing`).
-- **He knocks down tall buildings**: when he sees anything built standing 15 blocks or more above the ground
-  (within 64 blocks), he goes over and swipes at it, ten layers at a time, until it stands lower than that,
-  then moves on. Trees and hills don't count.
+- **He knocks down tall buildings**: when there's nothing in sight for him to kill and he sees anything built
+  standing **half his height (23 blocks) or more** above the ground (within 64 blocks), he goes over and swipes
+  at it, ten layers at a time, until it's down to **a quarter of his height (11 blocks)**, then leaves it alone.
+  Trees and hills don't count. A mob turning up sends him after it instead.
+- **He roars every 2 minutes** (stopping where he is to do it); set how often in the config screen.
 - Up close he attacks in a combo: a **claw swipe with each hand**, then a **heavy spin** of his whole body with
   the tail sweeping round him and **snapping like a whip**. He bites at things above him, stomps on things
   under his feet, and swings the tail round at anything behind him.
+- For the first **2 to 3 minutes after he appears** he can't use his atomic breath yet.
 - With a target he **charges his atomic breath**: the dorsal plates light up blue one by one from the tail to
   the neck as they punch up, mobs freeze in fear, he breathes in for 4 seconds (the in-breath sound lasts
   exactly as long), then rears his head up above his chest and fires (he tilts it further up at planes). The
   beam pours out of his open mouth, which blazes blue while it lasts. **Two seconds after the beam lands**, a
-  **nuclear blast** goes off there: it kills everything around it, blasts out a large crater, and GojiDraw's
-  mushroom cloud rises over it for 26 seconds. Everyone nearby sees a blur, then black rain falls around ground
+  **nuclear blast** goes off there: it kills everything around it, blasts out a large crater, and a mushroom
+  cloud (Alex's Caves') bursts out of a white-hot fireball: a fiery plume rising under a broad dark cap, low
+  smoke spreading over the ground, rings racing outwards, the glow cooling to smoke; it grows to 240 blocks and
+  hangs there for a minute (both in the config screen). Everyone nearby sees a blur, then black rain falls around ground
   zero (just particles: the weather isn't changed).
-- The blast **levels the land for 600 blocks around**: everything above **Y 60** (trees, grass, buildings,
-  hills) is erased, sweeping outwards from ground zero, and **nothing drops**. Seas and rivers stay. Parts of
+- The blast **levels the land for 140 blocks around**: everything above **Y 65** (trees, grass, buildings,
+  hills) is obliterated, sweeping outwards from ground zero, and **nothing drops**. Seas and rivers stay. Parts of
   the area that aren't loaded yet are flattened when they load. Radius and height are in the config.
 - He then needs **3 minutes to recharge** before the next breath (change it in the config screen).
 - The breath **burns his own mouth**: the flesh round it is left raw, blistered and glowing, smoking and
@@ -99,7 +115,8 @@ away and from about where Godzilla stands (offline simulation of the same layers
 - Right-click to climb in. **W** accelerates, **S** brakes, the mouse steers: look up to climb, down to dive.
   The plane noses up as it climbs and down as it dives, stays level in level flight, and banks into turns.
 - You stay in the cockpit however it pitches and banks. **Right-click fires the plane's cannons** straight
-  ahead, one burst per click (holding the button doesn't keep firing), whatever you're holding.
+  ahead: **one shot per click** (one bang, one flash from each gun; holding the button doesn't keep firing),
+  whatever you're holding.
 - Pilots have the add-on's "plot armour": Godzilla's blasts barely scratch them.
 - Fly within 15 blocks of Godzilla and the plane detonates like a naval mine (the film's ending), and you bail
   out with Slow Falling as a parachute.
@@ -123,12 +140,14 @@ away and from about where Godzilla stands (offline simulation of the same layers
 
 - Godzilla's first form from Odo Island: Monster122's Godzillasaurus, **14 blocks tall** and 29 long, 600
   health. Crouched and leaning forward on huge bent legs, head held low in front on a thick curved neck, clawed
-  hands hanging, a long tail behind, jagged plates rising high over his back, and an olive-brown scaly hide.
+  hands hanging, a long tail behind, jagged plates rising high over his back, and a grey and brown scaly hide.
   His walk, roar, two bites (one with a swipe of his arm), stomp and burnt pose are the add-on's animations.
 - Left alone he wanders and ignores you, but get within about 16 blocks and he **charges**: he runs you down,
   crashing through trees and fences, and **bites** or **stomps** you.
-- **Caught in a searchlight's beam he goes berserk**: he roars and comes for whoever is working the light, and
-  stays enraged for a minute.
+- **Spotted, he goes into a frenzy**: caught in a searchlight's beam, seen by a player (a player looking at him
+  from up to 64 blocks away, or one he can see within 32), or hurt by one, he roars and comes for them: a third
+  faster, biting and stomping 60% harder and twice as often, crashing through wooden doors too, and he
+  doesn't let up for 90 seconds, even when they're out of sight.
 - **Nuke him** with a Nuclear Bomb and he doesn't die: he collapses, **burnt to a crisp**, the embers in his
   hide slowly going out. Nothing can hurt him while he lies there. **Three minutes later he rises again as
   Godzilla.** (Godzilla's own atomic breath just kills him.)
@@ -139,8 +158,27 @@ away and from about where Godzilla stands (offline simulation of the same layers
   ingot, redstone lamp, iron ingot / three iron blocks). Right-click the ground to set it up facing the way
   you look.
 - Right-click it to sit at it: the lamp turns and tilts with where you look, and while you're manning it the
-  beam is lit, reaching 160 blocks and lighting up where it lands. Sneak to get off.
+  beam is lit, reaching 160 blocks. It widens as it goes and lights up **a wide pool** where it lands: a bright
+  spot 10 to 25 blocks across (wider the further it reaches) on whatever it hits, lit by a ring of light
+  sources up to 7 blocks out. Sneak to get off.
 - Hit it like a boat to knock it back into its item.
+
+### Shinsei Maru
+
+- The film's small, run-down wooden minesweeper, about 13.5 blocks long. Crafted from a boat with five dark oak
+  planks under it and an iron ingot on top (iron ingot in the top middle / planks, boat, planks / three planks).
+  Use it on water to put her in, facing the way you look.
+- **Right-click to board.** The first aboard takes the **wheel**, up on the wheelhouse roof: **W/S** throttle,
+  **A/D** steer. Flat out she's **as fast as Godzilla swims** after something (8.4 blocks a second). The second
+  aboard mans the **Type 93 13 mm machine gun** on the stern platform.
+- **The gun points aft** and swings 135 degrees either way: its gunner (or the helmsman, sailing alone) aims it
+  by looking and **fires one round per right-click**. A round **sets off a naval mine** it hits.
+- **Naval mines**: sneak and right-click her to open her **hold** (9 slots, naval mines only), or right-click her
+  with a naval mine in hand to load it. Up to three show in the rack on deck. The helmsman presses **R** ("Drop
+  Naval Mine" in Controls) to **drop one over the stern**: it floats there, and goes off when Godzilla comes near
+  (his radiation sets it off), like the film's mine dragged into his mouth.
+- Hit her like a boat to knock her back into her item, mines and all (one hit in creative). Explosions and
+  Godzilla smash her to matchwood, throwing the crew in the water.
 
 ### Nuclear Bomb
 
@@ -167,14 +205,23 @@ To face a statue a given way, give it a rotation, e.g. `/summon godzillaminusone
 
 ## Configuration
 
-- **In game**: Mods → Godzilla Minus One → Config. **Godzilla Health Bar** turns his health bar at the top of
-  the screen on or off (saved in `config/godzillaminusone-client.toml`). **Atomic Breath Every** sets how long
-  he takes to recharge his atomic breath, from 10 seconds to 10 minutes (3 minutes by default; saved in the
-  gameplay config below, so it applies to worlds played on this computer).
+- **In game**: Mods → Godzilla Minus One → Config.
+  - **Godzilla Health Bar** turns his health bar at the top of the screen on or off.
+  - **Atomic Breath: every** sets how long he takes to recharge his atomic breath, from 10 seconds to 10 minutes
+    (3 minutes by default).
+  - **Roar: every** sets how often he roars on his own, from 30 seconds to 10 minutes, or off (2 minutes).
+  - **Mushroom Cloud Height** (40 to 600 blocks, 240) and **Mushroom Cloud Lasts** (10 seconds to 5 minutes,
+    1 minute) size and time the atomic blast's mushroom cloud.
+
+  The health bar and the cloud are saved in `config/godzillaminusone-client.toml`; the breath and roar intervals
+  in the gameplay config below, so they apply to worlds played on this computer (a server keeps its own).
 - **Gameplay**: `config/godzillaminusone-common.toml`. The add-on's world-ending numbers (2000-block kill
   radius, Wither XXVI) are toned down by default; each option's comment lists the add-on's original value so
   you can restore it. You can also make Godzilla mortal, stop him regenerating, turn off block damage, change
-  the atomic breath's flattening (`flattenRadius`, `flattenLevel`) or stop him knocking down tall buildings.
+  the atomic breath's flattening (`flattenRange`, `flattenDownToY`), his first breath's delay
+  (`firstBreathMinSeconds`, `firstBreathMaxSeconds`), which buildings he knocks down and how far
+  (`demolishFromHeight`, `demolishDownToHeight`), or stop him knocking them down at all. (The flattening and
+  building settings have new names, so a config file from an earlier version picks up the new defaults.)
 
 ## Building
 
@@ -201,16 +248,17 @@ Then make Godzilla's burns, edit the animations, and build the rest:
 ```
 python3 tools/godzilla_burns.py         # the burns round his mouth after the beam (on the add-on's texture layout)
 python3 tools/edit_animations.py        # in-breath, beam from the mouth, swimming bite and peek, melee combo, statue poses
-python3 tools/make_sounds.py            # the in-breath and the nuclear bomb's air-raid siren
-python3 tools/make_odo_model.py "path/to/G-1(RE)"   # the Odo Island Monster, from Monster122's G-1 resource pack
-python3 tools/make_props.py             # the searchlight and nuclear bomb models
+python3 tools/make_sounds.py            # the in-breath, the nuclear bomb's air-raid siren, single gunshots (Shinden, Shinsei Maru)
+python3 tools/make_odo_model.py "path/to/G-1(RE)"   # the Odo Island Monster, from Monster122's G-1 resource pack (hide greyed)
+python3 tools/make_props.py             # the searchlight, nuclear bomb and Shinsei Maru models
 python3 tools/make_icons.py             # item icons of the new items
-python3 tools/make_cloud_textures.py    # the mushroom cloud's smoke sprite, cut out as the add-on draws it
 ```
 
+The mushroom cloud's textures (`textures/effect/mushroom_cloud*.png`) are Alex's Caves' own, unchanged.
+
 Previews without starting the game: `tools/render_preview.py` renders a cube model with its texture (and any
-animation frame, optionally on a one-block grid with a player for scale), `tools/preview_cloud.py` simulates the
-mushroom cloud at given times.
+animation frame, optionally on a one-block grid with a player for scale); `tools/preview_cloud.py` renders the
+mushroom cloud (`tools/mushroom_cloud_model.py`, the same model as the game's) at given times and viewpoints.
 
 ## Credits
 
@@ -219,5 +267,9 @@ Original Bedrock add-on (models, textures, animations, sounds): **GojiDraw**. Th
 
 The Odo Island Monster is **Monster122**'s Godzillasaurus (model, skins and animations) from the "G-1" Bedrock
 add-on.
+
+The atomic blast's mushroom cloud is **Alex's Caves**' (by **AlexModGuy**, GNU LGPL): its model
+(`MushroomCloudModel`), rendering and animation (`MushroomCloudParticle`) and fiery puffs (`SmallExplosionParticle`)
+adapted to this mod, and its `mushroom_cloud` textures, unchanged.
 
 Godzilla is a trademark of Toho Co., Ltd.
