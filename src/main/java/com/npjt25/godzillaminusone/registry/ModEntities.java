@@ -2,6 +2,7 @@ package com.npjt25.godzillaminusone.registry;
 
 import com.npjt25.godzillaminusone.GodzillaMinusOne;
 import com.npjt25.godzillaminusone.entity.GodzillaEntity;
+import com.npjt25.godzillaminusone.entity.GodzillaStatueEntity;
 import com.npjt25.godzillaminusone.entity.NavalMineEntity;
 import com.npjt25.godzillaminusone.entity.NuclearBombEntity;
 import com.npjt25.godzillaminusone.entity.OdoIslandMonsterEntity;
@@ -56,6 +57,23 @@ public final class ModEntities {
                     .clientTrackingRange(16)
                     .updateInterval(1)
                     .build(GodzillaMinusOne.id("nuclear_bomb").toString()));
+
+    // Posed Godzilla statues for thumbnails: /summon only (no egg, no natural spawns).
+    public static final RegistryObject<EntityType<GodzillaStatueEntity>> GODZILLA_POSE_CHARGING_ROAR =
+            statue("godzilla_pose_charging_roar", GodzillaStatueEntity.Stance.CHARGING_ROAR);
+    public static final RegistryObject<EntityType<GodzillaStatueEntity>> GODZILLA_POSE_TAIL_WHIP =
+            statue("godzilla_pose_tail_whip", GodzillaStatueEntity.Stance.TAIL_WHIP);
+    public static final RegistryObject<EntityType<GodzillaStatueEntity>> GODZILLA_POSE_SKY_ROAR =
+            statue("godzilla_pose_sky_roar", GodzillaStatueEntity.Stance.SKY_ROAR);
+
+    private static RegistryObject<EntityType<GodzillaStatueEntity>> statue(String name, GodzillaStatueEntity.Stance stance) {
+        return ENTITIES.register(name, () -> EntityType.Builder.<GodzillaStatueEntity>of((type, level) -> new GodzillaStatueEntity(type, level, stance), MobCategory.MISC)
+                .sized(10.0F, 40.0F)
+                .fireImmune()
+                .clientTrackingRange(20)
+                .updateInterval(20)
+                .build(GodzillaMinusOne.id(name).toString()));
+    }
 
     private ModEntities() {
     }

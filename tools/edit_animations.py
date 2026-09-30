@@ -13,7 +13,11 @@ twice):
     them) and "animation.gojira.spin_whip" (a heavy spin of his whole body, the tail trailing behind it and
     then snapping through in a wave from its base to its tip),
   * "animation.gojira.swim_peek": while he swims, his head rises out of the water (eyes just above the surface,
-    the snout level) and glares ahead for 4 seconds, then sinks back.
+    the snout level) and glares ahead for 4 seconds, then sinks back,
+  * three held poses for the thumbnail statues (entity.GodzillaStatueEntity), after the film's posters:
+    "animation.gojira.pose_charging_roar" (roaring, one arm flung out, the glowing tail raised high round his
+    side), "pose_tail_whip" (the tail swung round in front of him, its tip rising) and "pose_sky_roar" (roaring
+    up at the sky, arms spread). The tail whip's tail was solved for with a small search (see tail waypoints).
 """
 import json
 import math
@@ -362,6 +366,43 @@ def swim_peek(anims):
     }
 
 
+POSES = {
+    "pose_charging_roar": {
+        "bone11": [6, -30, 0], "bone13": [10, -26, 0], "bone14": [24, -16, 0], "bone16": [30, 0, 0], "bone17": [26, 12, 0],
+        "bone18": [16, 16, 0],
+        "Metalbody": [-4, 10, 0], "Chest": [-6, 6, 0], "Neck": [-14, 8, 0], "Head": [-20, 12, 4], "Jew": [40, 0, 0],
+        "Right_arm": [-38, 0, 6], "bone": [-22, 0, 0], "Left_arm": [-12, 0, -52], "bone4": [18, 0, 0],
+        "Leg": [-12, 0, 0], "Leg_bone": [8, 0, 0], "Leg2": [8, 0, 0],
+    },
+    # the tail: low round his right side and in front of his legs, then rising (waypoints, in blocks right/up/forward:
+    # (4,5,-12) (12,3,-18) (22,3,-12) (25,7,0) (21,17,9), tip (15,32,14))
+    "pose_tail_whip": {
+        "bone11": [14.3, -27.2, 0], "bone13": [-20.7, -17.6, 0], "bone14": [-20.7, -58.9, 0], "bone16": [6.8, -60, 0],
+        "bone17": [32, -25.3, 0], "bone18": [21.6, -5.5, 0],
+        "Metalbody": [2, -14, 0], "Chest": [0, -8, 0], "Neck": [-6, 6, 0], "Head": [-2, 8, 0], "Jew": [18, 0, 0],
+        "Right_arm": [-48, 0, 12], "bone": [-25, 0, 0], "Left_arm": [-42, 0, -14], "bone4": [-22, 0, 0],
+        "Leg": [-18, 0, 0], "Leg_bone": [8, 0, 0], "Leg2": [14, 0, 0],
+    },
+    "pose_sky_roar": {
+        "Body": [-4, 0, 0], "Metalbody": [-10, 0, 0], "Chest": [-14, 0, 0],
+        "Neck": [-38, 0, 0], "neck2": [-18, 0, 0], "Head": [-28, 0, 0], "Jew": [42, 0, 0],
+        "Right_arm": [5, 0, 42], "bone": [-15, 0, 0], "Left_arm": [5, 0, -42], "bone4": [-15, 0, 0],
+        "bone11": [0, 12, 0], "bone13": [0, 16, 0], "bone14": [0, 22, 0], "bone16": [0, 18, 0], "bone17": [0, 10, 0],
+        "bone18": [0, -12, 0],
+        "Leg": [-6, 0, 0], "Leg2": [4, 0, 0],
+    },
+}
+
+
+def poses(anims):
+    for name, pose in POSES.items():
+        anims["animation.gojira." + name] = {
+            "loop": True,
+            "animation_length": 1.0,
+            "bones": {bone: {"rotation": [round(float(q), 3) for q in rot]} for bone, rot in pose.items()},
+        }
+
+
 def main():
     data = json.load(open(PATH))
     anims = data["animations"]
@@ -376,6 +417,7 @@ def main():
     anims["animation.gojira.swipe_left"] = swipe(anims, -1)
     anims["animation.gojira.spin_whip"] = spin_whip(anims)
     anims["animation.gojira.swim_peek"] = swim_peek(anims)
+    poses(anims)
     with open(PATH, "w") as f:
         json.dump(data, f, indent=1)
         f.write("\n")

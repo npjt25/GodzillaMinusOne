@@ -4,6 +4,7 @@ import com.npjt25.godzillaminusone.GodzillaMinusOne;
 import com.npjt25.godzillaminusone.entity.Blasts;
 import com.npjt25.godzillaminusone.entity.Destruction;
 import com.npjt25.godzillaminusone.entity.GodzillaEntity;
+import com.npjt25.godzillaminusone.entity.GodzillaStatueEntity;
 import com.npjt25.godzillaminusone.entity.NavalMineEntity;
 import com.npjt25.godzillaminusone.entity.NuclearBombEntity;
 import com.npjt25.godzillaminusone.entity.OdoIslandMonsterEntity;
@@ -337,6 +338,18 @@ public final class ModGameTests {
         remote.use(helper.getLevel(), player, InteractionHand.MAIN_HAND);
         helper.assertTrue(mine.isRemoved(), "the mine should go off");
         helper.succeed();
+    }
+
+    @GameTest(template = FLOOR, batch = "gmo_statue")
+    public static void aPoseStatueHoldsStill(GameTestHelper helper) {
+        GodzillaStatueEntity statue = helper.spawn(ModEntities.GODZILLA_POSE_SKY_ROAR.get(), new Vec3(4.5, floorY(helper) + 4, 4.5));
+        Vec3 at = statue.position();
+        helper.assertFalse(statue.hurt(helper.getLevel().damageSources().generic(), 1000.0F), "a statue can't be hurt");
+        helper.runAfterDelay(20, () -> {
+            helper.assertTrue(statue.isAlive() && statue.position().equals(at), "it should stay just where it was put, even in mid-air");
+            statue.discard();
+            helper.succeed();
+        });
     }
 
     private static OdoIslandMonsterEntity spawnOdo(GameTestHelper helper, int floor, int z) {

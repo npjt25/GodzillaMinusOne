@@ -10,6 +10,9 @@
   "entity.godzillaminusone.odo_island_monster": "Odo Island Monster",
   "entity.godzillaminusone.searchlight": "Searchlight",
   "entity.godzillaminusone.nuclear_bomb": "Nuclear Bomb",
+  "entity.godzillaminusone.godzilla_pose_charging_roar": "Godzilla (Pose: Charging Roar)",
+  "entity.godzillaminusone.godzilla_pose_tail_whip": "Godzilla (Pose: Tail Whip)",
+  "entity.godzillaminusone.godzilla_pose_sky_roar": "Godzilla (Pose: Roar to the Sky)",
   "boss.godzillaminusone.godzilla": "GODZILLA",
 
   "item.godzillaminusone.godzilla_spawn_egg": "Spawn GODZILLA",

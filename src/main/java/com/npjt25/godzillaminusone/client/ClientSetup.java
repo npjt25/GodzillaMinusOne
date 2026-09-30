@@ -3,6 +3,7 @@ package com.npjt25.godzillaminusone.client;
 import com.npjt25.godzillaminusone.GodzillaMinusOne;
 import com.npjt25.godzillaminusone.client.particle.Fx;
 import com.npjt25.godzillaminusone.client.render.GodzillaRenderer;
+import com.npjt25.godzillaminusone.client.render.GodzillaStatueRenderer;
 import com.npjt25.godzillaminusone.client.render.NavalMineRenderer;
 import com.npjt25.godzillaminusone.client.render.NuclearBombRenderer;
 import com.npjt25.godzillaminusone.client.render.OdoIslandMonsterRenderer;
@@ -39,6 +40,9 @@ public final class ClientSetup {
         event.registerEntityRenderer(ModEntities.ODO_ISLAND_MONSTER.get(), OdoIslandMonsterRenderer::new);
         event.registerEntityRenderer(ModEntities.SEARCHLIGHT.get(), SearchlightRenderer::new);
         event.registerEntityRenderer(ModEntities.NUCLEAR_BOMB.get(), NuclearBombRenderer::new);
+        event.registerEntityRenderer(ModEntities.GODZILLA_POSE_CHARGING_ROAR.get(), GodzillaStatueRenderer::new);
+        event.registerEntityRenderer(ModEntities.GODZILLA_POSE_TAIL_WHIP.get(), GodzillaStatueRenderer::new);
+        event.registerEntityRenderer(ModEntities.GODZILLA_POSE_SKY_ROAR.get(), GodzillaStatueRenderer::new);
     }
 
     @SubscribeEvent
