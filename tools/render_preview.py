@@ -170,14 +170,41 @@ def animation_pose(anim_path, name, t):
     return pose
 
 
+def scale_props(scale, ground, player_at=None):
+    """Quads for a scale reference, in the model's units (scale: its renderer scale): a checkerboard of one-block
+    squares over ground = (x0, x1, z0, z1) blocks, and a player-sized figure (0.6 x 1.8 x 0.6 blocks, blue) standing
+    at player_at = (x, z) blocks. For render(props=...)."""
+    px = 16.0 / scale
+    quads = []
+    x0, x1, z0, z1 = ground
+    for i in range(int(x0), int(x1)):
+        for k in range(int(z0), int(z1)):
+            c = (0.42, 0.5, 0.36) if (i + k) % 2 == 0 else (0.36, 0.44, 0.31)
+            if i % 10 == 0 or k % 10 == 0:
+                c = tuple(v * 0.8 for v in c)
+            a, b, e, f = i * px, (i + 1) * px, k * px, (k + 1) * px
+            quads.append((np.array([(a, 0, f), (b, 0, f), (b, 0, e), (a, 0, e)], float), c))
+    if player_at:
+        x, z = player_at
+        lo = np.array([x - 0.3, 0.0, z - 0.3]) * px
+        hi = np.array([x + 0.3, 1.8, z + 0.3]) * px
+        (x0, x1), (y0, y1), (z0, z1) = (lo[0], hi[0]), (lo[1], hi[1]), (lo[2], hi[2])
+        faces = [[(x1, y1, z0), (x0, y1, z0), (x0, y0, z0), (x1, y0, z0)], [(x0, y1, z1), (x1, y1, z1), (x1, y0, z1), (x0, y0, z1)],
+                 [(x1, y1, z1), (x1, y1, z0), (x1, y0, z0), (x1, y0, z1)], [(x0, y1, z0), (x0, y1, z1), (x0, y0, z1), (x0, y0, z0)],
+                 [(x1, y1, z1), (x0, y1, z1), (x0, y1, z0), (x1, y1, z0)]]
+        for fc in faces:
+            quads.append((np.array(fc, float), (0.25, 0.45, 0.95)))
+    return quads
+
+
 def render(geo_path, tex_path, out_path, yaw=150.0, pitch=15.0, size=900, pose=None, bg=(34, 38, 46),
-           hide=(), extra_scale=1.0, flat_bones=None, fit_bones=None):
+           hide=(), extra_scale=1.0, flat_bones=None, fit_bones=None, props=None, fit_props=False):
     bones, tw, th = load_geo(geo_path)
     tex = np.array(Image.open(tex_path).convert("RGBA")).astype(float) / 255.0
     TH, TW = tex.shape[:2]
     mats = bone_matrices(bones, pose)
 
-    view = rot_matrix(math.radians(pitch), math.radians(yaw), 0)
+    view = rot_matrix(math.radians(-pitch), 0, 0) @ rot_matrix(0, math.radians(yaw), 0)   # turn, then look down
     quads = []
     for b in bones:
         if b["name"] in hide:
@@ -192,7 +219,9 @@ def render(geo_path, tex_path, out_path, yaw=150.0, pitch=15.0, size=900, pose=N
             for name, corners, uvs in face_list(c, tw, th):
                 pts = (C @ np.c_[corners, np.ones(4)].T).T[:, :3]
                 quads.append((pts, uvs, (flat_bones or {}).get(b["name"]), b["name"]))
-    fit = [q[0] for q in quads if not fit_bones or q[3] in fit_bones]
+    prop_quads = [(corners, None, rgb, "#prop") for corners, rgb in (props or [])]
+    fit = [q[0] for q in quads if not fit_bones or q[3] in fit_bones] + ([q[0] for q in prop_quads] if fit_props else [])
+    quads += prop_quads
     allpts = np.concatenate(fit)
     vp = (view @ allpts.T).T
     lo, hi = vp.min(0), vp.max(0)
@@ -236,14 +265,18 @@ def render(geo_path, tex_path, out_path, yaw=150.0, pitch=15.0, size=900, pose=N
         if not inside.any():
             continue
         depth = -(z[0] + a * (z[1] - z[0]) + bcoef * (z[3] - z[0]))
-        u = uvs[0, 0] + a * (uvs[1, 0] - uvs[0, 0]) + bcoef * (uvs[3, 0] - uvs[0, 0])
-        v = uvs[0, 1] + a * (uvs[1, 1] - uvs[0, 1]) + bcoef * (uvs[3, 1] - uvs[0, 1])
-        tx = np.clip((u * TW).astype(int), 0, TW - 1)
-        ty = np.clip((v * TH).astype(int), 0, TH - 1)
-        col = tex[ty, tx]
-        if flat is not None:
-            col = np.empty(col.shape)
-            col[...] = np.array(list(flat) + [255]) / 255.0
+        if uvs is None:
+            col = np.empty(a.shape + (4,))
+            col[...] = list(flat) + [1.0]
+        else:
+            u = uvs[0, 0] + a * (uvs[1, 0] - uvs[0, 0]) + bcoef * (uvs[3, 0] - uvs[0, 0])
+            v = uvs[0, 1] + a * (uvs[1, 1] - uvs[0, 1]) + bcoef * (uvs[3, 1] - uvs[0, 1])
+            tx = np.clip((u * TW).astype(int), 0, TW - 1)
+            ty = np.clip((v * TH).astype(int), 0, TH - 1)
+            col = tex[ty, tx]
+            if flat is not None:
+                col = np.empty(col.shape)
+                col[...] = np.array(list(flat) + [255]) / 255.0
         visible = inside & (col[..., 3] > 0.1)
         sub = zbuf[ymin:ymax + 1, xmin:xmax + 1]
         win = visible & (depth > sub)
@@ -252,7 +285,9 @@ def render(geo_path, tex_path, out_path, yaw=150.0, pitch=15.0, size=900, pose=N
         # world-space normal for lighting
         wn = np.cross(pts[1] - pts[0], pts[3] - pts[0])
         wn /= max(np.linalg.norm(wn), 1e-9)
-        shade = 1.0 if flat is not None else 0.55 + 0.45 * max(0.0, float(-wn @ light))
+        shade = 1.0 if flat is not None and uvs is not None else 0.55 + 0.45 * max(0.0, float(-wn @ light))
+        if uvs is None and abs(wn[1]) > 0.99:
+            shade = 1.0                              # the ground: flat, unshaded
         rgb = col[..., :3] * shade
         img[ymin:ymax + 1, xmin:xmax + 1][win] = rgb[win]
         sub[win] = depth[win]

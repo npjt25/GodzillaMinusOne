@@ -1,36 +1,39 @@
 # Godzilla Minus One — Forge 1.20.1
 
 A Minecraft Java Edition (Forge 1.20.1, GeckoLib 4) port of the Bedrock add-on
-**"Godzilla Minus One" V3 by GojiDraw**. Godzilla is the add-on's model in charcoal grey, made bigger and
-given more detail: layered dorsal plates, a jagged, lumpy hide with tumor-like growths and rows of teeth,
-using the
-[Godzilla Minus One model by ArachnoBoy](https://sketchfab.com/3d-models/godzilla-minus-one-ccaf341a3e734263a88cecb5c49eac0e)
-only as a reference (none of it is in the mod). The Shinden, naval mine, sounds and effects come from the
-add-on. The mod also adds the **Odo Island Monster** (Godzilla's smaller, dinosaur-like form from the start
-of the film, a blocky, voxel version of the
-[Godzillasaurus Minus One model by Kaiju Models For Free](https://sketchfab.com/3d-models/godzillasaurus-minus-one-d529cfb2e48148e3a4ea0644bc48fa78)),
-a **searchlight**, a **nuclear bomb**, a **remote detonator** for the naval mines, and posed
-**Godzilla statues** for screenshots and thumbnails.
+**"Godzilla Minus One" V3 by GojiDraw**. Godzilla is the add-on's own model, textures and animations, exactly
+(scaled up evenly to stand 10 blocks taller), and so are the Shinden, naval mine, sounds, effects and the atomic
+blast's mushroom cloud. The mod also adds the **Odo Island Monster** (Godzilla's smaller, dinosaur-like form
+from the start of the film): Monster122's **Godzillasaurus** from the "G-1" Bedrock add-on, with its own model,
+skins and animations. There are also a **searchlight**, a **nuclear bomb**, a **remote detonator** for the naval
+mines, and posed **Godzilla statues** for screenshots and thumbnails.
 
-![Godzilla idle, charging, and breathing in](docs/godzilla_preview.png)
+![Godzilla: front, side, three-quarter and charged](docs/godzilla_preview.png)
 
-*Left: idle. Middle: charging, the dorsal plates lighting up from the tail. Right: the in-breath before the beam.*
+*GojiDraw's Godzilla from the front, side and three-quarters, and charged (his plates up and glowing icy cyan).
+Offline renders on a one-block grid (darker lines every 10 blocks); the small blue box is a player, 1.8 blocks
+tall.*
+
+![GojiDraw's scale and the mod's](docs/godzilla_scale.png)
+
+*The add-on draws him 6.1x (35.4 blocks tall, 59.3 long); the mod 7.83x, evenly (45.5 tall, 76.1 long).*
 
 ![The Odo Island Monster](docs/odo_preview.png)
 
-*The Odo Island Monster: standing, roaring, and burnt to a crisp by a nuclear bomb.*
+*The Odo Island Monster (Monster122's Godzillasaurus): front, side and three-quarters, walking, roaring, and
+burnt to a crisp by a nuclear bomb. Same grid and player as above.*
 
 ![Searchlight and nuclear bomb](docs/props_preview.png)
 
 ![Godzilla statues](docs/poses_preview.png)
 
-*The thumbnail statues: charging roar, tail whip, roar to the sky.*
+*The thumbnail statues: charging roar (its tail plates glow in game), tail whip, roar to the sky.*
 
 ![The mushroom cloud](docs/cloud_preview.png)
 
-*The nuclear explosion, after Alex's Caves' nuclear bomb but bigger: a white-hot fireball, then a see-through
-cap of dark billowing smoke glowing like embers underneath, on a column of fire, with an orange shockwave
-racing along the ground, a condensation ring and a base surge of dust.*
+*The atomic blast's mushroom cloud, GojiDraw's: his five smoke layers (a dark stalk, a broad grey cap 400 blocks
+across with a darker rim, a brown sooty top), 0.5, 2, 5, 15 and 26 seconds after the blast, from 800 blocks
+away and from about where Godzilla stands (offline simulation of the same layers, over 20-block squares).*
 
 ## Requirements
 
@@ -48,17 +51,17 @@ racing along the ground, a condensation ring and a base surge of dust.*
 | `goji:torrid` | **Torrid**, the Shinden's cannons: right-click while flying it |
 | `goji:mine_spawn` / `goji:mine` | **Naval Mine**, craftable (4 netherite ingots, 4 netherite blocks, TNT in the middle), and a **Remote Detonator** for it |
 | `goji:nuclear_hole` | The crater and blast wave left by the atomic breath |
-| Nuclear explosion particles | A 3D fireball and mushroom cloud (`client/render/NuclearCloud.java`) |
+| Nuclear explosion particles | The flash, shockwaves and black rain as particles; the mushroom cloud's five smoke layers drawn by `client/render/NuclearCloud.java` |
 | Particles, camera shakes, custom boss bar | Recreated in Java (see `client/`); the fade to black is a blur instead |
-| *(new)* | **Odo Island Monster** (`godzillaminusone:odo_island_monster`), with its spawn egg |
+| *(from Monster122's G-1 add-on)* | **Odo Island Monster** (`godzillaminusone:odo_island_monster`), with its spawn egg |
 | *(new)* | **Searchlight**, a mountable WWII searchlight |
 | *(new)* | **Nuclear Bomb**, called in from the sky |
 | *(new)* | **Godzilla statues** in three poses, `/summon` only |
 
 ### Godzilla
 
-- About 45 blocks tall and 70 long. Spawns from his egg by rising out of the ground and roaring, then becomes
-  active (with the add-on's boss bar).
+- GojiDraw's model, 45.5 blocks tall, 21.7 wide and 76 long (tail and dorsal plates included). Spawns from
+  his egg by rising out of the ground and roaring, then becomes active (with the add-on's boss bar).
 - **His roar carries for 3000 blocks**: faint that far off, louder at 2000, louder again at 1000, and so on as
   you get closer (loud, but not painful in headphones).
 - **Radiation aura**: anything within 16 blocks gets "RADIATION POISONING" and Wither.
@@ -74,9 +77,9 @@ racing along the ground, a condensation ring and a base surge of dust.*
   the neck as they punch up, mobs freeze in fear, he breathes in for 4 seconds (the in-breath sound lasts
   exactly as long), then rears his head up above his chest and fires (he tilts it further up at planes). The
   beam pours out of his open mouth, which blazes blue while it lasts. **Two seconds after the beam lands**, a
-  **nuclear blast** goes off there: it kills everything around it, blasts out a large crater, and a fireball
-  rises into a huge mushroom cloud. Everyone nearby sees a blur, then black rain falls around ground zero (just
-  particles: the weather isn't changed).
+  **nuclear blast** goes off there: it kills everything around it, blasts out a large crater, and GojiDraw's
+  mushroom cloud rises over it for 26 seconds. Everyone nearby sees a blur, then black rain falls around ground
+  zero (just particles: the weather isn't changed).
 - The blast **levels the land for 600 blocks around**: everything above **Y 60** (trees, grass, buildings,
   hills) is erased, sweeping outwards from ground zero, and **nothing drops**. Seas and rivers stay. Parts of
   the area that aren't loaded yet are flattened when they load. Radius and height are in the config.
@@ -118,10 +121,10 @@ racing along the ground, a condensation ring and a base surge of dust.*
 
 ### Odo Island Monster
 
-- Godzilla's first form from Odo Island: a shorter, dinosaur-like Godzilla, **15 blocks tall**, 600 health.
-  He is a blocky, voxel version of a detailed 3D model of the Godzillasaurus from the film (see the credits):
-  thick legs and a heavy, upright body, rows of jagged spikes down his back and tail, clawed hands, a dark
-  scaly hide, glowing eyes and a red mouth full of teeth, all in 1-pixel cubes.
+- Godzilla's first form from Odo Island: Monster122's Godzillasaurus, **14 blocks tall** and 29 long, 600
+  health. Crouched and leaning forward on huge bent legs, head held low in front on a thick curved neck, clawed
+  hands hanging, a long tail behind, jagged plates rising high over his back, and an olive-brown scaly hide.
+  His walk, roar, two bites (one with a swipe of his arm), stomp and burnt pose are the add-on's animations.
 - Left alone he wanders and ignores you, but get within about 16 blocks and he **charges**: he runs you down,
   crashing through trees and fences, and **bites** or **stomps** you.
 - **Caught in a searchlight's beam he goes berserk**: he roars and comes for whoever is working the light, and
@@ -186,41 +189,35 @@ The jar ends up in `build/libs/`. GitHub Actions builds it on every push (see th
 ## Re-converting the add-on assets
 
 `tools/convert_addon.py` regenerates everything under `src/main/resources/assets` from the extracted
-`.mcaddon` (models, cleaned-up animations, recoloured textures and glow masks, sounds converted to mono Ogg):
+`.mcaddon` (models, cleaned-up animations, textures split into skins and glow masks, sounds converted to mono Ogg):
 
 ```
 pip install pillow numpy imageio-ffmpeg
 python3 tools/convert_addon.py path/to/extracted/addon
 ```
 
-Then add the detail to Godzilla, edit the animations, and build the rest:
+Then make Godzilla's burns, edit the animations, and build the rest:
 
 ```
-python3 tools/detail_godzilla.py        # plates, lumps and growths, teeth, eyes, the finer hide; the burns after the beam
+python3 tools/godzilla_burns.py         # the burns round his mouth after the beam (on the add-on's texture layout)
 python3 tools/edit_animations.py        # in-breath, beam from the mouth, swimming bite and peek, melee combo, statue poses
 python3 tools/make_sounds.py            # the in-breath and the nuclear bomb's air-raid siren
-python3 tools/make_odo_model.py path/to/godzillasaurus_minus_one   # the Odo Island Monster (needs scipy too)
+python3 tools/make_odo_model.py "path/to/G-1(RE)"   # the Odo Island Monster, from Monster122's G-1 resource pack
 python3 tools/make_props.py             # the searchlight and nuclear bomb models
 python3 tools/make_icons.py             # item icons of the new items
-python3 tools/make_cloud_textures.py    # noise textures of the 3D explosion
+python3 tools/make_cloud_textures.py    # the mushroom cloud's smoke sprite, cut out as the add-on draws it
 ```
 
 Previews without starting the game: `tools/render_preview.py` renders a cube model with its texture (and any
-animation frame), `tools/preview_cloud.py` renders the nuclear explosion at given times.
+animation frame, optionally on a one-block grid with a player for scale), `tools/preview_cloud.py` simulates the
+mushroom cloud at given times.
 
 ## Credits
 
 Original Bedrock add-on (models, textures, animations, sounds): **GojiDraw**. The add-on is marked
 "Bedrock only"; this port is for personal use. Ask GojiDraw before publishing it anywhere.
 
-Godzilla's added detail was modelled with ["Godzilla Minus One" by ArachnoBoy](https://sketchfab.com/3d-models/godzilla-minus-one-ccaf341a3e734263a88cecb5c49eac0e)
-as a visual reference; none of that model is included.
-The Odo Island Monster is based on ["Godzillasaurus Minus One"](https://sketchfab.com/3d-models/godzillasaurus-minus-one-d529cfb2e48148e3a4ea0644bc48fa78)
-by [Kaiju Models For Free](https://sketchfab.com/ChadZilla), licensed under
-[CC-BY-4.0](http://creativecommons.org/licenses/by/4.0/): its shape and colours were turned into cubes
-(`tools/make_odo_model.py`).
-
-The nuclear explosion's look follows Alex's Caves' nuclear bomb (as a reference; its textures were made from
-scratch).
+The Odo Island Monster is **Monster122**'s Godzillasaurus (model, skins and animations) from the "G-1" Bedrock
+add-on.
 
 Godzilla is a trademark of Toho Co., Ltd.
