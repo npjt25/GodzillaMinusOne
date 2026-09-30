@@ -52,7 +52,7 @@
   },
   "animation.kplane.fire": {
    "loop": false,
-   "animation_length": 0.33333,
+   "animation_length": 0.1,
    "sound_effects": {
     "0.0000": {
      "effect": "shinden.gun"

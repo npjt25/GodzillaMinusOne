@@ -58,7 +58,7 @@ squares; the red post is Godzilla's height. The fiery puffs are drawn as plain b
 | --- | --- |
 | `goji:gojira` (+ dead / spawn stages) | **Godzilla** (`godzillaminusone:godzilla`), one entity with emerge → roar → active → collapse → dead → regenerate phases |
 | `goji:kyushu_j7w1` | **Kyushu J7W1 Shinden**, a fighter you can fly |
-| `goji:torrid` | **Torrid**, the Shinden's cannons: right-click while flying it |
+| `goji:torrid` | **Torrid**, the Shinden's cannons: hold right-click while flying it |
 | `goji:mine_spawn` / `goji:mine` | **Naval Mine**, craftable (4 netherite ingots, 4 netherite blocks, TNT in the middle), and a **Remote Detonator** for it |
 | `goji:nuclear_hole` | The crater and blast wave left by the atomic breath |
 | Nuclear explosion particles | The flash, shockwaves and black rain as particles; the mushroom cloud is Alex's Caves' (`client/render/NuclearCloud.java`, `MushroomCloudModel.java`) |
@@ -114,9 +114,9 @@ squares; the red post is Godzilla's height. The fiery puffs are drawn as plain b
 
 - Right-click to climb in. **W** accelerates, **S** brakes, the mouse steers: look up to climb, down to dive.
   The plane noses up as it climbs and down as it dives, stays level in level flight, and banks into turns.
-- You stay in the cockpit however it pitches and banks. **Right-click fires the plane's cannons** straight
-  ahead: **one shot per click** (one bang, one flash from each gun; holding the button doesn't keep firing),
-  whatever you're holding.
+- You stay in the cockpit however it pitches and banks. **Hold right-click to fire the plane's cannons**
+  straight ahead: they keep firing for as long as you hold it, five rounds a second (a bang and a flash from
+  each gun every round), whatever you're holding.
 - Pilots have the add-on's "plot armour": Godzilla's blasts barely scratch them.
 - Fly within 15 blocks of Godzilla and the plane detonates like a naval mine (the film's ending), and you bail
   out with Slow Falling as a parachute.

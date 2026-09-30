@@ -7,7 +7,7 @@ import net.minecraftforge.network.NetworkEvent;
 
 import java.util.function.Supplier;
 
-/** Pilot's client to server: "fire the guns" (one right-click, one burst: client.ShindenControls). */
+/** Pilot's client to server: "fire the guns" (sent while right-click is held: client.ShindenControls; the plane keeps the rate of fire). */
 public record ShindenFirePacket(int entityId) {
     public void encode(FriendlyByteBuf buf) {
         buf.writeVarInt(entityId);

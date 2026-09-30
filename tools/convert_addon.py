@@ -283,10 +283,12 @@ def steady_shinden(path):
     anims = data["animations"]
     anims["animation.kplane.fly"]["bones"].pop("bone", None)
     anims.pop("animation.kplane.turning", None)
-    # One click, one shot: a single flash from each gun (the add-on flashes each twice, with a three-shot sound).
+    # One round, one shot: a single flash from each gun (the add-on flashes each twice, with a three-shot sound).
+    # It's over in two ticks, so holding the trigger (a round every four ticks) sets it off afresh each round.
     anims["animation.kplane.fire"]["particle_effects"] = {"0.0000": {"effect": "gun_flash", "locator": "locator"},
                                                          "0.0010": {"effect": "gun_flash", "locator": "locator2"}}
     anims["animation.kplane.fire"]["loop"] = False
+    anims["animation.kplane.fire"]["animation_length"] = 0.1
     write_json(path, data)
 
 

@@ -18,13 +18,15 @@ import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 
 /**
- * The Shinden's pilot, client side: right-click fires the plane's guns (one burst per click, whatever is in your
- * hand), and the pilot's model leans and pitches with the plane so they stay sat in the cockpit.
+ * The Shinden's pilot, client side: holding right-click keeps the plane's guns firing (whatever is in your hand; the
+ * plane sets the rate of fire), and the pilot's model leans and pitches with the plane so they stay sat in the
+ * cockpit.
  */
 @Mod.EventBusSubscriber(modid = GodzillaMinusOne.MODID, bus = Mod.EventBusSubscriber.Bus.FORGE, value = Dist.CLIENT)
 public final class ShindenControls {
-    /** Set when a click fired; cleared once the button is let go (holding it down doesn't keep firing). */
-    private static boolean fireHeld;
+    /** Ticks between "fire" requests while the button is held (the plane fires as fast as its guns allow). */
+    private static final int REQUEST_INTERVAL = 2;
+    private static int requestCooldown;
 
     @SubscribeEvent
     public static void onUseKey(InputEvent.InteractionKeyMappingTriggered event) {
@@ -33,18 +35,27 @@ public final class ShindenControls {
                 || plane.getControllingPassenger() != mc.player) {
             return;
         }
+        // (the guns are fired from the client tick below, for as long as the button is held)
         event.setCanceled(true);
         event.setSwingHand(false);
-        if (!fireHeld) {
-            fireHeld = true;
-            ModNetwork.CHANNEL.sendToServer(new ShindenFirePacket(plane.getId()));
-        }
     }
 
     @SubscribeEvent
     public static void onClientTick(TickEvent.ClientTickEvent event) {
-        if (event.phase == TickEvent.Phase.END && fireHeld && !Minecraft.getInstance().options.keyUse.isDown()) {
-            fireHeld = false;
+        if (event.phase != TickEvent.Phase.END) {
+            return;
+        }
+        Minecraft mc = Minecraft.getInstance();
+        if (requestCooldown > 0) {
+            requestCooldown--;
+        }
+        if (mc.player == null || mc.screen != null || !mc.options.keyUse.isDown()
+                || !(mc.player.getVehicle() instanceof ShindenEntity plane) || plane.getControllingPassenger() != mc.player) {
+            return;
+        }
+        if (requestCooldown <= 0) {
+            requestCooldown = REQUEST_INTERVAL;
+            ModNetwork.CHANNEL.sendToServer(new ShindenFirePacket(plane.getId()));
         }
     }
 

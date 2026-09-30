@@ -76,8 +76,8 @@ public class ShindenEntity extends Mob implements GeoEntity {
     private double flightSpeed;
     private boolean exploded;
     private boolean crashed;
-    /** Ticks between bursts of the plane's guns. */
-    private static final int GUN_COOLDOWN = 6;
+    /** Ticks between rounds while the trigger is held: five a second. */
+    private static final int GUN_COOLDOWN = 4;
     private int lastShotTick = -GUN_COOLDOWN;
     // Client side: how far the plane leans into a turn (degrees, right wing down is positive), and how far its
     // nose is up (positive) or down along its flight path.
@@ -272,7 +272,7 @@ public class ShindenEntity extends Mob implements GeoEntity {
 
     // ------------------------------------------------------------------ weapons & destruction
 
-    /** A right-click from the pilot: one burst, if the guns are ready (client.ShindenControls). */
+    /** The pilot holding right-click: a round, if the guns are ready (client.ShindenControls asks every other tick). */
     public void tryFireGuns(Player pilot) {
         if (this.tickCount - this.lastShotTick >= GUN_COOLDOWN || this.tickCount < this.lastShotTick) {
             this.lastShotTick = this.tickCount;
