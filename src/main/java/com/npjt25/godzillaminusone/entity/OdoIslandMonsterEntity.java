@@ -73,9 +73,9 @@ public class OdoIslandMonsterEntity extends Monster implements GeoEntity {
     private static final double RUN_SPEED = 1.75;
 
     // Measured on the model (blocks: right, up, forward).
-    private static final Vec3 JAWS = new Vec3(0.0, 9.0, 8.5);
+    private static final Vec3 JAWS = new Vec3(0.0, 8.8, 8.7);
     private static final double BITE_RADIUS = 4.5;
-    private static final Vec3 LEFT_FOOT = new Vec3(-1.8, 0.0, 1.1);
+    private static final Vec3 LEFT_FOOT = new Vec3(-2.7, 0.0, 0.7);
     private static final double STOMP_RADIUS = 6.0;
 
     private static final RawAnimation IDLE = RawAnimation.begin().thenLoop("animation.odo.idle");

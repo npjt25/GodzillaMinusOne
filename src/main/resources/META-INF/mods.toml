@@ -7,7 +7,7 @@ modId="${mod_id}"
 version="${mod_version}"
 displayName="${mod_name}"
 authors="${mod_authors}"
-credits="Original Bedrock add-on, models, textures, animations and sounds by GojiDraw. Godzilla's added detail was modelled with \"Godzilla Minus One\" by ArachnoBoy (Sketchfab) as a visual reference."
+credits="Original Bedrock add-on, models, textures, animations and sounds by GojiDraw. Godzilla's added detail was modelled with \"Godzilla Minus One\" by ArachnoBoy (Sketchfab) as a visual reference. The Odo Island Monster is based on \"Godzillasaurus Minus One\" (https://sketchfab.com/3d-models/godzillasaurus-minus-one-d529cfb2e48148e3a4ea0644bc48fa78) by Kaiju Models For Free (https://sketchfab.com/ChadZilla), licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)."
 description='''${mod_description}'''
 
 [[dependencies.${mod_id}]]

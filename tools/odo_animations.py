@@ -40,8 +40,8 @@ def rot(x=0.0, y=0.0, z=0.0):
 
 # Leg poses (thigh, shin, ankle, foot) at foot contact, mid-stance, push-off and mid-swing, solved so that the
 # planted foot stays on the ground and travels straight back under the body (stride of 22 / 24 px).
-WALK_LEG = {"contact": (-8, -27, 23, 7), "mid": (2, -3, -1, 2), "push": (4, 33, -13, -2), "swing": (-30, 48, -7, 4)}
-RUN_LEG = {"contact": (-20, -30, 20, 13), "mid": (-14, -3, 14, -9), "push": (0, 33, -34, 11), "swing": (-38, 48, -19, 12)}
+WALK_LEG = {"contact": (-10, -16, 4, 17), "mid": (0, -1, 4, -3), "push": (2, 26, 13, -19), "swing": (-26, 38, 7, -4)}
+RUN_LEG = {"contact": (-28, -7, 7, 11), "mid": (-10, 2, -8, 4), "push": (2, 29, -27, 6), "swing": (-38, 41, 10, -10)}
 
 
 def leg_cycle(length, offset, table):
@@ -154,7 +154,7 @@ def burnt():
         "animation_length": 1.5,
         "bones": {
             "root": {"rotation": key(zip(t, [rot(0), rot(0, 0, 30), rot(0, 0, 84)])),
-                     "position": key(zip(t, [[0, 0, 0], [0, -2, 0], [0, 16.7, 0]]))},
+                     "position": key(zip(t, [[0, 0, 0], [0, -2, 0], [0, 18.3, 0]]))},
             "body": {"position": key(zip(t, [[0, 0, 0], [0, -8, 0], [0, -21, 0]]))},
             "neck": {"rotation": key(zip(t, [rot(0), rot(10), rot(24, 0, -10)]))},
             "neck2": {"rotation": key(zip(t, [rot(0), rot(6), rot(12)]))},
