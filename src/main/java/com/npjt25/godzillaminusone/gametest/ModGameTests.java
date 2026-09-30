@@ -77,6 +77,34 @@ public final class ModGameTests {
         throw new IllegalStateException("no test floor");
     }
 
+    /**
+     * The test floor is only 9 x 9, in a pocket of a normal world: anything put beyond it sits in whatever rock, cave,
+     * lava or ruin the world has there, in a chunk the test doesn't keep loaded. This keeps the chunks from (x0, z0)
+     * to (x1, z1) loaded and ticking and carves a sealed room of air there, {@code height} blocks high, walled in
+     * stone; the returned action lets go of the chunks it forced.
+     */
+    private static Runnable room(GameTestHelper helper, int floor, int x0, int z0, int x1, int z1, int height) {
+        BlockPos a = helper.absolutePos(new BlockPos(x0 - 1, floor, z0 - 1));
+        BlockPos b = helper.absolutePos(new BlockPos(x1 + 1, floor, z1 + 1));
+        List<long[]> chunks = new ArrayList<>();
+        for (int cx = Math.min(a.getX(), b.getX()) >> 4; cx <= Math.max(a.getX(), b.getX()) >> 4; cx++) {
+            for (int cz = Math.min(a.getZ(), b.getZ()) >> 4; cz <= Math.max(a.getZ(), b.getZ()) >> 4; cz++) {
+                if (helper.getLevel().setChunkForced(cx, cz, true)) {
+                    chunks.add(new long[]{cx, cz});
+                }
+            }
+        }
+        for (int x = x0 - 1; x <= x1 + 1; x++) {
+            for (int z = z0 - 1; z <= z1 + 1; z++) {
+                for (int y = floor; y <= floor + height + 1; y++) {
+                    boolean inside = x >= x0 && x <= x1 && z >= z0 && z <= z1 && y > floor && y <= floor + height;
+                    helper.setBlock(new BlockPos(x, y, z), (inside ? Blocks.AIR : Blocks.STONE).defaultBlockState());
+                }
+            }
+        }
+        return () -> chunks.forEach(c -> helper.getLevel().setChunkForced((int) c[0], (int) c[1], false));
+    }
+
     private static void remove(Entity... entities) {
         for (Entity entity : entities) {
             entity.discard();
@@ -197,14 +225,19 @@ public final class ModGameTests {
     @GameTest(template = FLOOR, batch = "gmo_plane_first", timeoutTicks = 60)
     public static void aPilotedPlaneBecomesHisTarget(GameTestHelper helper) {
         GodzillaEntity godzilla = spawnActiveGodzilla(helper);
-        Pig pig = helper.spawn(EntityType.PIG, 4, 1, 20);
+        int floor = floorY(helper);
+        Runnable pigRoom = room(helper, floor, 3, 19, 5, 21, 2);
+        Runnable hangar = room(helper, floor, 1, 41, 7, 47, 4);
+        Pig pig = helper.spawn(EntityType.PIG, 4, floor + 1, 20);
         godzilla.setTarget(pig);
-        ShindenEntity plane = helper.spawn(ModEntities.SHINDEN.get(), 4, 1, 44);
-        Pig pilot = helper.spawn(EntityType.PIG, 4, 1, 44);
+        ShindenEntity plane = helper.spawn(ModEntities.SHINDEN.get(), 4, floor + 1, 44);
+        Pig pilot = helper.spawn(EntityType.PIG, 4, floor + 1, 44);
         pilot.startRiding(plane, true);
         helper.succeedWhen(() -> {
             helper.assertTrue(godzilla.getTarget() == plane, "a plane with someone in it should come first, target was " + godzilla.getTarget());
             remove(godzilla, pig, pilot, plane);
+            pigRoom.run();
+            hangar.run();
         });
     }
 

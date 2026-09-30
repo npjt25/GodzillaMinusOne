@@ -15,12 +15,14 @@ import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
+import net.minecraftforge.event.entity.EntityJoinLevelEvent;
 import net.minecraftforge.event.level.ExplosionEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
@@ -37,6 +39,8 @@ public final class Blasts {
     private static final Set<Entity> SPARED = new HashSet<>();
     /** Set while an explosion whose blocks should vanish rather than drop is going off. */
     private static boolean disintegrate;
+    /** Set while that explosion's blocks are being cleared. */
+    private static boolean clearing;
 
     /**
      * A naval mine (or a Shinden flown into Godzilla) going off: huge damage to everything nearby,
@@ -89,12 +93,28 @@ public final class Blasts {
         if (disintegrate) {
             // clear the blocks ourselves, without drops, and leave the explosion nothing to break (or drop)
             Level level = event.getLevel();
-            for (BlockPos pos : event.getAffectedBlocks()) {
-                if (!level.getBlockState(pos).isAir()) {
-                    level.setBlock(pos, Blocks.AIR.defaultBlockState(), Block.UPDATE_ALL);
+            clearing = true;
+            try {
+                for (BlockPos pos : event.getAffectedBlocks()) {
+                    if (!level.getBlockState(pos).isAir()) {
+                        level.setBlock(pos, Blocks.AIR.defaultBlockState(), Block.UPDATE_ALL);
+                    }
                 }
+            } finally {
+                clearing = false;
             }
             event.getAffectedBlocks().clear();
+        }
+    }
+
+    /**
+     * What the cleared blocks knock loose goes with them: a lantern or torch hanging from one, a chest's contents.
+     * (The explosion hurts its entities after this, so the mobs it kills still drop their loot.)
+     */
+    @SubscribeEvent
+    public static void onEntityJoin(EntityJoinLevelEvent event) {
+        if (clearing && event.getEntity() instanceof ItemEntity) {
+            event.setCanceled(true);
         }
     }
 
