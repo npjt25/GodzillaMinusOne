@@ -62,9 +62,57 @@ def icon(item, model, texture, yaw, pitch, fit, turn):
     return True
 
 
+def save_item(item, arr):
+    Image.fromarray(arr, "RGBA").save(os.path.join(ASSETS, "textures", "item", item + ".png"))
+    with open(os.path.join(ASSETS, "models", "item", item + ".json"), "w") as f:
+        json.dump({"parent": "minecraft:item/generated", "textures": {"layer0": "godzillaminusone:item/" + item}}, f, indent=2)
+        f.write("\n")
+
+
+def remote_detonator():
+    """Drawn by hand: an olive-drab radio detonator with a red firing button and a telescopic antenna."""
+    a = np.zeros((32, 32, 4), np.uint8)
+
+    def rect(x0, y0, x1, y1, rgb):
+        a[y0:y1 + 1, x0:x1 + 1] = list(rgb) + [255]
+
+    # antenna, leaning back to the right, with a red tip
+    for i in range(12):
+        x, y = 20 + i // 2, 12 - i
+        a[y, x] = [196, 200, 204, 255]
+        a[y, x + 1] = [120, 124, 128, 255]
+    rect(25, 0, 27, 2, (170, 30, 24))
+    a[0, 25] = [230, 80, 60, 255]
+    # the box
+    rect(6, 12, 23, 29, (78, 86, 52))
+    rect(6, 12, 23, 13, (104, 112, 70))              # lit top edge
+    rect(6, 12, 7, 29, (96, 104, 64))                # lit left edge
+    rect(22, 14, 23, 29, (54, 60, 36))               # shaded right edge
+    rect(6, 28, 23, 29, (46, 50, 30))                # shaded bottom
+    # the firing button in its guard
+    rect(10, 9, 17, 11, (40, 40, 38))
+    rect(11, 8, 16, 10, (196, 36, 28))
+    rect(12, 8, 14, 8, (240, 110, 90))
+    # a dial, a lamp and a grille
+    rect(9, 16, 14, 21, (30, 32, 26))
+    rect(10, 17, 13, 20, (214, 206, 170))
+    a[18, 11] = a[19, 12] = [30, 30, 30, 255]
+    rect(17, 16, 19, 18, (250, 196, 40))
+    for y in (23, 25):
+        rect(9, y, 19, y, (40, 44, 28))
+    # outline (no wrapping round the edges)
+    solid = np.pad(a[..., 3] > 0, 1)
+    edge = solid[:-2, 1:-1] | solid[2:, 1:-1] | solid[1:-1, :-2] | solid[1:-1, 2:]
+    edge &= ~solid[1:-1, 1:-1]
+    a[edge] = [20, 20, 22, 255]
+    save_item("remote_detonator", a)
+
+
 def main():
     for item, args in ICONS.items():
         print(item, "ok" if icon(item, *args) else "skipped (no model yet)")
+    remote_detonator()
+    print("remote_detonator ok")
 
 
 if __name__ == "__main__":

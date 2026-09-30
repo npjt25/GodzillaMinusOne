@@ -66,11 +66,7 @@ def main():
     smoke = np.dstack([shade * 1.0, shade * 0.97, shade * 0.93, np.ones_like(shade)])
     save(smoke, "nuclear_smoke.png")
 
-    edge = fbm(SIZE, rng, 5, 4)
-    edge = (edge - edge.min()) / (edge.max() - edge.min())
-    alpha = np.clip((0.55 * edge + 0.45 * b - 0.32) * 2.6, 0, 1)
-    puff = np.dstack([shade, shade * 0.97, shade * 0.93, alpha])
-    save(puff, "nuclear_puff.png")
+    fbm(SIZE, rng, 5, 4)   # (was the smooth cloud's fluffy edge texture; kept so the fire texture stays the same)
 
     t = fbm(SIZE, rng, 5, 4)
     turb = 1 - np.abs(t * 2 - 1)

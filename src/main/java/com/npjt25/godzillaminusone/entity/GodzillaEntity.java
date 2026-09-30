@@ -8,6 +8,7 @@ import com.npjt25.godzillaminusone.registry.ModDamageTypes;
 import com.npjt25.godzillaminusone.registry.ModSounds;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.syncher.EntityDataAccessor;
@@ -139,16 +140,16 @@ public class GodzillaEntity extends Monster implements GeoEntity {
     public static final double SWIM_BITE_REACH = 24.0;
 
     // The atomic breath, measured on the charge animation (blocks: right, up, forward). The head pivots about
-    // HEAD; the beam leaves his mouth at BEAM_NEAR and reaches out to BEAM_FAR: with his head angled 10 degrees up
-    // it slopes down ~10 degrees and lands ~160 blocks ahead on flat ground.
+    // HEAD; the beam leaves his open mouth at BEAM_NEAR and reaches out to BEAM_FAR: with his head angled 10 degrees
+    // up it slopes down ~6.5 degrees, and on flat ground the blast goes off where it ends, ~185 blocks ahead.
     private static final Vec3 HEAD = new Vec3(-0.46, 25.45, 17.48);
-    private static final Vec3 BEAM_NEAR = new Vec3(-0.43, 25.10, 16.75);
-    private static final Vec3 BEAM_FAR = new Vec3(-8.27, -5.53, 191.96);
+    private static final Vec3 BEAM_NEAR = new Vec3(-0.55, 25.44, 20.66);
+    private static final Vec3 BEAM_FAR = new Vec3(-8.27, 5.58, 197.15);
     private static final double BEAM_REACH = 185.0;
     /** The beam veers this far left of where he faces, so he turns this far right to aim it. */
-    private static final float BEAM_YAW = (float) Math.toDegrees(Math.atan2(7.84, 175.2));
-    /** Extra head pitch to aim at a target (degrees, up); never lower than the add-on's original angle. */
-    private static final float MIN_AIM = -10.0F;
+    private static final float BEAM_YAW = (float) Math.toDegrees(Math.atan2(7.72, 176.49));
+    /** Extra head pitch to aim at a target (degrees, up); the beam never slopes down more than 20 degrees. */
+    private static final float MIN_AIM = -13.5F;
     private static final float MAX_AIM = 60.0F;
 
     private static final RawAnimation IDLE = RawAnimation.begin().thenLoop("animation.gojira.idle");
@@ -169,6 +170,10 @@ public class GodzillaEntity extends Monster implements GeoEntity {
     private static final EntityDataAccessor<Integer> DATA_CHARGE = SynchedEntityData.defineId(GodzillaEntity.class, EntityDataSerializers.INT);
     private static final EntityDataAccessor<Float> DATA_AIM = SynchedEntityData.defineId(GodzillaEntity.class, EntityDataSerializers.FLOAT);
     private static final EntityDataAccessor<Boolean> DATA_SWIMMING = SynchedEntityData.defineId(GodzillaEntity.class, EntityDataSerializers.BOOLEAN);
+    private static final EntityDataAccessor<Integer> DATA_BURNS = SynchedEntityData.defineId(GodzillaEntity.class, EntityDataSerializers.INT);
+
+    /** After the beam his mouth is left burnt raw: it smokes, blisters and heals over this many ticks. */
+    public static final int BURN_TICKS = 40 * 20;
 
     private final AnimatableInstanceCache cache = GeckoLibUtil.createInstanceCache(this);
     private final ServerBossEvent bossEvent = new ServerBossEvent(
@@ -252,6 +257,7 @@ public class GodzillaEntity extends Monster implements GeoEntity {
         this.entityData.define(DATA_CHARGE, CHARGE_NONE);
         this.entityData.define(DATA_AIM, 0.0F);
         this.entityData.define(DATA_SWIMMING, false);
+        this.entityData.define(DATA_BURNS, 0);
     }
 
     @Override
@@ -393,9 +399,15 @@ public class GodzillaEntity extends Monster implements GeoEntity {
         if (!(level() instanceof ServerLevel level)) {
             this.aimO = this.aimClient;
             this.aimClient = Mth.approach(this.aimClient, this.entityData.get(DATA_AIM), 4.0F);
+            if (getBurnTicks() > 0) {
+                burnEffects();
+            }
             return;
         }
         this.phaseTicks++;
+        if (getBurnTicks() > 0) {
+            this.entityData.set(DATA_BURNS, getBurnTicks() - 1);
+        }
         this.bossEvent.setProgress(Mth.clamp(getHealth() / getMaxHealth(), 0.0F, 1.0F));
         if (this.tickCount % 4 == 0) {
             updateSwimming(level);
@@ -680,6 +692,10 @@ public class GodzillaEntity extends Monster implements GeoEntity {
         } else if (this.chargeTicks == BEAM_END_TICK) {
             setChargeState(CHARGE_COOLING);
             triggerAnim("action", "roar");
+            // the breath has burnt his own mouth raw
+            this.entityData.set(DATA_BURNS, BURN_TICKS);
+            Vec3 mouth = locator(BEAM_NEAR.x, BEAM_NEAR.y, BEAM_NEAR.z);
+            level.playSound(null, mouth.x, mouth.y, mouth.z, SoundEvents.LAVA_EXTINGUISH, SoundSource.HOSTILE, 8.0F, 0.5F);
         } else if (this.chargeTicks >= CHARGE_LENGTH) {
             this.chargeTicks = -1;
             this.angryTicks = 0;
@@ -775,6 +791,56 @@ public class GodzillaEntity extends Monster implements GeoEntity {
 
     private void atomicHit(LivingEntity entity, DamageSource source) {
         Blasts.nuclearHit(entity, source, false);
+    }
+
+    // ------------------------------------------------------------------ burns
+
+    /** Ticks until the burns round his mouth have healed (0: no burns). */
+    public int getBurnTicks() {
+        return this.entityData.get(DATA_BURNS);
+    }
+
+    /** How fresh the burns are: 1 just after the beam, down to 0 once healed. */
+    public float getBurns(float partialTick) {
+        return Mth.clamp((getBurnTicks() - partialTick) / BURN_TICKS, 0.0F, 1.0F);
+    }
+
+    /** For the game tests. */
+    public void setBurnTicks(int ticks) {
+        this.entityData.set(DATA_BURNS, ticks);
+    }
+
+    /** Client side: his burnt mouth smokes, spits embers while still hot, and blisters pop as it heals. */
+    private void burnEffects() {
+        float burns = getBurns(0.0F);
+        Vec3 mouth;
+        if (isSwimmingAtSurface()) {
+            mouth = locator(0.0, SWIM_SINK + 1.0, 20.0);
+        } else if (isCharging()) {
+            mouth = locator(BEAM_NEAR.x, BEAM_NEAR.y + 4.0, BEAM_NEAR.z - 2.0);
+        } else {
+            mouth = locator(0.0, 38.5, 12.5);
+        }
+        Level level = level();
+        if (this.random.nextFloat() < 0.3F + burns) {
+            level.addParticle(burns > 0.5F ? ParticleTypes.LARGE_SMOKE : ParticleTypes.SMOKE,
+                    mouth.x + this.random.nextGaussian() * 1.4, mouth.y + this.random.nextGaussian() * 1.0,
+                    mouth.z + this.random.nextGaussian() * 1.4, 0.0, 0.08 + 0.1 * burns, 0.0);
+        }
+        if (this.random.nextFloat() < burns * 0.25F) {
+            level.addAlwaysVisibleParticle(ParticleTypes.CAMPFIRE_COSY_SMOKE, true,
+                    mouth.x + this.random.nextGaussian(), mouth.y + 1.0, mouth.z + this.random.nextGaussian(), 0.0, 0.05, 0.0);
+        }
+        if (burns > 0.75F && this.random.nextFloat() < 0.5F) {
+            level.addParticle(ParticleTypes.LAVA, mouth.x + this.random.nextGaussian(), mouth.y, mouth.z + this.random.nextGaussian(), 0.0, 0.0, 0.0);
+        }
+        if (this.random.nextFloat() < 0.15F * burns) {
+            level.addParticle(ParticleTypes.BUBBLE_POP, mouth.x + this.random.nextGaussian() * 1.2, mouth.y + this.random.nextGaussian() * 0.8,
+                    mouth.z + this.random.nextGaussian() * 1.2, 0.0, 0.0, 0.0);
+            if (this.random.nextInt(4) == 0) {
+                level.playLocalSound(mouth.x, mouth.y, mouth.z, SoundEvents.LAVA_POP, SoundSource.HOSTILE, 3.0F, 0.6F + this.random.nextFloat() * 0.3F, false);
+            }
+        }
     }
 
     private void startBlackRain(ServerLevel level) {
@@ -1101,6 +1167,7 @@ public class GodzillaEntity extends Monster implements GeoEntity {
         tag.putInt("Phase", getPhase().ordinal());
         tag.putInt("PhaseTicks", this.phaseTicks);
         tag.putInt("BreathCooldown", this.breathCooldown);
+        tag.putInt("Burns", getBurnTicks());
     }
 
     @Override
@@ -1113,6 +1180,7 @@ public class GodzillaEntity extends Monster implements GeoEntity {
             this.bossEvent.setVisible(phase != Phase.COLLAPSING.ordinal() && phase != Phase.DEAD.ordinal());
         }
         this.breathCooldown = tag.getInt("BreathCooldown");
+        this.entityData.set(DATA_BURNS, Mth.clamp(tag.getInt("Burns"), 0, BURN_TICKS));
         // Godzillas saved by an older version of the mod walked faster.
         AttributeInstance speed = getAttribute(Attributes.MOVEMENT_SPEED);
         if (speed != null) {

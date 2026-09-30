@@ -17,12 +17,16 @@ import software.bernie.geckolib.renderer.GeoEntityRenderer;
 import software.bernie.geckolib.renderer.layer.GeoRenderLayer;
 
 import java.util.Map;
+import java.util.Set;
 
 /**
- * Renders Godzilla (the add-on's model, with the mod's extra detail) in four passes:
+ * Renders Godzilla (the add-on's model, with the mod's extra detail) in these passes:
  * <ol>
  *   <li>the model (cut-out),</li>
  *   <li>the glowing eyes,</li>
+ *   <li>after the atomic breath, the burns round his mouth (head, jaw and upper neck only): raw, blistered flesh
+ *       that closes up as it heals (godzilla_burns.png's alpha is the order it heals in: fading the pass cuts
+ *       away its rim first), and glows hot for the first seconds,</li>
  *   <li>while charging, the dorsal plates lighting up blue one after another, from the tail tip to the neck, at the
  *       moment the charge animation punches each of them up,</li>
  *   <li>the atomic breath: bone "B", which the charge animation stretches into the beam, drawn as glowing energy.</li>
@@ -38,7 +42,12 @@ public class GodzillaRenderer extends GeoEntityRenderer<GodzillaEntity> {
     private static final ResourceLocation PLATE_GLOW = GodzillaMinusOne.id("textures/entity/godzilla_charged_glow.png");
     private static final ResourceLocation BEAM_CORE = GodzillaMinusOne.id("textures/entity/godzilla_beam.png");
     private static final ResourceLocation BEAM_SWIRL = new ResourceLocation("textures/entity/creeper/creeper_armor.png");
+    private static final ResourceLocation BURNS = GodzillaMinusOne.id("textures/entity/godzilla_burns.png");
+    private static final ResourceLocation BURNS_GLOW = GodzillaMinusOne.id("textures/entity/godzilla_burns_glow.png");
     private static final String BEAM_BONE = "B";
+    private static final Set<String> BURN_BONES = Set.of("Head", "Jew", "neck2");
+    /** Seconds the burnt flesh keeps glowing hot. */
+    private static final float BURN_HEAT_SECONDS = 8.0F;
 
     /** Dorsal plate bones and the time (s into the charge animation) each one is punched up. */
     private static final Map<String, Float> PLATE_TIMES = Map.ofEntries(
@@ -51,7 +60,7 @@ public class GodzillaRenderer extends GeoEntityRenderer<GodzillaEntity> {
             Map.entry("T10", 8.54F), Map.entry("T11", 8.54F));
 
     private enum Pass {
-        MODEL, EYES, PLATES, BEAM
+        MODEL, EYES, BURNS, PLATES, BEAM
     }
 
     private Pass pass = Pass.MODEL;
@@ -73,6 +82,11 @@ public class GodzillaRenderer extends GeoEntityRenderer<GodzillaEntity> {
         switch (this.pass) {
             case MODEL, EYES -> {
                 if (!BEAM_BONE.equals(name)) {
+                    super.renderCubesOfBone(poseStack, bone, buffer, packedLight, packedOverlay, red, green, blue, alpha);
+                }
+            }
+            case BURNS -> {
+                if (BURN_BONES.contains(name)) {
                     super.renderCubesOfBone(poseStack, bone, buffer, packedLight, packedOverlay, red, green, blue, alpha);
                 }
             }
@@ -104,10 +118,15 @@ public class GodzillaRenderer extends GeoEntityRenderer<GodzillaEntity> {
 
     private void renderPass(Pass pass, PoseStack poseStack, GodzillaEntity entity, BakedGeoModel model, MultiBufferSource buffers,
                             RenderType type, float partialTick, float red, float green, float blue) {
+        renderPass(pass, poseStack, entity, model, buffers, type, partialTick, LightTexture.FULL_BRIGHT, red, green, blue, 1.0F);
+    }
+
+    private void renderPass(Pass pass, PoseStack poseStack, GodzillaEntity entity, BakedGeoModel model, MultiBufferSource buffers,
+                            RenderType type, float partialTick, int light, float red, float green, float blue, float alpha) {
         this.pass = pass;
         try {
-            reRender(model, poseStack, buffers, entity, type, buffers.getBuffer(type), partialTick, LightTexture.FULL_BRIGHT,
-                    OverlayTexture.NO_OVERLAY, red, green, blue, 1.0F);
+            reRender(model, poseStack, buffers, entity, type, buffers.getBuffer(type), partialTick, light,
+                    OverlayTexture.NO_OVERLAY, red, green, blue, alpha);
         } finally {
             this.pass = Pass.MODEL;
         }
@@ -129,6 +148,21 @@ public class GodzillaRenderer extends GeoEntityRenderer<GodzillaEntity> {
                 return;
             }
             this.godzilla.renderPass(Pass.EYES, poseStack, entity, model, buffers, RenderType.eyes(EYES), partialTick, 1.0F, 1.0F, 1.0F);
+            float burns = entity.getBurns(partialTick);
+            if (burns > 0.0F) {
+                // the wounds close up from their edges; the flesh still writhes as it knits
+                float time = entity.tickCount + partialTick;
+                float heal = (float) Math.pow(burns, 0.6) * (0.94F + 0.06F * Mth.sin(time * 0.9F));
+                this.godzilla.renderPass(Pass.BURNS, poseStack, entity, model, buffers, RenderType.entityTranslucent(BURNS), partialTick,
+                        packedLight, 1.0F, 1.0F, 1.0F, heal);
+                float seconds = (1.0F - burns) * GodzillaEntity.BURN_TICKS / 20.0F;
+                float heat = Mth.clamp(1.0F - seconds / BURN_HEAT_SECONDS, 0.0F, 1.0F);
+                if (heat > 0.0F) {
+                    heat = heat * heat * (0.85F + 0.15F * Mth.sin(time * 1.7F));
+                    this.godzilla.renderPass(Pass.BURNS, poseStack, entity, model, buffers, RenderType.eyes(BURNS_GLOW), partialTick,
+                            heat, heat, heat);
+                }
+            }
             int state = entity.getChargeState();
             if (state == GodzillaEntity.CHARGE_NONE) {
                 return;

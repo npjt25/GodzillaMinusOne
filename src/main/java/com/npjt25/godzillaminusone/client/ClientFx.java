@@ -1,5 +1,6 @@
 package com.npjt25.godzillaminusone.client;
 
+import com.npjt25.godzillaminusone.ClientConfig;
 import com.npjt25.godzillaminusone.GodzillaMinusOne;
 import com.npjt25.godzillaminusone.client.particle.Fx;
 import com.npjt25.godzillaminusone.client.render.NuclearCloud;
@@ -202,6 +203,10 @@ public final class ClientFx {
             return;
         }
         event.setCanceled(true);
+        if (!ClientConfig.SHOW_BOSS_BAR.get()) {
+            event.setIncrement(0); // switched off in the settings: no bar, and no gap where it would be
+            return;
+        }
         GuiGraphics graphics = event.getGuiGraphics();
         // The add-on's panel, at 60% of its original size.
         int centerX = event.getX() + 91;

@@ -13,9 +13,11 @@ import com.npjt25.godzillaminusone.registry.ModEntities;
 import com.npjt25.godzillaminusone.registry.ModParticles;
 import net.minecraft.core.particles.SimpleParticleType;
 import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.client.ConfigScreenHandler;
 import net.minecraftforge.client.event.EntityRenderersEvent;
 import net.minecraftforge.client.event.RegisterParticleProvidersEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.minecraftforge.fml.ModLoadingContext;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent;
 import net.minecraftforge.registries.RegistryObject;
@@ -51,6 +53,12 @@ public final class ClientSetup {
                 return (options, level, x, y, z, dx, dy, dz) -> Fx.basic(particleType, level, x, y, z, dx, dy, dz);
             });
         }
+    }
+
+    /** The "Config" button in the mods list opens the mod's settings screen. */
+    public static void registerConfigScreen() {
+        ModLoadingContext.get().registerExtensionPoint(ConfigScreenHandler.ConfigScreenFactory.class,
+                () -> new ConfigScreenHandler.ConfigScreenFactory((minecraft, parent) -> new ModConfigScreen(parent)));
     }
 
     private ClientSetup() {

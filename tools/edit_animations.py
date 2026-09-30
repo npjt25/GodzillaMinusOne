@@ -6,15 +6,24 @@ Run after tools/convert_addon.py. Edits animations/entity/godzilla.animation.jso
 twice):
 
   * atomic breath: a 4 second in-breath (head and chest rear back, jaw opens, with its own breathing sound)
-    inserted just before the beam, the head angled 10 degrees higher while firing, and a longer, thicker beam,
+    inserted just before the beam, the head angled 10 degrees higher while firing, and a longer, thicker beam
+    that comes straight out of his open mouth,
   * a new "animation.gojira.swim_bite" (a lunging bite in the swimming pose, so he doesn't stand up to attack).
 """
 import json
+import math
 import os
+import sys
+
+import numpy as np
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import render_preview as rp  # noqa: E402  (GeckoLib's bone maths)
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-PATH = os.path.join(ROOT, "src", "main", "resources", "assets", "godzillaminusone", "animations", "entity",
-                    "godzilla.animation.json")
+ASSETS = os.path.join(ROOT, "src", "main", "resources", "assets", "godzillaminusone")
+PATH = os.path.join(ASSETS, "animations", "entity", "godzilla.animation.json")
+GEO = os.path.join(ASSETS, "geo", "entity", "godzilla.geo.json")
 
 INHALE_AT = 10.42             # charge animation: head reared back, jaw open, just before the beam
 INHALE_LENGTH = 4.0
@@ -133,7 +142,53 @@ def edit_charge(anim):
     b = bones["B"]
     b["scale"] = {k: [round(val(v)[0] * BEAM_THICKNESS, 4), round(val(v)[1] * BEAM_THICKNESS, 4),
                       round(val(v)[2] * BEAM_LENGTH, 4) if val(v)[2] > 2 else val(v)[2]] for k, v in b["scale"].items()}
-    b["position"] = {k: [round(q * BEAM_LENGTH, 4) for q in val(v)] for k, v in b["position"].items()}
+
+
+def beam_from_mouth(anim):
+    """Bone B is a 2 pixel cube that the charge animation stretches (scale z) into the beam. Its keyframes put
+    the beam's back end right inside the open mouth, between the jaws, pointing out along the middle of the
+    gape, at every keyframe (so it stays in the mouth as it flickers and thins out at the end)."""
+    bones_geo, _, _ = rp.load_geo(GEO)
+    geo = {b["name"]: b for b in bones_geo}
+    bones = anim["bones"]
+    firing = BEAM_START + 1.0
+    pose = {name: {c: sample(ch, firing) for c, ch in chans.items()} for name, chans in bones.items()}
+    mats = rp.bone_matrices(bones_geo, pose)
+    head_inv = np.linalg.inv(mats["Head"])
+    jaw_in_head = head_inv @ mats["Jew"]
+
+    def gl(p):   # Bedrock pixel coordinates -> GeckoLib's (x mirrored)
+        return np.array([-p[0], p[1], p[2], 1.0])
+
+    upper = gl((0.04, 72.75, -33.0))[:3]                     # the palate behind the upper front teeth
+    lower = (jaw_in_head @ gl((0.04, 74.2, -32.0)))[:3]     # the tongue, behind the lower front teeth
+    forward_upper = np.array([0.0, 0.0, -1.0])
+    forward_lower = jaw_in_head[:3, :3] @ forward_upper
+    d = forward_upper + forward_lower
+    d[0] = 0.0
+    d /= np.linalg.norm(d)
+    mouth = (upper + lower) / 2 - d * 1.5                     # a little way back inside the mouth
+
+    b = geo["B"]
+    piv = gl(b["pivot"])[:3]
+    rest = b.get("rotation", [0, 0, 0])[0]
+    # the cube's front (its -z end) must point along d: GeckoLib turns it by -(rest + key) degrees about x
+    theta = math.asin(d[1])
+    key_x = -math.degrees(theta) - rest
+    channel = bones["B"]
+    channel["rotation"] = {k: ([round(key_x, 4), 0, 0] if val(v)[2] > 2 else [0, 0, 0])
+                           for k, v in ((k, channel["scale"][k]) for k in channel["scale"])}
+    positions = {}
+    for k, v in channel["scale"].items():
+        sz = val(v)[2]
+        if sz <= 2:
+            positions[k] = [0.0, 0.0, 0.0]
+            continue
+        centre = mouth + d * sz                               # its back end (centre - sz * d) at the mouth
+        t = centre - piv
+        positions[k] = [round(-t[0], 4), round(t[1], 4), round(t[2], 4)]
+    channel["position"] = positions
+    return mouth, d
 
 
 def swim_bite(anims):
@@ -168,6 +223,9 @@ def main():
     if "animation.gojira.swim_bite" in anims:
         raise SystemExit("already edited; re-run tools/convert_addon.py first")
     edit_charge(anims["animation.gojira.charge"])
+    mouth, d = beam_from_mouth(anims["animation.gojira.charge"])
+    print("beam leaves the mouth at %s px (head space), pointing %.1f degrees below the snout"
+          % (np.round(mouth, 2), math.degrees(math.asin(-d[1]))))
     anims["animation.gojira.swim_bite"] = swim_bite(anims)
     with open(PATH, "w") as f:
         json.dump(data, f, indent=1)

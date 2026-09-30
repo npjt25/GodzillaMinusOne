@@ -1,6 +1,7 @@
 package com.npjt25.godzillaminusone;
 
 import com.mojang.logging.LogUtils;
+import com.npjt25.godzillaminusone.client.ClientSetup;
 import com.npjt25.godzillaminusone.entity.GodzillaEntity;
 import com.npjt25.godzillaminusone.entity.NavalMineEntity;
 import com.npjt25.godzillaminusone.entity.OdoIslandMonsterEntity;
@@ -12,8 +13,10 @@ import com.npjt25.godzillaminusone.registry.ModItems;
 import com.npjt25.godzillaminusone.registry.ModParticles;
 import com.npjt25.godzillaminusone.registry.ModSounds;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.event.entity.EntityAttributeCreationEvent;
 import net.minecraftforge.eventbus.api.IEventBus;
+import net.minecraftforge.fml.DistExecutor;
 import net.minecraftforge.fml.ModLoadingContext;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.config.ModConfig;
@@ -39,6 +42,8 @@ public class GodzillaMinusOne {
         modBus.addListener(this::registerAttributes);
 
         ModLoadingContext.get().registerConfig(ModConfig.Type.COMMON, Config.SPEC);
+        ModLoadingContext.get().registerConfig(ModConfig.Type.CLIENT, ClientConfig.SPEC);
+        DistExecutor.unsafeRunWhenOn(Dist.CLIENT, () -> ClientSetup::registerConfigScreen);
     }
 
     public static ResourceLocation id(String path) {

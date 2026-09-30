@@ -63,8 +63,8 @@ public class ShindenEntity extends Mob implements GeoEntity {
     private static final double STALL_SPEED = 0.35;
     /** Hitting something at this fraction of top speed or more is a crash. */
     private static final double CRASH_SPEED = 0.75;
-    /** A crash goes off like five blocks of TNT (TNT is 4). */
-    private static final float CRASH_EXPLOSION_POWER = 20.0F;
+    /** A crash goes off like three blocks of TNT (TNT is 4). */
+    public static final float CRASH_EXPLOSION_POWER = 12.0F;
 
     private static final EntityDataAccessor<Integer> DATA_HURT_TIME = SynchedEntityData.defineId(ShindenEntity.class, EntityDataSerializers.INT);
     private static final EntityDataAccessor<Integer> DATA_HURT_DIR = SynchedEntityData.defineId(ShindenEntity.class, EntityDataSerializers.INT);
@@ -74,10 +74,13 @@ public class ShindenEntity extends Mob implements GeoEntity {
     private double flightSpeed;
     private boolean exploded;
     private boolean crashed;
-    // Client side: how far the plane leans into a turn (degrees, right wing down is positive).
+    // Client side: how far the plane leans into a turn (degrees, right wing down is positive), and how far its
+    // nose is up (positive) or down along its flight path.
     private float bank;
     private float bankO;
     private float bankYaw;
+    private float pitch;
+    private float pitchO;
 
     public ShindenEntity(EntityType<? extends ShindenEntity> type, Level level) {
         super(type, level);
@@ -115,6 +118,17 @@ public class ShindenEntity extends Mob implements GeoEntity {
             this.bankYaw = getYRot();
             float wanted = isVehicle() ? Mth.clamp(turn * 3.5F, -40.0F, 40.0F) : 0.0F;
             this.bank += (wanted - this.bank) * 0.2F;
+            // Nose up when climbing, down when diving: along the way it's actually moving.
+            this.pitchO = this.pitch;
+            double dx = getX() - this.xo;
+            double dy = getY() - this.yo;
+            double dz = getZ() - this.zo;
+            double horizontal = Math.sqrt(dx * dx + dz * dz);
+            float wantedPitch = 0.0F;
+            if (isVehicle() && !onGround() && horizontal + Math.abs(dy) > 0.1) {
+                wantedPitch = Mth.clamp((float) (Mth.atan2(dy, horizontal) * Mth.RAD_TO_DEG), -60.0F, 60.0F);
+            }
+            this.pitch += (wantedPitch - this.pitch) * 0.2F;
             return;
         }
         // like a boat, knocks wear off again
@@ -129,6 +143,11 @@ public class ShindenEntity extends Mob implements GeoEntity {
     /** How far the plane leans into a turn (degrees, right wing down is positive). */
     public float getBank(float partialTick) {
         return Mth.lerp(partialTick, this.bankO, this.bank);
+    }
+
+    /** How far the nose is up (degrees; negative is nose down), following its climb or dive. */
+    public float getNosePitch(float partialTick) {
+        return Mth.lerp(partialTick, this.pitchO, this.pitch);
     }
 
     public static AttributeSupplier.Builder createAttributes() {

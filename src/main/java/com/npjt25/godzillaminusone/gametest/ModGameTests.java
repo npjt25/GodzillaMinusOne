@@ -359,9 +359,9 @@ public final class ModGameTests {
         ShindenEntity plane = helper.spawn(ModEntities.SHINDEN.get(), new Vec3(4.5, floor + 1, 4.5));
         Pig pilot = helper.spawn(EntityType.PIG, new Vec3(4.5, floor + 1, 4.5));
         Pig bystander = helper.spawn(EntityType.PIG, new Vec3(4.5, floor + 1, 8.5));
-        Blasts.impact(helper.getLevel(), plane.position(), 20.0F, plane, pilot);
+        Blasts.impact(helper.getLevel(), plane.position(), ShindenEntity.CRASH_EXPLOSION_POWER, plane, pilot);
         helper.assertTrue(pilot.isAlive() && pilot.getHealth() == pilot.getMaxHealth(), "the pilot should be spared");
-        helper.assertFalse(bystander.isAlive(), "a 5x TNT blast should kill a pig 4 blocks away");
+        helper.assertFalse(bystander.isAlive(), "a 3x TNT blast should kill a pig 4 blocks away");
         remove(plane, pilot);
         helper.succeed();
     }

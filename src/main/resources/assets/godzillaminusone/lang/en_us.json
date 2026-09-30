@@ -1,5 +1,8 @@
 {
   "itemGroup.godzillaminusone": "Godzilla Minus One",
+  "config.godzillaminusone.title": "Godzilla Minus One Settings",
+  "config.godzillaminusone.show_boss_bar": "Godzilla Health Bar",
+  "config.godzillaminusone.show_boss_bar.tooltip": "Show Godzilla's health bar at the top of the screen.",
 
   "entity.godzillaminusone.godzilla": "Godzilla",
   "entity.godzillaminusone.shinden": "Kyushu J7W1 Shinden",
@@ -18,6 +21,9 @@
   "item.godzillaminusone.nuclear_bomb": "Nuclear Bomb",
   "item.godzillaminusone.nuclear_bomb.desc": "Use on a spot up to 256 blocks away: a bomb falls on it from the sky and detonates 20 seconds later.",
   "item.godzillaminusone.nuclear_bomb.no_target": "No target in sight",
+  "item.godzillaminusone.remote_detonator": "Remote Detonator",
+  "item.godzillaminusone.remote_detonator.desc": "Point it at a naval mine and right-click to set it off. Stand well clear!",
+  "item.godzillaminusone.remote_detonator.no_target": "No naval mine in sight",
   "item.godzillaminusone.torrid": "Torrid",
   "item.godzillaminusone.torrid.desc": "The Shinden's cannon. Use it while flying.",
 
