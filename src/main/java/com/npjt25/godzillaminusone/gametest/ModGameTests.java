@@ -25,6 +25,7 @@ import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.animal.Pig;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
@@ -445,13 +446,17 @@ public final class ModGameTests {
         ShindenEntity plane = helper.spawn(ModEntities.SHINDEN.get(), new Vec3(4.5, floor + 1, 4.5));
         Pig pilot = helper.spawn(EntityType.PIG, new Vec3(4.5, floor + 1, 4.5));
         Pig bystander = helper.spawn(EntityType.PIG, new Vec3(4.5, floor + 1, 8.5));
+        // (a crashing plane is already done for when its explosion goes off; this one, left whole, would be set off
+        // by the blast like a naval mine and reach the tests next door)
+        plane.discard();
         Blasts.impact(helper.getLevel(), plane.position(), ShindenEntity.CRASH_EXPLOSION_POWER, plane, pilot);
         helper.assertTrue(pilot.isAlive() && pilot.getHealth() == pilot.getMaxHealth(), "the pilot should be spared");
         helper.assertFalse(bystander.isAlive(), "a 3x TNT blast should kill a pig 4 blocks away");
         helper.assertTrue(helper.getBlockState(new BlockPos(4, floor, 4)).isAir(), "the blast should blow a hole in the floor");
-        List<ItemEntity> drops = helper.getLevel().getEntitiesOfClass(ItemEntity.class, plane.getBoundingBox().inflate(16.0));
+        List<ItemEntity> drops = helper.getLevel().getEntitiesOfClass(ItemEntity.class, plane.getBoundingBox().inflate(16.0),
+                item -> item.getItem().getItem() instanceof BlockItem);
         helper.assertTrue(drops.isEmpty(), "the blocks it breaks should vanish, not drop: " + drops);
-        remove(plane, pilot);
+        remove(pilot);
         helper.succeed();
     }
 
