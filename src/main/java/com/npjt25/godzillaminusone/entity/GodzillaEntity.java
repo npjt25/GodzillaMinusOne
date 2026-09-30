@@ -9,6 +9,7 @@ import com.npjt25.godzillaminusone.registry.ModSounds;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
+import net.minecraft.core.particles.BlockParticleOption;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.nbt.CompoundTag;
@@ -23,6 +24,7 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
+import net.minecraft.tags.BlockTags;
 import net.minecraft.tags.DamageTypeTags;
 import net.minecraft.tags.FluidTags;
 import net.minecraft.util.Mth;
@@ -54,10 +56,13 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.entity.vehicle.Boat;
 import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.LiquidBlock;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.event.ForgeEventFactory;
@@ -206,6 +211,12 @@ public class GodzillaEntity extends Monster implements GeoEntity {
     private int blackRainTicks = -1;
     private Vec3 blackRainPos = Vec3.ZERO;
     private double swimY;
+    /** A tall building he is knocking down, or null. */
+    @Nullable
+    private Building demolishing;
+    private int demolitionSwipes;
+    /** After failing to bring a building down (it won't break), he leaves buildings alone for a while. */
+    private int demolitionRest;
 
     // Client side: when the charge state last changed (for the plate glow), and the smoothed head aim.
     private int chargeChangedTick;
@@ -287,6 +298,7 @@ public class GodzillaEntity extends Monster implements GeoEntity {
     @Override
     protected void registerGoals() {
         this.goalSelector.addGoal(2, new ChaseGoal(this));
+        this.goalSelector.addGoal(4, new DemolishGoal(this));
         this.goalSelector.addGoal(6, new WanderGoal(this));
         this.goalSelector.addGoal(7, new LookAtPlayerGoal(this, Player.class, 48.0F));
         this.goalSelector.addGoal(8, new RandomLookAroundGoal(this));
@@ -505,6 +517,9 @@ public class GodzillaEntity extends Monster implements GeoEntity {
         }
         if (this.attackCooldown > 0) {
             this.attackCooldown--;
+        }
+        if (this.demolitionRest > 0) {
+            this.demolitionRest--;
         }
         if (this.stunTicks > 0) {
             this.stunTicks--;
@@ -980,6 +995,9 @@ public class GodzillaEntity extends Monster implements GeoEntity {
                 ModNetwork.shake(level, foot, 128.0, 1.2F, 2.0F);
             }
             case SWIPE_RIGHT, SWIPE_LEFT -> {
+                if (target == null && this.demolishing != null) {
+                    knockDown(level);
+                }
                 // the claws rake across in front of him, flinging what they hit aside
                 double side = attack == Attack.SWIPE_RIGHT ? 1.0 : -1.0;
                 Vec3 claws = locator(2.0 * side, 10.0, 15.0);
@@ -1174,6 +1192,16 @@ public class GodzillaEntity extends Monster implements GeoEntity {
         return level().getEntitiesOfClass(LivingEntity.class, getBoundingBox().inflate(radius), e -> e != this && e.isAlive());
     }
 
+    /** Turns towards (x, z), at most {@code maxTurn} degrees; returns how far he still has to turn. */
+    float faceTowards(double x, double z, float maxTurn) {
+        float yaw = (float) (Mth.atan2(z - getZ(), x - getX()) * Mth.RAD_TO_DEG) - 90.0F;
+        float newYaw = Mth.approachDegrees(getYRot(), yaw, maxTurn);
+        setYRot(newYaw);
+        this.yBodyRot = newYaw;
+        this.yHeadRot = newYaw;
+        return Mth.degreesDifferenceAbs(newYaw, yaw);
+    }
+
     /** Turns towards {@code target} (plus {@code offset} degrees to the right), at most {@code maxTurn} degrees. */
     void faceTowards(Entity target, float maxTurn, float offset) {
         double dx = target.getX() - getX();
@@ -1230,6 +1258,186 @@ public class GodzillaEntity extends Monster implements GeoEntity {
                 }
             }
         }
+    }
+
+    // ------------------------------------------------------------------ knocking down tall buildings
+
+    /** How far he looks for tall buildings. */
+    private static final int BUILDING_SIGHT = 64;
+    /** Each swipe brings down what stands within this many blocks of the building's tallest point... */
+    private static final int KNOCK_RADIUS = 8;
+    /** ...this many layers at a time. */
+    private static final int KNOCK_LAYERS = 10;
+
+    /** A building: the column (x, z) where it stands tallest, the ground it stands on and its top. */
+    record Building(int x, int z, int ground, int top) {
+        int height() {
+            return this.top - this.ground;
+        }
+    }
+
+    boolean canDemolish() {
+        return isActive() && getTarget() == null && !isCharging() && !isSwimmingAtSurface() && this.demolitionRest <= 0
+                && Config.KNOCKS_DOWN_TALL_BUILDINGS.get() && Config.GODZILLA_BREAKS_BLOCKS.get()
+                && level() instanceof ServerLevel level && ForgeEventFactory.getMobGriefingEvent(level, this);
+    }
+
+    /** The nearest building in sight standing tallBuildingHeight blocks or more above the ground, if any. */
+    @Nullable
+    private Building findTallBuilding(ServerLevel level) {
+        int threshold = Config.TALL_BUILDING_HEIGHT.get();
+        int cx = Mth.floor(getX());
+        int cz = Mth.floor(getZ());
+        Building best = null;
+        double bestDistance = Double.MAX_VALUE;
+        for (int dx = -BUILDING_SIGHT; dx <= BUILDING_SIGHT; dx += 3) {
+            for (int dz = -BUILDING_SIGHT; dz <= BUILDING_SIGHT; dz += 3) {
+                double d2 = dx * dx + dz * dz;
+                int x = cx + dx;
+                int z = cz + dz;
+                if (d2 > BUILDING_SIGHT * BUILDING_SIGHT || d2 >= bestDistance || !level.getChunkSource().hasChunk(x >> 4, z >> 4)) {
+                    continue;
+                }
+                int top = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z) - 1;
+                Building building = measure(level, x, top, z);
+                if (building != null && building.height() >= threshold && canSee(level, building)) {
+                    best = building;
+                    bestDistance = d2;
+                }
+            }
+        }
+        return best;
+    }
+
+    /** The building whose top is at (x, top, z): down through what's built (and the rooms inside) to the ground. */
+    @Nullable
+    private static Building measure(Level level, int x, int top, int z) {
+        BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos(x, top, z);
+        if (!isBuilt(level.getBlockState(pos))) {
+            return null;
+        }
+        for (int y = top - 1; y > top - 256 && y >= level.getMinBuildHeight(); y--) {
+            BlockState state = level.getBlockState(pos.setY(y));
+            if (!state.isAir() && !isBuilt(state)) {
+                return new Building(x, z, y, top);
+            }
+        }
+        return null;
+    }
+
+    /** Whether a block was (most likely) put there by someone: not the ground, water, trees or plants. */
+    static boolean isBuilt(BlockState state) {
+        return !state.isAir() && !(state.getBlock() instanceof LiquidBlock) && !state.canBeReplaced() && !Destruction.isGround(state)
+                && !state.is(BlockTags.LEAVES) && !state.is(BlockTags.LOGS) && !state.is(BlockTags.FLOWERS) && !state.is(BlockTags.SAPLINGS)
+                && !state.is(BlockTags.CORAL_BLOCKS) && !state.is(Blocks.BAMBOO) && !state.is(Blocks.CACTUS) && !state.is(Blocks.SUGAR_CANE)
+                && !state.is(Blocks.KELP) && !state.is(Blocks.KELP_PLANT) && !state.is(Blocks.POWDER_SNOW) && !state.is(Blocks.POINTED_DRIPSTONE)
+                && !state.is(Blocks.BROWN_MUSHROOM_BLOCK) && !state.is(Blocks.RED_MUSHROOM_BLOCK) && !state.is(Blocks.MUSHROOM_STEM)
+                && !state.is(Blocks.MANGROVE_ROOTS) && !state.is(Blocks.BEDROCK);
+    }
+
+    private boolean canSee(ServerLevel level, Building building) {
+        Vec3 top = new Vec3(building.x() + 0.5, building.top() + 0.5, building.z() + 0.5);
+        BlockHitResult hit = level.clip(new ClipContext(getEyePosition(), top, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, this));
+        return hit.getType() == HitResult.Type.MISS || hit.getBlockPos().distSqr(BlockPos.containing(top)) <= 16.0;
+    }
+
+    private void startDemolitionSwipe() {
+        Attack attack = (this.demolitionSwipes++ & 1) == 0 ? Attack.SWIPE_RIGHT : Attack.SWIPE_LEFT;
+        this.pendingAttack = attack;
+        this.pendingHitTicks = attack.hitDelay;
+        this.attackCooldown = attack.length + 6;
+        triggerAnim("action", attack.anim);
+    }
+
+    /**
+     * A swipe at the building he's knocking down: the top {@link #KNOCK_LAYERS} layers of what stands within
+     * {@link #KNOCK_RADIUS} blocks of its tallest point come down, but never below tallBuildingHeight - 1 blocks above
+     * its ground. Then he sizes up what is left of it.
+     */
+    private void knockDown(ServerLevel level) {
+        Building building = this.demolishing;
+        int keep = building.ground() + Config.TALL_BUILDING_HEIGHT.get() - 1;
+        int bottom = Math.max(keep + 1, building.top() - KNOCK_LAYERS + 1);
+        BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
+        int knocked = 0;
+        for (int y = building.top(); y >= bottom; y--) {
+            for (int dx = -KNOCK_RADIUS; dx <= KNOCK_RADIUS; dx++) {
+                for (int dz = -KNOCK_RADIUS; dz <= KNOCK_RADIUS; dz++) {
+                    if (dx * dx + dz * dz > KNOCK_RADIUS * KNOCK_RADIUS) {
+                        continue;
+                    }
+                    BlockState state = level.getBlockState(pos.set(building.x() + dx, y, building.z() + dz));
+                    if (state.isAir() || state.getBlock() instanceof LiquidBlock || Destruction.isGround(state)
+                            || !Destruction.canBreak(level, pos, state, this)) {
+                        continue;
+                    }
+                    if (knocked % 6 == 0) {
+                        level.sendParticles(new BlockParticleOption(ParticleTypes.BLOCK, state), pos.getX() + 0.5, pos.getY() + 0.5,
+                                pos.getZ() + 0.5, 4, 0.6, 0.6, 0.6, 0.2);
+                    }
+                    level.setBlock(pos, Blocks.AIR.defaultBlockState(), Block.UPDATE_CLIENTS);
+                    knocked++;
+                }
+            }
+        }
+        if (knocked == 0) {
+            // it won't come down: he gives up on buildings for a while
+            this.demolishing = null;
+            this.demolitionRest = 60 * 20;
+            return;
+        }
+        level.playSound(null, building.x() + 0.5, bottom, building.z() + 0.5, SoundEvents.GENERIC_EXPLODE, SoundSource.BLOCKS, 6.0F, 0.5F);
+        this.demolishing = tallestStanding(level, building, keep);
+    }
+
+    /** What is left of a building after a swipe: its tallest column still too tall, if any. */
+    @Nullable
+    private static Building tallestStanding(ServerLevel level, Building was, int keep) {
+        int threshold = Config.TALL_BUILDING_HEIGHT.get();
+        int reach = KNOCK_RADIUS + 4;
+        int from = Math.min(level.getMaxBuildHeight() - 1, was.top() + 40);
+        BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
+        Building best = null;
+        for (int dx = -reach; dx <= reach; dx++) {
+            for (int dz = -reach; dz <= reach; dz++) {
+                int x = was.x() + dx;
+                int z = was.z() + dz;
+                for (int y = from; y > keep; y--) {
+                    BlockState state = level.getBlockState(pos.set(x, y, z));
+                    if (state.isAir()) {
+                        continue;
+                    }
+                    if (isBuilt(state)) {
+                        Building building = measure(level, x, y, z);
+                        if (building != null && building.height() >= threshold && (best == null || building.top() > best.top())) {
+                            best = building;
+                        }
+                    }
+                    break;
+                }
+            }
+        }
+        return best;
+    }
+
+    /** For the game tests: knock down the building standing on {@code base} (its lowest block). */
+    public void knockDown(BlockPos base) {
+        int top = base.getY();
+        BlockPos.MutableBlockPos pos = base.mutable();
+        for (int y = base.getY(); y < base.getY() + 128; y++) {
+            BlockState state = level().getBlockState(pos.setY(y));
+            if (isBuilt(state)) {
+                top = y;
+            } else if (!state.isAir()) {
+                break;
+            }
+        }
+        this.demolishing = new Building(base.getX(), base.getZ(), base.getY() - 1, top);
+    }
+
+    /** For the game tests: whether he's still busy knocking a building down. */
+    public boolean isDemolishing() {
+        return this.demolishing != null;
     }
 
     // ------------------------------------------------------------------ boss bar, sounds, saving
@@ -1453,6 +1661,71 @@ public class GodzillaEntity extends Monster implements GeoEntity {
             } else {
                 this.godzilla.getMoveControl().setWantedPosition(target.getX(), target.getY(), target.getZ(), 1.0);
             }
+        }
+    }
+
+    /** Tall buildings he sees get knocked down, a swipe at a time, until they no longer stand tallBuildingHeight high. */
+    static class DemolishGoal extends Goal {
+        /** He stops this close to the building (horizontally) and swipes at it. */
+        private static final double REACH = 16.0;
+        private final GodzillaEntity godzilla;
+        private int scanDelay;
+        private int timeout;
+
+        DemolishGoal(GodzillaEntity godzilla) {
+            this.godzilla = godzilla;
+            setFlags(EnumSet.of(Goal.Flag.MOVE, Goal.Flag.LOOK));
+        }
+
+        @Override
+        public boolean canUse() {
+            if (this.godzilla.demolishing == null) {
+                if (--this.scanDelay > 0 || !this.godzilla.canDemolish()) {
+                    return false;
+                }
+                this.scanDelay = 20;
+                this.godzilla.demolishing = this.godzilla.findTallBuilding((ServerLevel) this.godzilla.level());
+            }
+            return this.godzilla.demolishing != null && this.godzilla.canDemolish();
+        }
+
+        @Override
+        public void start() {
+            this.timeout = 120 * 20;
+        }
+
+        @Override
+        public boolean canContinueToUse() {
+            return this.godzilla.demolishing != null && this.godzilla.canDemolish() && --this.timeout > 0;
+        }
+
+        @Override
+        public boolean requiresUpdateEveryTick() {
+            return true;
+        }
+
+        @Override
+        public void tick() {
+            Building building = this.godzilla.demolishing;
+            if (building == null) {
+                return;
+            }
+            double x = building.x() + 0.5;
+            double z = building.z() + 0.5;
+            double dx = x - this.godzilla.getX();
+            double dz = z - this.godzilla.getZ();
+            this.godzilla.getLookControl().setLookAt(x, building.top(), z);
+            if (dx * dx + dz * dz > REACH * REACH) {
+                this.godzilla.getMoveControl().setWantedPosition(x, building.ground() + 1, z, 0.8);
+            } else if (this.godzilla.faceTowards(x, z, 4.0F) < 25.0F && this.godzilla.attackCooldown <= 0
+                    && this.godzilla.pendingHitTicks < 0) {
+                this.godzilla.startDemolitionSwipe();
+            }
+        }
+
+        @Override
+        public void stop() {
+            this.godzilla.demolishing = null;
         }
     }
 

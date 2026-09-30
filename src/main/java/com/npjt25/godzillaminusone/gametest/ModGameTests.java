@@ -1,5 +1,6 @@
 package com.npjt25.godzillaminusone.gametest;
 
+import com.npjt25.godzillaminusone.Config;
 import com.npjt25.godzillaminusone.GodzillaMinusOne;
 import com.npjt25.godzillaminusone.entity.Blasts;
 import com.npjt25.godzillaminusone.entity.Destruction;
@@ -458,6 +459,35 @@ public final class ModGameTests {
         helper.assertTrue(drops.isEmpty(), "the blocks it breaks should vanish, not drop: " + drops);
         remove(pilot);
         helper.succeed();
+    }
+
+    /**
+     * A tower 18 blocks tall right in front of him: he swipes at it until it stands less than tallBuildingHeight (15)
+     * blocks high, and no lower. (Kept on task: other tests' pigs might catch his eye.)
+     */
+    @GameTest(template = FLOOR, batch = "gmo_demolish", timeoutTicks = 300)
+    public static void heKnocksTallBuildingsDownToSize(GameTestHelper helper) {
+        GodzillaEntity godzilla = spawnActiveGodzilla(helper);
+        int floor = floorY(helper);
+        int limit = Config.TALL_BUILDING_HEIGHT.get();
+        for (int y = floor + 1; y <= floor + 18; y++) {
+            helper.setBlock(new BlockPos(4, y, 10), Blocks.STONE_BRICKS.defaultBlockState());
+        }
+        BlockPos base = helper.absolutePos(new BlockPos(4, floor + 1, 10));
+        BlockPos tooHigh = new BlockPos(4, floor + limit, 10);
+        godzilla.knockDown(base);
+        helper.onEachTick(() -> {
+            godzilla.setTarget(null);
+            if (!godzilla.isDemolishing() && !helper.getBlockState(tooHigh).isAir()) {
+                godzilla.knockDown(base);
+            }
+        });
+        helper.succeedWhen(() -> {
+            helper.assertTrue(helper.getBlockState(tooHigh).isAir(), "the tower should be knocked down to less than " + limit + " blocks");
+            helper.assertTrue(helper.getBlockState(tooHigh.below()).is(Blocks.STONE_BRICKS), "he should only knock it down to size");
+            helper.assertFalse(godzilla.isDemolishing(), "then he should move on");
+            remove(godzilla);
+        });
     }
 
     /**
