@@ -121,7 +121,8 @@ public final class Blasts {
     /**
      * A nuclear blast at {@code impact} (Godzilla's atomic breath landing, or a nuclear bomb): everything within
      * the kill radius dies, there's radiation further out, and (when {@code grounded}) a crater and blast wave;
-     * then the 3D fireball and mushroom cloud, the boom, the shaking and a blurred view for everyone nearby.
+     * then, for everyone within 1024 blocks, its flash, fireball, dust wave and mushroom cloud
+     * (client.render.NuclearCloud: a single cloud, at ground zero), the boom, the shaking and a blurred view.
      *
      * @param burnsOdo an Odo Island Monster caught in it is burnt (and later rises as Godzilla) instead of killed
      * @return ground zero

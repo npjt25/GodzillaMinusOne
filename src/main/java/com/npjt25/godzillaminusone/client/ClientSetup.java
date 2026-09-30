@@ -53,8 +53,7 @@ public final class ClientSetup {
     @SubscribeEvent
     public static void registerParticles(RegisterParticleProvidersEvent event) {
         for (RegistryObject<SimpleParticleType> type : List.of(ModParticles.GLOW, ModParticles.BLUE_FLAME, ModParticles.SMOKE,
-                ModParticles.SHOCKWAVE, ModParticles.BLACK_RAIN, ModParticles.GUNLIGHT, ModParticles.MUSHROOM, ModParticles.NUKE_SMOKE,
-                ModParticles.NUKE_FIRE)) {
+                ModParticles.SHOCKWAVE, ModParticles.BLACK_RAIN, ModParticles.GUNLIGHT, ModParticles.MUSHROOM)) {
             SimpleParticleType particleType = type.get();
             // The big effects are built directly by client.particle.Fx; the provider captures the sprites and
             // gives /particle a plain version of each.

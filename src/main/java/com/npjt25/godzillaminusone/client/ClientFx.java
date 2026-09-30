@@ -16,6 +16,7 @@ import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.ClientPlayerNetworkEvent;
 import net.minecraftforge.client.event.CustomizeGuiOverlayEvent;
+import net.minecraftforge.client.event.RenderGuiEvent;
 import net.minecraftforge.client.event.RenderLevelStageEvent;
 import net.minecraftforge.client.event.ViewportEvent;
 import net.minecraftforge.event.TickEvent;
@@ -25,7 +26,10 @@ import net.minecraftforge.fml.common.Mod;
 import java.util.ArrayList;
 import java.util.List;
 
-/** Client-side state for the add-on's camera shakes, the blurred vision after a blast, black rain and the Godzilla boss bar. */
+/**
+ * Client-side state for the add-on's camera shakes, the atomic blast's flash (whiting out the view), the blurred
+ * vision after a blast, black rain and the Godzilla boss bar.
+ */
 @Mod.EventBusSubscriber(modid = GodzillaMinusOne.MODID, bus = Mod.EventBusSubscriber.Bus.FORGE, value = Dist.CLIENT)
 public final class ClientFx {
     private static final String BOSS_KEY = "boss." + GodzillaMinusOne.MODID + ".godzilla";
@@ -78,8 +82,9 @@ public final class ClientFx {
         switch (msg.type()) {
             case MINE_BLAST -> Fx.mineBlast(msg.pos());
             case ATOMIC_BLAST -> {
-                Fx.atomicBlast(msg.pos(), msg.b() > 0.5F);
-                NuclearCloud.spawn(msg.pos(), msg.a(), msg.b() < 0.5F);
+                boolean grounded = msg.b() > 0.5F;
+                Fx.atomicBlast(msg.pos(), grounded);
+                NuclearCloud.spawn(msg.pos(), grounded);
             }
             case STOMP -> Fx.stomp(msg.pos(), Math.max(0.5F, msg.a()));
             case BOAT_GUN -> Fx.boatGun(msg.pos(), msg.a(), msg.b());
@@ -132,11 +137,21 @@ public final class ClientFx {
         if (blurAge >= 0 && ++blurAge > blurIn + blurHold + blurOut) {
             blurAge = -1;
         }
-        if (rainTicks > 0) {
-            rainTicks--;
+        if (rainRadius > 0.0F) {
+            // While the blast's cloud hangs over the rain's area, the rain falls from it: it starts once the fireball
+            // has turned to smoke, lasts as long as the cloud towers overhead and eases off as the cloud breaks up.
+            // Otherwise (no cloud there, or it's gone) the server's timing holds.
+            float cloud = NuclearCloud.fallout(rainCenter);
+            float density = Float.isNaN(cloud) ? (rainTicks > 0 ? 1.0F : 0.0F) : cloud;
+            if (rainTicks > 0) {
+                rainTicks--;
+            }
             Vec3 cam = mc.gameRenderer.getMainCamera().getPosition();
-            if (cam.distanceToSqr(rainCenter.x, cam.y, rainCenter.z) < rainRadius * rainRadius) {
-                Fx.blackRainTick(cam);
+            if (density > 0.01F && cam.distanceToSqr(rainCenter.x, cam.y, rainCenter.z) < rainRadius * rainRadius) {
+                Fx.blackRainTick(cam, density);
+            }
+            if (Float.isNaN(cloud) && rainTicks <= 0) {
+                rainRadius = 0.0F;
             }
         }
     }
@@ -149,6 +164,7 @@ public final class ClientFx {
         BlurEffect.close();
         NuclearCloud.clear();
         rainTicks = 0;
+        rainRadius = 0.0F;
     }
 
     @SubscribeEvent
@@ -194,6 +210,21 @@ public final class ClientFx {
         } else if (event.getStage() == RenderLevelStageEvent.Stage.AFTER_LEVEL && blurAge >= 0) {
             BlurEffect.render(blur(event.getPartialTick()));
         }
+    }
+
+    /** The atomic blast's flash whiting out the view (over everything, the hotbar too), pale yellow as it fades. */
+    @SubscribeEvent
+    public static void onRenderGui(RenderGuiEvent.Post event) {
+        Minecraft mc = Minecraft.getInstance();
+        float white = NuclearCloud.whiteOut(mc.gameRenderer.getMainCamera(), event.getPartialTick());
+        if (white <= 0.004F) {
+            return;
+        }
+        GuiGraphics graphics = event.getGuiGraphics();
+        int alpha = Math.round(white * 255.0F);
+        int green = Math.round(237.0F + 18.0F * white);
+        int blue = Math.round(184.0F + 71.0F * white);
+        graphics.fill(0, 0, graphics.guiWidth(), graphics.guiHeight(), alpha << 24 | 0xFF << 16 | green << 8 | blue);
     }
 
     /** The add-on's custom HUD boss bar ("GOJIRA", dorsal plates, the glowing blue bar). */

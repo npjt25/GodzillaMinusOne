@@ -20,10 +20,12 @@ import java.util.function.IntFunction;
 /**
  * The mod's settings screen (Mods, Godzilla Minus One, Config). Changes are saved right away. The atomic breath's
  * and the roar's intervals are gameplay settings (config/godzillaminusone-common.toml): they apply to worlds played
- * on this computer; a dedicated server keeps its own.
+ * on this computer; a dedicated server keeps its own. The atomic blast's settings are this player's own
+ * (config/godzillaminusone-client.toml, which also has the flash's, fireball's, dust wave's and cooling's times).
  */
 public class ModConfigScreen extends Screen {
     private static final String KEY = "config." + GodzillaMinusOne.MODID;
+    private static final int WIDTH = 150;
 
     @Nullable
     private final Screen parent;
@@ -35,19 +37,26 @@ public class ModConfigScreen extends Screen {
 
     @Override
     protected void init() {
-        int x = this.width / 2 - 125;
-        int y = this.height / 6 + 16; // (five rows, clear of the Done button even on a small window)
+        // two columns of four rows, clear of the Done button even on a small window
+        int left = this.width / 2 - 155;
+        int right = this.width / 2 + 5;
+        int y = this.height / 6 + 16;
         addRenderableWidget(CycleButton.onOffBuilder(ClientConfig.SHOW_BOSS_BAR.get())
                 .withTooltip(value -> Tooltip.create(Component.translatable(KEY + ".show_boss_bar.tooltip")))
-                .create(x, y, 250, 20, Component.translatable(KEY + ".show_boss_bar"), (button, value) -> {
+                .create(left, y, WIDTH, 20, Component.translatable(KEY + ".show_boss_bar"), (button, value) -> {
                     ClientConfig.SHOW_BOSS_BAR.set(value);
                     ClientConfig.SPEC.save();
                 }));
-        addSlider(new NumberSlider(x, y + 26, Config.SPEC, Config.ATOMIC_BREATH_COOLDOWN, 10, 600, 10, "breath_interval", ModConfigScreen::time));
-        addSlider(new NumberSlider(x, y + 52, Config.SPEC, Config.ROAR_INTERVAL, 0, 600, 30, "roar_interval", ModConfigScreen::time));
-        addSlider(new NumberSlider(x, y + 78, ClientConfig.SPEC, ClientConfig.NUCLEAR_CLOUD_HEIGHT, 40, 600, 10, "cloud_height",
+        addSlider(new NumberSlider(right, y, Config.SPEC, Config.ATOMIC_BREATH_COOLDOWN, 10, 600, 10, "breath_interval", ModConfigScreen::time));
+        addSlider(new NumberSlider(left, y + 26, Config.SPEC, Config.ROAR_INTERVAL, 0, 600, 30, "roar_interval", ModConfigScreen::time));
+        // the atomic blast's look
+        addSlider(new NumberSlider(right, y + 26, ClientConfig.SPEC, ClientConfig.CLOUD_HEIGHT, 40, 600, 10, "cloud_height",
                 blocks -> Component.translatable(KEY + ".blocks", blocks)));
-        addSlider(new NumberSlider(x, y + 104, ClientConfig.SPEC, ClientConfig.NUCLEAR_CLOUD_SECONDS, 10, 300, 5, "cloud_seconds",
+        addSlider(new NumberSlider(left, y + 52, ClientConfig.SPEC, ClientConfig.FLASH_STRENGTH, 0, 100, 5, "flash_strength",
+                percent -> percent == 0 ? CommonComponents.OPTION_OFF : Component.translatable(KEY + ".percent", percent)));
+        addSlider(new NumberSlider(right, y + 52, ClientConfig.SPEC, ClientConfig.RISE_SECONDS, 5, 120, 5, "cloud_rise", ModConfigScreen::time));
+        addSlider(new NumberSlider(left, y + 78, ClientConfig.SPEC, ClientConfig.MATURE_SECONDS, 0, 600, 10, "cloud_mature", ModConfigScreen::time));
+        addSlider(new NumberSlider(right, y + 78, ClientConfig.SPEC, ClientConfig.DISSIPATE_SECONDS, 10, 600, 10, "cloud_dissipate",
                 ModConfigScreen::time));
         addRenderableWidget(Button.builder(CommonComponents.GUI_DONE, button -> onClose())
                 .bounds(this.width / 2 - 100, this.height - 40, 200, 20)
@@ -76,8 +85,8 @@ public class ModConfigScreen extends Screen {
 
     /**
      * A whole-number setting from {@code min} to {@code max} in steps of {@code step}, saved as it's moved: how long
-     * Godzilla takes to recharge his atomic breath, how often he roars, how tall the mushroom cloud grows and how
-     * long it lasts.
+     * Godzilla takes to recharge his atomic breath, how often he roars, how tall the mushroom cloud grows, how hard
+     * the flash whites out the view, and how long the cloud takes to rise, stays full-grown and takes to break up.
      */
     private static final class NumberSlider extends AbstractSliderButton {
         private final ForgeConfigSpec spec;
@@ -90,7 +99,7 @@ public class ModConfigScreen extends Screen {
 
         NumberSlider(int x, int y, ForgeConfigSpec spec, ForgeConfigSpec.IntValue setting, int min, int max, int step, String name,
                      IntFunction<Component> format) {
-            super(x, y, 250, 20, Component.empty(), Mth.clamp((setting.get() - min) / (double) (max - min), 0.0, 1.0));
+            super(x, y, WIDTH, 20, Component.empty(), Mth.clamp((setting.get() - min) / (double) (max - min), 0.0, 1.0));
             this.spec = spec;
             this.setting = setting;
             this.min = min;

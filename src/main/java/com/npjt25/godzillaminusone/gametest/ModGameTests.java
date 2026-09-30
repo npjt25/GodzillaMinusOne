@@ -3,6 +3,7 @@ package com.npjt25.godzillaminusone.gametest;
 import com.mojang.authlib.GameProfile;
 import com.npjt25.godzillaminusone.Config;
 import com.npjt25.godzillaminusone.GodzillaMinusOne;
+import com.npjt25.godzillaminusone.client.render.BlastTimeline;
 import com.npjt25.godzillaminusone.entity.Blasts;
 import com.npjt25.godzillaminusone.entity.Destruction;
 import com.npjt25.godzillaminusone.entity.Flattening;
@@ -695,5 +696,47 @@ public final class ModGameTests {
             List<ItemEntity> drops = helper.getLevel().getEntitiesOfClass(ItemEntity.class, new AABB(middle).inflate(16.0));
             helper.assertTrue(drops.isEmpty(), "nothing should drop: " + drops);
         });
+    }
+
+    /**
+     * The atomic blast's look, as its timeline sets it out (client.render.BlastTimeline, at the default settings: a
+     * cloud 240 blocks tall; flash 1.5 s, fireball 4, dust wave 8, rising 30, cooled by 30, towering 60, breaking up
+     * 90): the flash blinding at once and over first; the dust wave rolling out, fast then slowing, to its full reach;
+     * the fireball rising into a cap far wider than the stem, as tall as the cloud should be; its fire out before it
+     * breaks up, broadening as it goes; the black rain falling from it after the fireball, until it breaks up.
+     */
+    @GameTest(template = FLOOR, batch = "gmo_blast_timeline")
+    public static void atomicBlastFollowsItsTimeline(GameTestHelper helper) {
+        float height = 240.0F;
+        BlastTimeline blast = new BlastTimeline(height, 1.5F, 4.0F, 8.0F, 30.0F, 30.0F, 60.0F, 90.0F);
+        helper.assertTrue(blast.flash(0.1F) > 0.8F, "the flash should be blinding at once, was " + blast.flash(0.1F));
+        helper.assertTrue(blast.flash(1.0F) < blast.flash(0.2F), "the flash should die away");
+        helper.assertTrue(blast.flash(1.5F) == 0.0F && blast.flash(2.0F) == 0.0F, "the flash should be over by 1.5 s");
+
+        float w1 = blast.waveRadius(1.0F);
+        float w4 = blast.waveRadius(4.0F);
+        float w8 = blast.waveRadius(8.0F);
+        helper.assertTrue(blast.waveRadius(0.0F) == 0.0F && w1 > 0.0F && w1 < w4 && w4 < w8, "the dust wave should roll outwards");
+        helper.assertTrue(w1 > w8 - w4, "the dust wave should slow down: " + w1 + " in its first second, " + (w8 - w4) + " in its last four");
+        helper.assertTrue(Math.abs(w8 - BlastTimeline.WAVE_REACH * height) < 1.0F, "the dust wave should reach its full reach in 8 s, was " + w8);
+        float half = blast.wavePasses(0.5F);
+        helper.assertTrue(half > 0.0F && half < 8.0F && Math.abs(blast.waveRadius(half) - 0.5F * w8) < 1.0F,
+                "the haze should appear where the dust wave has got to, at " + half + " s");
+
+        helper.assertTrue(blast.capCentre(2.0F) < blast.capCentre(10.0F) && blast.capCentre(10.0F) < blast.capCentre(30.0F),
+                "the fireball should rise");
+        float top = blast.capCentre(30.0F) + blast.capHalfHeight(30.0F);
+        helper.assertTrue(top > 0.85F * height && top <= height, "the risen cap's top should be near the cloud's height, was " + top);
+        helper.assertTrue(blast.capRadius(30.0F) > 1.5F * blast.capHalfHeight(30.0F) * 2.0F, "the cap should be broad and flat");
+        helper.assertTrue(blast.capRadius(30.0F) > 4.0F * BlastTimeline.STEM_RADIUS * height, "the cap should be far wider than the stem");
+
+        helper.assertTrue(blast.heat(0.2F) == 1.0F && blast.heat(10.0F) > 0.0F && blast.heat(30.0F) == 0.0F,
+                "the cloud's fire should cool by 30 s");
+        helper.assertTrue(blast.dissipated(90.0F) == 0.0F && blast.dissipated(135.0F) > 0.0F, "it should break up after 90 s");
+        helper.assertTrue(blast.capRadius(170.0F) > blast.capRadius(90.0F), "the cap should broaden as it breaks up");
+        helper.assertTrue(blast.lifetime() == 180.0F, "it should be gone after 3 minutes, was " + blast.lifetime());
+        helper.assertTrue(blast.fallout(3.0F) == 0.0F && blast.fallout(60.0F) == 1.0F && blast.fallout(179.0F) == 0.0F,
+                "black rain should fall from the cloud after the fireball, until it breaks up");
+        helper.succeed();
     }
 }

@@ -21,9 +21,6 @@ public final class ModParticles {
     public static final RegistryObject<SimpleParticleType> BLACK_RAIN = register("black_rain");
     public static final RegistryObject<SimpleParticleType> GUNLIGHT = register("gunlight");
     public static final RegistryObject<SimpleParticleType> MUSHROOM = register("mushroom");
-    /** The mushroom cloud's smoke and fiery explosion puffs (client.particle.NukePuffParticle, vanilla's sprites). */
-    public static final RegistryObject<SimpleParticleType> NUKE_SMOKE = register("nuke_smoke");
-    public static final RegistryObject<SimpleParticleType> NUKE_FIRE = register("nuke_fire");
 
     private static RegistryObject<SimpleParticleType> register(String name) {
         return PARTICLES.register(name, () -> new SimpleParticleType(true));

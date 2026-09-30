@@ -38,16 +38,6 @@ public final class Fx {
         return new Builder(type.get());
     }
 
-    /** One of the mushroom cloud's fiery puffs ({@link NukePuffParticle}), {@code size} times the source's size. */
-    public static void nukePuff(RegistryObject<SimpleParticleType> type, Vec3 at, Vec3 velocity, float size) {
-        Minecraft mc = Minecraft.getInstance();
-        SpriteSet sprites = SPRITES.get(type.get());
-        if (mc.level == null || sprites == null) {
-            return;
-        }
-        mc.particleEngine.add(new NukePuffParticle(mc.level, at.x, at.y, at.z, velocity.x, velocity.y, velocity.z, sprites, size));
-    }
-
     /** Plain particle for /particle. */
     @Nullable
     public static Particle basic(SimpleParticleType type, ClientLevel level, double x, double y, double z, double dx, double dy, double dz) {
@@ -271,14 +261,11 @@ public final class Fx {
     }
 
     /**
-     * The atomic breath impact, around the 3D fireball and mushroom cloud (client.render.NuclearCloud): the flash,
-     * flame streaks, and on the ground the racing smoke shockwave (gojira:nuclear_shockwave, shockwave_ground).
+     * The atomic blast's sparks, round its flash, fireball and cloud (client.render.NuclearCloud, which has the flash,
+     * the dust wave and the rings too): burning embers flung out of the fireball, and on the ground debris thrown out of
+     * the crater.
      */
     public static void atomicBlast(Vec3 pos, boolean grounded) {
-        // Flash.
-        of(ModParticles.GLOW).at(pos.add(0, 10, 0)).life(8).size(120.0F, 260.0F).additive()
-                .colors(0.0F, 0xFFFFFFFF, 0.4F, 0xFFFFF0C0, 1.0F, 0x00FFAA40).spawn();
-        // Flame streaks.
         for (int i = 0; i < 80; i++) {
             Vec3 dir = new Vec3(rand(-1, 1), rand(grounded ? -0.2 : -1, 1), rand(-1, 1)).normalize();
             of(ModParticles.GLOW).at(pos.add(0, 1, 0).add(dir.scale(rand(5, 20)))).velocity(dir.x * 0.6, dir.y * 0.6, dir.z * 0.6)
@@ -288,18 +275,6 @@ public final class Fx {
         if (!grounded) {
             return;
         }
-        // Racing smoke shockwave.
-        for (int i = 0; i < 160; i++) {
-            double angle = rand(0, Math.PI * 2);
-            double speed = rand(3.0, 4.5);
-            of(ModParticles.SMOKE).at(pos.add(0, 2, 0)).velocity(Math.cos(angle) * speed, rand(0, 0.1), Math.sin(angle) * speed)
-                    .life(160 + RANDOM.nextInt(60)).size(16.0F, 40.0F).friction(0.965F).spin((float) rand(-0.1, 0.1))
-                    .colors(0.0F, 0xC29E9E9E, 0.28F, 0xFF4A4038, 0.6F, 0x00F2F2F2).spawn();
-        }
-        // Ground shockwave rings.
-        groundRing(pos, 320.0F, 60, 0xA3FFFFFF);
-        groundRing(pos, 160.0F, 40, 0xA3848080);
-        // Debris and embers thrown out of the crater.
         for (int i = 0; i < 60; i++) {
             Vec3 dir = new Vec3(rand(-1, 1), rand(0.6, 1.6), rand(-1, 1)).normalize();
             double speed = rand(1.0, 3.0);
@@ -309,9 +284,10 @@ public final class Fx {
         }
     }
 
-    /** gojira:black_rain around the camera while it's inside the fallout area. */
-    public static void blackRainTick(Vec3 camera) {
-        for (int i = 0; i < 30; i++) {
+    /** gojira:black_rain around the camera while it's inside the fallout area; {@code density} 0 to 1. */
+    public static void blackRainTick(Vec3 camera, float density) {
+        int drops = Math.round(30.0F * density);
+        for (int i = 0; i < drops; i++) {
             double x = camera.x + rand(-24, 24);
             double z = camera.z + rand(-24, 24);
             double y = camera.y + rand(8, 22);

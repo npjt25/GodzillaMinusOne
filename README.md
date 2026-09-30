@@ -3,8 +3,9 @@
 A Minecraft Java Edition (Forge 1.20.1, GeckoLib 4) port of the Bedrock add-on
 **"Godzilla Minus One" V3 by GojiDraw**. Godzilla is the add-on's own model, textures and animations, exactly
 (scaled up evenly to stand 10 blocks taller), and so are the Shinden, naval mine, sounds and effects. The atomic
-blast's mushroom cloud is **Alex's Caves'** orange nuclear mushroom cloud, ported. The mod also adds the **Odo
-Island Monster** (Godzilla's smaller, dinosaur-like form from the start of the film): Monster122's
+blast follows the **Ginza blast in the film**, from the flash to the mushroom cloud breaking up, built from **Alex's
+Caves'** mushroom cloud textures. The mod also adds the **Odo Island Monster** (Godzilla's smaller, dinosaur-like
+form from the start of the film): Monster122's
 **Godzillasaurus** from the "G-1" Bedrock add-on, with its own model and animations. There are also the **Shinsei
 Maru**, the film's little minesweeper with its stern machine gun and a hold of naval mines, a **searchlight**, a
 **nuclear bomb**, a **remote detonator** for the naval mines, and posed **Godzilla statues** for screenshots and
@@ -37,13 +38,20 @@ a player.*
 
 *The thumbnail statues: charging roar (its tail plates glow in game), tail whip, roar to the sky.*
 
-![The mushroom cloud](docs/cloud_preview.png)
+![The atomic blast, from a player's eye](docs/blast_sequence.png)
 
-*The atomic blast's mushroom cloud, Alex's Caves' (its model, textures and animation, 240 blocks tall here):
-the white-hot fireball, the mushroom bursting out of it, the full cap over the fiery plume with the rings spreading,
-the glow cooling to smoke, and the fade at the end (0.25, 1, 5, 20, 40 and 59.5 s), from the side, three-quarters,
-below, above and far away. Offline renders of the same model and passes (tools/preview_cloud.py), over 20-block
-squares; the red post is Godzilla's height. The fiery puffs are drawn as plain blobs there.*
+*The atomic blast at the default settings, seen from 440 blocks away: the flash whiting out the view (0.15 s); the
+fireball, with the ring of mist racing out through the air (1 s) and the dust wave rolling out over the ground (3 s);
+the column rising under it as it spreads into the cap, glowing only low down (8 and 15 s); the full-grown cloud,
+its fire out (30 and 60 s); breaking up, the cap broadening and thinning from its edges (120 and 150 s); the last
+scattered smoke and ground haze (175 s).*
+
+![The atomic blast from five viewpoints](docs/cloud_preview.png)
+
+*The same at 0.15, 2, 8, 20, 60, 135 and 172 s, from the side at eye level 760 blocks off, a player's eye 440 off,
+three-quarters from 260 up, from below near ground zero and from 620 up. Both are offline renders of the same cloud
+(tools/preview_blast.py, not game captures), over 20-block squares; the red post is Godzilla's height (45 blocks),
+the blue one a player.*
 
 ## Requirements
 
@@ -61,7 +69,7 @@ squares; the red post is Godzilla's height. The fiery puffs are drawn as plain b
 | `goji:torrid` | **Torrid**, the Shinden's cannons: hold right-click while flying it |
 | `goji:mine_spawn` / `goji:mine` | **Naval Mine**, craftable (4 netherite ingots, 4 netherite blocks, TNT in the middle), and a **Remote Detonator** for it |
 | `goji:nuclear_hole` | The crater and blast wave left by the atomic breath |
-| Nuclear explosion particles | The flash, shockwaves and black rain as particles; the mushroom cloud is Alex's Caves' (`client/render/NuclearCloud.java`, `MushroomCloudModel.java`) |
+| Nuclear explosion particles | The atomic blast's flash, fireball, dust wave and mushroom cloud (`client/render/NuclearCloud.java`, after the film's Ginza blast), its sparks and the black rain |
 | Particles, camera shakes, custom boss bar | Recreated in Java (see `client/`); the fade to black is a blur instead |
 | *(from Monster122's G-1 add-on)* | **Odo Island Monster** (`godzillaminusone:odo_island_monster`), with its spawn egg |
 | *(new, from the film)* | **Shinsei Maru**, the minesweeper: a boat with a stern machine gun and a hold of naval mines |
@@ -89,13 +97,12 @@ squares; the red post is Godzilla's height. The fiery puffs are drawn as plain b
 - For the first **2 to 3 minutes after he appears** he can't use his atomic breath yet.
 - With a target he **charges his atomic breath**: the dorsal plates light up blue one by one from the tail to
   the neck as they punch up, mobs freeze in fear, he breathes in for 4 seconds (the in-breath sound lasts
-  exactly as long), then rears his head up above his chest and fires (he tilts it further up at planes). The
-  beam pours out of his open mouth, which blazes blue while it lasts. **Two seconds after the beam lands**, a
-  **nuclear blast** goes off there: it kills everything around it, blasts out a large crater, and a mushroom
-  cloud (Alex's Caves') bursts out of a white-hot fireball: a fiery plume rising under a broad dark cap, low
-  smoke spreading over the ground, rings racing outwards, the glow cooling to smoke; it grows to 240 blocks and
-  hangs there for a minute (both in the config screen). Everyone nearby sees a blur, then black rain falls around ground
-  zero (just particles: the weather isn't changed).
+  exactly as long), then rears his head up above his chest and fires (he tilts it further up at planes): the
+  plates **slam back down the instant the beam appears**. The beam pours out of his open mouth, which blazes blue
+  while it lasts. **Two seconds after the beam lands**, a **nuclear blast** goes off there: it kills everything
+  around it and blasts out a large crater at once, and you see it unfold as in the film's Ginza scene (see
+  **The atomic blast** below). Everyone nearby sees a blur, then black rain falls around ground zero (just
+  particles: the weather isn't changed).
 - The blast **levels the land for 140 blocks around**: everything above **Y 65** (trees, grass, buildings,
   hills) is obliterated, sweeping outwards from ground zero, and **nothing drops**. Seas and rivers stay. Parts of
   the area that aren't loaded yet are flattened when they load. Radius and height are in the config.
@@ -189,6 +196,27 @@ squares; the red post is Godzilla's height. The fiery puffs are drawn as plain b
   mushroom cloud; see the atomic blast options in the config). It goes off early if it hits something on the
   way down, such as a roof. Stand well back: the kill radius is 64 blocks by default.
 
+### The atomic blast
+
+Godzilla's atomic breath landing and the nuclear bomb make the same blast. Its damage, crater and flattening all
+happen at the moment of impact. What you see unfolds like the Ginza blast in the film, anchored to ground zero,
+the same size seen from anywhere (whatever Godzilla's size):
+
+| Stage | Default timing (from the impact) | What you see |
+| --- | --- | --- |
+| Flash | 0 to 1.5 s | A white-hot core swelling in a moment into a pale yellow glare that whites out your view, then dying away; the sky lights up like lightning. |
+| Fireball | 0 to 4 s | A ragged, blazing ball, white-hot, then yellow and orange, swelling to about 70 blocks and starting to rise. A ring of mist races out through the air and is gone within 3 seconds. |
+| Dust wave | 0 to 8 s | A wall of dust rolling out over the ground (over hills and into valleys), fast, then slowing, out to about 230 blocks, leaving a haze behind it as it passes. |
+| Column | from 1 s | As the glare fades, a thick, lumpy column of smoke rises under the fireball, its foot lost in the dust churned up round it. |
+| Cap | up to 30 s | The fireball spreads into a broad, heavy cap, rolling over on itself: charcoal, grey and dirty brown, lighter billows on top, dark underneath, glowing orange only low down while it's hot. About 250 blocks tall and 290 across, its stem about 70 thick. |
+| Cooling | glow out by 30 s | The fire inside dies out well before the smoke. Black rain falls from the cloud from about 6 seconds after the blast, for as long as it towers overhead. |
+| Mature cloud | 30 to 90 s | It towers over ground zero, still slowly rising, spreading and rolling over. |
+| Breaking up | 90 to 180 s | The cap broadens and softens, its outer billows thin away first, then its heart and the stem break up and drift, leaving scattered smoke and ground haze that fade last. (Longer than in the film, so it can be seen.) |
+
+All of these are settings (see **Configuration**). The timings are a proposal for the film's sequence at a playable
+pace, not measured from the film. You see the blast from up to 1024 blocks away and as far as your view reaches
+(four times your render distance), through the fog.
+
 ### Godzilla statues (for thumbnails)
 
 Godzilla frozen in poses from the film's posters. They never spawn on their own and have no spawn egg: make
@@ -207,14 +235,19 @@ To face a statue a given way, give it a rotation, e.g. `/summon godzillaminusone
 
 - **In game**: Mods → Godzilla Minus One → Config.
   - **Godzilla Health Bar** turns his health bar at the top of the screen on or off.
-  - **Atomic Breath: every** sets how long he takes to recharge his atomic breath, from 10 seconds to 10 minutes
+  - **Breath: every** sets how long he takes to recharge his atomic breath, from 10 seconds to 10 minutes
     (3 minutes by default).
   - **Roar: every** sets how often he roars on his own, from 30 seconds to 10 minutes, or off (2 minutes).
-  - **Mushroom Cloud Height** (40 to 600 blocks, 240) and **Mushroom Cloud Lasts** (10 seconds to 5 minutes,
-    1 minute) size and time the atomic blast's mushroom cloud.
+  - The atomic blast: **Cloud Height** (40 to 600 blocks, 240), **Blast Flash** (how strongly the flash whites out
+    your view, 0 to 100%; Minecraft's "Hide Lightning Flashes" option also turns it off), **Cloud Rises**
+    (30 seconds), **Cloud Towers** (how long it stays full-grown, 1 minute) and **Cloud Fades** (how long it takes to
+    break up, 1 minute 30).
 
-  The health bar and the cloud are saved in `config/godzillaminusone-client.toml`; the breath and roar intervals
-  in the gameplay config below, so they apply to worlds played on this computer (a server keeps its own).
+  The health bar and the blast are saved in `config/godzillaminusone-client.toml`, in its `atomicBlast` section,
+  which also has `flashSeconds` (1.5), `fireballSeconds` (4), `shockwaveSeconds` (8, the dust wave) and
+  `coolingSeconds` (30). The breath and roar intervals are in the gameplay config below, so they apply to worlds
+  played on this computer (a server keeps its own). (The cloud's settings have new names, so a client config from
+  an earlier version picks up the new defaults.)
 - **Gameplay**: `config/godzillaminusone-common.toml`. The add-on's world-ending numbers (2000-block kill
   radius, Wither XXVI) are toned down by default; each option's comment lists the add-on's original value so
   you can restore it. You can also make Godzilla mortal, stop him regenerating, turn off block damage, change
@@ -254,11 +287,17 @@ python3 tools/make_props.py             # the searchlight, nuclear bomb and Shin
 python3 tools/make_icons.py             # item icons of the new items
 ```
 
-The mushroom cloud's textures (`textures/effect/mushroom_cloud*.png`) are Alex's Caves' own, unchanged.
+```
+python3 tools/make_cloud_sprites.py     # the atomic blast's smoke, fire and flash sprites, from Alex's Caves' cloud textures
+```
+
+(Alex's Caves' mushroom cloud textures, `tools/reference/alexs_caves/mushroom_cloud*.png`, are its own, unchanged;
+the game uses the sprites made from them, `textures/effect/nuclear_cloud.png`.)
 
 Previews without starting the game: `tools/render_preview.py` renders a cube model with its texture (and any
-animation frame, optionally on a one-block grid with a player for scale); `tools/preview_cloud.py` renders the
-mushroom cloud (`tools/mushroom_cloud_model.py`, the same model as the game's) at given times and viewpoints.
+animation frame, optionally on a one-block grid with a player for scale); `tools/preview_blast.py` renders the
+atomic blast (`tools/nuclear_cloud_model.py`, the same cloud as the game's `NuclearCloud` and `BlastTimeline`) at
+given times and viewpoints.
 
 ## Credits
 
@@ -268,8 +307,9 @@ Original Bedrock add-on (models, textures, animations, sounds): **GojiDraw**. Th
 The Odo Island Monster is **Monster122**'s Godzillasaurus (model, skins and animations) from the "G-1" Bedrock
 add-on.
 
-The atomic blast's mushroom cloud is **Alex's Caves**' (by **AlexModGuy**, GNU LGPL): its model
-(`MushroomCloudModel`), rendering and animation (`MushroomCloudParticle`) and fiery puffs (`SmallExplosionParticle`)
-adapted to this mod, and its `mushroom_cloud` textures, unchanged.
+The atomic blast's mushroom cloud is built from **Alex's Caves**' (by **AlexModGuy**, GNU LGPL): its smoke and fire
+sprites are cut from its `mushroom_cloud` and `mushroom_cloud_glow` textures, and it's drawn in layers as its
+`MushroomCloudParticle` draws its cloud (the texture, then the glow texture added on while it's hot). Its sequence
+and look follow the Ginza blast in *Godzilla Minus One*.
 
 Godzilla is a trademark of Toho Co., Ltd.
