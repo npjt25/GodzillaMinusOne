@@ -6,8 +6,9 @@ Run after tools/convert_addon.py. Edits animations/entity/godzilla.animation.jso
 twice):
 
   * atomic breath: a 4 second in-breath (head and chest rear back, jaw opens, with its own breathing sound)
-    inserted just before the beam, the head angled 10 degrees higher while firing, and a longer, thicker beam
-    that comes straight out of his open mouth,
+    inserted just before the beam, the head angled 10 degrees higher while firing, a longer, thicker beam
+    that comes straight out of his open mouth, and the dorsal plates slamming back down the instant it fires
+    (snap_plates),
   * a new "animation.gojira.swim_bite" (a lunging bite in the swimming pose, so he doesn't stand up to attack),
   * his melee combo: "animation.gojira.swipe_right" and "swipe_left" (claw swipes, the torso twisting into
     them) and "animation.gojira.spin_whip" (a heavy spin of his whole body, the tail trailing behind it and
@@ -119,6 +120,34 @@ def add_offset(channel, start, end, offset, ramp_in, ramp_out, step=0.05):
     return res
 
 
+PLATE_SNAP = 0.0833           # seconds the raised plates take to slam back down as the beam fires
+PLATE_RECOIL = 0.15           # ...overshooting by this much of their rise, before settling (another 0.125 s)
+
+
+def is_plate(bone):
+    return bone == "T" or (bone.startswith("T") and bone[1:].isdigit())
+
+
+def snap_plates(anim):
+    """The dorsal plates, raised one after another through the charge, stay up until the beam fires and then all
+    slam back down at once (in the add-on they slid down over a quarter of a second, starting before the beam)."""
+    for bone, channels in anim["bones"].items():
+        pos = channels.get("position")
+        if not is_plate(bone) or not isinstance(pos, dict):
+            continue
+        lo, hi = BEAM_START - 0.49, BEAM_START + 0.3
+        raised = sample(pos, lo)
+        rest = sample(pos, hi)
+        if max(abs(a - b) for a, b in zip(raised, rest)) < 1e-3:
+            continue
+        res = {fmt(t): v for t, v in keys(pos) if t < lo or t > hi}
+        recoil = [round(r - (u - r) * PLATE_RECOIL, 4) for u, r in zip(raised, rest)]
+        res[fmt(BEAM_START)] = raised
+        res[fmt(BEAM_START + PLATE_SNAP)] = recoil
+        res[fmt(BEAM_START + PLATE_SNAP + 0.125)] = rest
+        channels["position"] = dict(sorted(res.items(), key=lambda kv: float(kv[0])))
+
+
 def edit_charge(anim):
     bones = anim["bones"]
     for bone, channels in bones.items():
@@ -153,6 +182,8 @@ def edit_charge(anim):
     for bone, offset in FIRE_RAISE:
         ch = bones.setdefault(bone, {})
         ch["rotation"] = add_offset(ch.get("rotation", [0, 0, 0]), BEAM_START - 0.5, BEAM_END + 0.5, offset, 0.5, 0.5)
+
+    snap_plates(anim)
 
     # Longer, thicker beam that still starts at the mouth: bone B's offset already runs along its own axis,
     # so it grows with the beam's length.
