@@ -38,6 +38,16 @@ public final class Fx {
         return new Builder(type.get());
     }
 
+    /** One of the mushroom cloud's fiery puffs ({@link NukePuffParticle}), {@code size} times the source's size. */
+    public static void nukePuff(RegistryObject<SimpleParticleType> type, Vec3 at, Vec3 velocity, float size) {
+        Minecraft mc = Minecraft.getInstance();
+        SpriteSet sprites = SPRITES.get(type.get());
+        if (mc.level == null || sprites == null) {
+            return;
+        }
+        mc.particleEngine.add(new NukePuffParticle(mc.level, at.x, at.y, at.z, velocity.x, velocity.y, velocity.z, sprites, size));
+    }
+
     /** Plain particle for /particle. */
     @Nullable
     public static Particle basic(SimpleParticleType type, ClientLevel level, double x, double y, double z, double dx, double dy, double dz) {

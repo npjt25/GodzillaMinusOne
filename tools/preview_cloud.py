@@ -1,129 +1,314 @@
-"""Offline preview of the atomic blast's mushroom cloud (mirrors client/render/NuclearCloud.java: GojiDraw's five
-smoke layers). Perspective view from a distance, over a ground grid of 20-block squares.
+"""Offline preview of the atomic blast's mushroom cloud: Alex's Caves' cloud as client/render/NuclearCloud.java draws it
+(tools/mushroom_cloud_model.py holds the same model), at given times and from given viewpoints, over a ground grid.
 
-    python3 tools/preview_cloud.py <out.png> <t1> [t2 ...]   (seconds after the blast; one frame per time)
-    options: --distance=600 --height=40 --fov=70 --size=640 --seed=1
+    python3 tools/preview_cloud.py <out.png> [--height 240] [--seconds 60] [--size 480x360]
+                                   [--times 0.25,1,5,20,40,59.5] [--views side,three_quarter,below,above]
+
+Each frame is drawn the way the game draws the cloud: the cloud's texture, lit like an entity; the same texture again,
+glowing, where the first pass drew; the glow texture on top of that, fading as the cloud grows; and its fiery puffs.
+Approximations: the puffs are drawn as round blobs (the game uses vanilla's smoke and explosion sprites, which aren't
+here), the sky and ground are plain, and there's no fog (the game draws the cloud through it anyway).
 """
+import argparse
 import math
 import os
 import sys
 
 import numpy as np
-from PIL import Image
+from PIL import Image, ImageDraw
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import mushroom_cloud_model as mcm  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-SPRITE = os.path.join(ROOT, "src", "main", "resources", "assets", "godzillaminusone", "textures", "effect", "mushroom_smoke.png")
-# y, radius, rim only, billboard half size, up acceleration, seconds emitting, tint gradient (as in the Java code)
-LAYERS = [
-    (0, 20, False, 15, 100, 25, [(0.0, 0xFF2E2D2D), (0.54, 0x59484848), (1.0, 0x00848484)]),
-    (55, 200, False, 50, 100, 26, [(0.0, 0xFF6E6E6E), (0.99, 0x8C595959)]),
-    (70, 200, True, 60, 100, 25, [(0.0, 0xFF4B4B4B), (0.5, 0xFF646464), (0.9, 0x6E202020)]),
-    (0, 20, False, 10, 200, 25, [(0.0, 0xFF2B2B2B), (0.4, 0xFF2E2E2E), (0.58, 0xFF272727), (1.0, 0x00242222)]),
-    (80, 150, False, 50, 100, 25, [(0.0, 0xFF5A5047), (0.24, 0xFF423D2E), (0.57, 0xFF382A18), (1.0, 0x52261608)]),
-]
-RATE, LIFE = 200, 1.0
+TEX_DIR = os.path.join(ROOT, "src", "main", "resources", "assets", "godzillaminusone", "textures", "effect")
+SOURCE_SCALE = 3.2
+MODEL_HEIGHT = 12.14
+LIGHT0 = np.array([0.2, 1.0, -0.7]) / np.linalg.norm([0.2, 1.0, -0.7])
+LIGHT1 = np.array([-0.2, 1.0, 0.7]) / np.linalg.norm([-0.2, 1.0, 0.7])
+GODZILLA_HEIGHT = 45.5
+
+# name: (camera position, looked-at point, label) for a cloud 240 blocks tall; scaled with --height
+VIEWS = {
+    "side": ((0.0, 3.0, -760.0), (0.0, 120.0, 0.0), "from the side, 760 blocks off, eye level"),
+    "three_quarter": ((-430.0, 260.0, -430.0), (0.0, 105.0, 0.0), "three-quarters, from 260 blocks up"),
+    "below": ((-210.0, 2.0, -230.0), (0.0, 200.0, 0.0), "from below, 310 blocks off"),
+    "above": ((-250.0, 620.0, -300.0), (0.0, 90.0, 0.0), "from above, 620 blocks up"),
+    "far": ((0.0, 700.0, -2600.0), (0.0, 60.0, 0.0), "the whole of it, 2.6 km off"),
+}
 
 
-def argb(c):
-    return np.array([(c >> 24) & 255, (c >> 16) & 255, (c >> 8) & 255, c & 255], float)
+def load(name):
+    return np.array(Image.open(os.path.join(TEX_DIR, name)).convert("RGBA")).astype(np.float32) / 255.0
 
 
-def tint(stops, f):
-    if f <= stops[0][0]:
-        return argb(stops[0][1])
-    for (f0, c0), (f1, c1) in zip(stops, stops[1:]):
-        if f <= f1:
-            return np.round(argb(c0) + (argb(c1) - argb(c0)) * (f - f0) / (f1 - f0))
-    return argb(stops[-1][1])
+class Camera:
+    def __init__(self, pos, target, w, h, fov=70.0):
+        self.pos = np.array(pos, float)
+        f = np.array(target, float) - self.pos
+        self.f = f / np.linalg.norm(f)
+        r = np.cross(self.f, [0.0, 1.0, 0.0])
+        self.r = r / np.linalg.norm(r)
+        self.u = np.cross(self.r, self.f)
+        self.w, self.h = w, h
+        self.focal = (h / 2) / math.tan(math.radians(fov / 2))
+        self.near = 0.5
+
+    def to_cam(self, p):
+        d = np.asarray(p, float) - self.pos
+        return np.stack([d @ self.r, d @ self.u, d @ self.f], -1)
+
+    def ray(self):
+        ys, xs = np.mgrid[0:self.h, 0:self.w]
+        dx = (xs + 0.5 - self.w / 2) / self.focal
+        dy = -(ys + 0.5 - self.h / 2) / self.focal
+        return dx, dy
 
 
-def particles(t, rng):
-    """The sprites alive t seconds after the blast: (x, y, z, half size, frame (always 0), rgb)."""
+def clip_near(cam_pts, attrs, near):
+    """Sutherland-Hodgman against z >= near: a polygon's camera-space points and per-vertex attributes."""
+    out_p, out_a = [], []
+    n = len(cam_pts)
+    for i in range(n):
+        p0, p1 = cam_pts[i], cam_pts[(i + 1) % n]
+        a0, a1 = attrs[i], attrs[(i + 1) % n]
+        in0, in1 = p0[2] >= near, p1[2] >= near
+        if in0:
+            out_p.append(p0)
+            out_a.append(a0)
+        if in0 != in1:
+            t = (near - p0[2]) / (p1[2] - p0[2])
+            out_p.append(p0 + (p1 - p0) * t)
+            out_a.append(a0 + (a1 - a0) * t)
+    return out_p, out_a
+
+
+def raster(cam, cam_pts, attrs):
+    """Yields (ys, xs, depth, interpolated attributes) for the pixels a convex polygon covers (perspective-correct)."""
+    pts, ats = clip_near(list(cam_pts), list(attrs), cam.near)
+    if len(pts) < 3:
+        return
+    P = np.array(pts)
+    A = np.array(ats)
+    sx = cam.w / 2 + P[:, 0] / P[:, 2] * cam.focal
+    sy = cam.h / 2 - P[:, 1] / P[:, 2] * cam.focal
+    iz = 1.0 / P[:, 2]
+    for k in range(1, len(P) - 1):
+        idx = [0, k, k + 1]
+        x0, x1, x2 = sx[idx]
+        y0, y1, y2 = sy[idx]
+        area = (x1 - x0) * (y2 - y0) - (x2 - x0) * (y1 - y0)
+        if abs(area) < 1e-9:
+            continue
+        xmin, xmax = int(max(0, math.floor(min(x0, x1, x2)))), int(min(cam.w - 1, math.ceil(max(x0, x1, x2))))
+        ymin, ymax = int(max(0, math.floor(min(y0, y1, y2)))), int(min(cam.h - 1, math.ceil(max(y0, y1, y2))))
+        if xmin > xmax or ymin > ymax:
+            continue
+        ys, xs = np.mgrid[ymin:ymax + 1, xmin:xmax + 1]
+        px, py = xs + 0.5, ys + 0.5
+        w0 = ((x1 - px) * (y2 - py) - (x2 - px) * (y1 - py)) / area
+        w1 = ((x2 - px) * (y0 - py) - (x0 - px) * (y2 - py)) / area
+        w2 = 1.0 - w0 - w1
+        inside = (w0 >= 0) & (w1 >= 0) & (w2 >= 0)
+        if not inside.any():
+            continue
+        w0, w1, w2 = w0[inside], w1[inside], w2[inside]
+        izs = iz[idx]
+        wz = w0 * izs[0] + w1 * izs[1] + w2 * izs[2]
+        depth = 1.0 / wz
+        at = (np.outer(w0 * izs[0], A[idx[0]]) + np.outer(w1 * izs[1], A[idx[1]]) + np.outer(w2 * izs[2], A[idx[2]])) / wz[:, None]
+        yield ys[inside], xs[inside], depth, at
+
+
+def sample(tex, uv):
+    tx = np.clip(np.floor(uv[:, 0]).astype(int), 0, tex.shape[1] - 1)
+    ty = np.clip(np.floor(uv[:, 1]).astype(int), 0, tex.shape[0] - 1)
+    return tex[ty, tx]
+
+
+def cloud_quads(t_ticks, lifetime, scale, pos):
+    """The cloud's faces in world space at a moment (NuclearCloud.render), with its alpha and glow."""
+    age = int(math.floor(t_ticks))
+    partial = t_ticks - age
+    quads, life, glow = mcm.quads(age, partial, lifetime)
+    fade = max(10, round(lifetime / 40.0))
+    alpha = min(max((lifetime - age - partial) / fade, 0.0), 1.0)
+    glow = min(glow, 1.0)
+    k = scale / SOURCE_SCALE
+    origin = np.array(pos) - np.array([0.0, 0.5 * k, 0.0])
+    flip = np.array([-scale, -scale, scale])
     out = []
-    now = t * 20.0
-    for y0, radius, rim, size, acc, seconds, stops in LAYERS:
-        # the ticks whose sprites are still alive
-        first = max(1, int(math.floor(now - LIFE * 20)))
-        for tick in range(first, int(math.floor(now)) + 1):
-            if tick > seconds * 20:
-                break
-            for k in range(RATE // 20):
-                born = tick - 1 + (k + 1) / (RATE // 20)
-                age = (now - born) / 20.0
-                if age < 0 or age > LIFE:
+    for corners, uvs, normal, name in quads:
+        w = corners * flip + origin
+        n = normal * np.array([-1.0, -1.0, 1.0])
+        out.append((w, uvs, n / max(np.linalg.norm(n), 1e-9), name))
+    return out, alpha, glow
+
+
+def puffs(t_ticks, lifetime, scale, pos, rng):
+    """The puffs alive at a moment (NuclearCloud.puffs, NukePuffParticle): (position, radius, rgb, is_fire)."""
+    k = scale / SOURCE_SCALE
+    fade = max(10, round(lifetime / 40.0))
+    now = int(t_ticks)
+    out = []
+    for born in range(max(mcm.BALL_FOR, now - 25), now + 1):
+        if born >= lifetime - fade:
+            break
+        life = math.log(1 + (born - mcm.BALL_FOR) / (lifetime - mcm.BALL_FOR)) * 2.0
+        spread = (12 * life + 4) * scale
+        smoke = math.ceil((1 + rng.integers(2)) * SOURCE_SCALE)
+        fire = math.ceil(SOURCE_SCALE * SOURCE_SCALE)
+        for kind, count in (("smoke", smoke), ("fire", fire)):
+            for _ in range(count):
+                lifetime_p = 15 + rng.integers(10)
+                size = (0.8 + rng.random() * 0.3) * k
+                if kind == "smoke":
+                    p = (rng.random(3) - 0.5) * scale * 1.4 + pos
+                    v = (rng.random(3) - 0.5) * 2.34 * k
+                else:
+                    r = rng.random(3)
+                    p = np.array([(r[0] - 0.5) * spread, (-0.6 + r[1] * 0.5) * spread * 0.1, (r[2] - 0.5) * spread]) + pos
+                    v = np.zeros(3)
+                a = now - born
+                if a > lifetime_p:
                     continue
-                a, r, g, b = tint(stops, age / LIFE)      # (the alpha test is on the texture alone)
-                frame = 0
-                ang = rng.random() * 2 * math.pi
-                rr = radius if rim else radius * math.sqrt(rng.random())
-                out.append((math.cos(ang) * rr, y0 + 0.5 * acc * age * age, math.sin(ang) * rr, size, frame, (r, g, b)))
+                travelled = v * (1 - 0.96 ** a) / 0.04
+                tint = np.array([1.0, 0xB3 / 255.0, 0.0]) * 0.95 ** a
+                out.append((p + travelled, size, tint, kind == "fire"))
     return out
 
 
-def render(t, distance=600.0, height=40.0, fov=70.0, size=640, seed=1):
-    rng = np.random.default_rng(seed + int(t * 20))
-    sheet = np.array(Image.open(SPRITE).convert("RGBA"))
-    cam = np.array([0.0, height, -distance])
-    target = np.array([0.0, 110.0, 0.0])
-    fwd = target - cam
-    fwd /= np.linalg.norm(fwd)
-    right = np.cross(np.array([0.0, 1.0, 0.0]), fwd)
-    right /= np.linalg.norm(right)
-    up = np.cross(fwd, right)
-    f = size / 2 / math.tan(math.radians(fov) / 2)
+def ground_and_sky(cam, img, zbuf):
+    dx, dy = cam.ray()
+    d = cam.f[None, None, :] + cam.r[None, None, :] * dx[..., None] + cam.u[None, None, :] * dy[..., None]
+    sky = np.clip(0.55 + 0.45 * dy[..., None] / 1.2, 0, 1)
+    img[:] = np.array([0.46, 0.63, 0.86]) * sky + np.array([0.75, 0.84, 0.95]) * (1 - sky)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        t = -cam.pos[1] / d[..., 1]
+    hit = (t > 0) & np.isfinite(t)
+    gx = cam.pos[0] + d[..., 0] * t
+    gz = cam.pos[2] + d[..., 2] * t
+    # (lines about a pixel wide wherever they are)
+    thin, thick = t * 1.2 / cam.focal, t * 2.4 / cam.focal
+    minor = (np.abs(((gx + 10) % 20) - 10) < thin) | (np.abs(((gz + 10) % 20) - 10) < thin)
+    major = (np.abs(((gx + 50) % 100) - 50) < thick) | (np.abs(((gz + 50) % 100) - 50) < thick)
+    col = np.where(major[..., None], [0.2, 0.3, 0.18], np.where(minor[..., None], [0.3, 0.42, 0.26], [0.42, 0.56, 0.34]))
+    img[hit] = col[hit]
+    zbuf[hit] = t[hit]  # (camera-space depth along the view axis == t for this ray)
 
-    def project(p):
-        d = p - cam
-        z = d @ fwd
-        return size / 2 + (d @ right) * f / z, size / 2 - (d @ up) * f / z, z
 
-    img = np.zeros((size, size, 3))
-    for y in range(size):     # sky
-        img[y] = np.array([0.52, 0.68, 0.9]) * (0.8 + 0.2 * y / size)
-    zbuf = np.full((size, size), np.inf)
-    # ground and its grid (20-block squares, thicker every 100)
-    yy, xx = np.mgrid[0:size, 0:size] + 0.5
-    dirs = (xx[..., None] - size / 2) / f * right + (size / 2 - yy[..., None]) / f * up + fwd
-    hit = dirs[..., 1] < -1e-6
-    s = np.where(hit, -cam[1] / np.where(hit, dirs[..., 1], -1), 0)
-    gx = cam[0] + s * dirs[..., 0]
-    gz = cam[2] + s * dirs[..., 2]
-    ground = np.array([0.36, 0.45, 0.3])
-    line = (np.abs((gx + 10) % 20 - 10) < 0.02 * s / 10 + 0.4) | (np.abs((gz + 10) % 20 - 10) < 0.02 * s / 10 + 0.4)
-    big = (np.abs((gx + 50) % 100 - 50) < 1.2) | (np.abs((gz + 50) % 100 - 50) < 1.2)
-    img[hit] = ground
-    img[hit & line] = ground * 0.8
-    img[hit & big] = ground * 0.6
-    zbuf[hit] = s[hit] * (dirs[hit] @ fwd)
-    for x, y, z, half, frame, rgb in particles(t, rng):
-        sx, sy, sz = project(np.array([x, y, z]))
-        if sz <= 1:
+def box_quads(x0, y0, z0, x1, y1, z1):
+    c = lambda x, y, z: np.array([x, y, z], float)  # noqa: E731
+    return [
+        [c(x0, y1, z0), c(x1, y1, z0), c(x1, y1, z1), c(x0, y1, z1)],
+        [c(x0, y0, z0), c(x1, y0, z0), c(x1, y1, z0), c(x0, y1, z0)],
+        [c(x0, y0, z1), c(x1, y0, z1), c(x1, y1, z1), c(x0, y1, z1)],
+        [c(x0, y0, z0), c(x0, y0, z1), c(x0, y1, z1), c(x0, y1, z0)],
+        [c(x1, y0, z0), c(x1, y0, z1), c(x1, y1, z1), c(x1, y1, z0)],
+    ]
+
+
+def flat(cam, img, zbuf, quads, rgb):
+    for q in quads:
+        for ys, xs, depth, _ in raster(cam, cam.to_cam(np.array(q)), np.zeros((4, 1))):
+            ok = depth < zbuf[ys, xs]
+            img[ys[ok], xs[ok]] = rgb
+            zbuf[ys[ok], xs[ok]] = depth[ok]
+
+
+def render(view, t_seconds, height=240.0, seconds=60.0, size=(480, 360), seed=1):
+    scale = height / MODEL_HEIGHT
+    k = scale / SOURCE_SCALE
+    lifetime = max(mcm.BALL_FOR + 40, int(seconds * 20))
+    pos = np.array([0.0, 2.0 * k, 0.0])
+    cam_pos, target, _ = VIEWS[view]
+    f = height / 240.0
+    cam = Camera(np.array(cam_pos) * f, np.array(target) * f, *size)
+    w, h = size
+    img = np.zeros((h, w, 3))
+    zbuf = np.full((h, w), np.inf)
+    ground_and_sky(cam, img, zbuf)
+    # scale references: Godzilla's height (red post) and a player (blue), 150 blocks out towards the camera's left
+    side = -cam.r * 150.0
+    gx, gz = side[0], side[2]
+    flat(cam, img, zbuf, box_quads(gx - 2, 0, gz - 2, gx + 2, GODZILLA_HEIGHT, gz + 2), [0.85, 0.15, 0.12])
+    flat(cam, img, zbuf, box_quads(gx + 5, 0, gz - 0.3, gx + 5.6, 1.8, gz + 0.3), [0.15, 0.3, 0.9])
+
+    t_ticks = t_seconds * 20.0
+    rng = np.random.default_rng(seed)
+    # the puffs (particles are drawn before the cloud): round blobs facing the camera
+    for p, radius, tint, fire in puffs(t_ticks, lifetime, scale, pos, rng):
+        c = cam.to_cam(p)
+        if c[2] < cam.near:
             continue
-        h = half * f / sz
-        x0, x1, y0, y1 = sx - h, sx + h, sy - h, sy + h
-        ix0, ix1 = max(0, int(x0)), min(size - 1, int(math.ceil(x1)))
-        iy0, iy1 = max(0, int(y0)), min(size - 1, int(math.ceil(y1)))
-        if ix0 > ix1 or iy0 > iy1:
-            continue
-        X, Y = np.meshgrid(np.arange(ix0, ix1 + 1) + 0.5, np.arange(iy0, iy1 + 1) + 0.5)
-        u = ((X - x0) / (x1 - x0) * 16).astype(int)
-        v = ((Y - y0) / (y1 - y0) * 15).astype(int)
-        ok = (u >= 0) & (u < 16) & (v >= 0) & (v < 15)
-        u = np.clip(u, 0, 15)
-        v = np.clip(v, 0, 14)
-        tex = sheet[v, 16 * frame + u]
-        show = ok & (tex[..., 3] > 0)
-        sub = zbuf[iy0:iy1 + 1, ix0:ix1 + 1]
-        win = show & (sz < sub)
-        col = tex[..., :3] / 255.0 * (np.array(rgb) / 255.0)
-        img[iy0:iy1 + 1, ix0:ix1 + 1][win] = col[win]
-        sub[win] = sz
-    return img
+        q = [p + (-cam.r - cam.u) * radius, p + (cam.r - cam.u) * radius, p + (cam.r + cam.u) * radius, p + (-cam.r + cam.u) * radius]
+        uv = np.array([[-1, -1], [1, -1], [1, 1], [-1, 1]], float)
+        for ys, xs, depth, at in raster(cam, cam.to_cam(np.array(q)), uv):
+            rr = (at ** 2).sum(-1)
+            ok = (rr < 1.0) & (depth < zbuf[ys, xs])
+            shade = (0.7 + 0.3 * (1 - rr[ok]))[:, None] * (1.0 if fire else 0.8)
+            img[ys[ok], xs[ok]] = np.clip(tint * shade, 0, 1)
+            zbuf[ys[ok], xs[ok]] = depth[ok]
+
+    tex, glow_tex = load("mushroom_cloud.png"), load("mushroom_cloud_glow.png")
+    quads, alpha, glow = cloud_quads(t_ticks, lifetime, scale, pos)
+    # 1) the texture, see-through, lit like an entity, sorted back to front
+    order = sorted(range(len(quads)), key=lambda i: -np.linalg.norm(quads[i][0].mean(0) - cam.pos))
+    top = np.full((h, w), -1)
+    for i in order:
+        corners, uvs, n, _ = quads[i]
+        light = min(1.0, (max(0.0, n @ LIGHT0) + max(0.0, n @ LIGHT1)) * 0.6 + 0.4)
+        for ys, xs, depth, uv in raster(cam, cam.to_cam(corners), uvs):
+            s = sample(tex, uv)
+            ok = (s[:, 3] * alpha >= 0.1) & (depth <= zbuf[ys, xs] + 1e-4)
+            yy, xx = ys[ok], xs[ok]
+            a = (s[ok, 3] * alpha)[:, None]
+            img[yy, xx] = np.clip(s[ok, :3] * light * a + img[yy, xx] * (1 - a), 0, 1)
+            zbuf[yy, xx] = depth[ok]
+            top[yy, xx] = i
+    # 2) and 3) glowing, added on where the first pass drew
+    for i in range(len(quads)):
+        corners, uvs, n, _ = quads[i]
+        for ys, xs, depth, uv in raster(cam, cam.to_cam(corners), uvs):
+            ok = top[ys, xs] == i
+            if not ok.any():
+                continue
+            yy, xx = ys[ok], xs[ok]
+            s = sample(tex, uv[ok])
+            g = sample(glow_tex, uv[ok])
+            add = s[:, :3] * (s[:, 3] * alpha)[:, None] + g[:, :3] * (g[:, 3] * glow * alpha)[:, None]
+            img[yy, xx] = np.clip(img[yy, xx] + add, 0, 1)
+    return (img * 255).astype(np.uint8), dict(alpha=alpha, glow=glow, scale=scale)
+
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("out")
+    ap.add_argument("--height", type=float, default=240.0)
+    ap.add_argument("--seconds", type=float, default=60.0)
+    ap.add_argument("--size", default="400x300")
+    ap.add_argument("--times", default="0.25,1,5,20,40,59.5")
+    ap.add_argument("--views", default="side,three_quarter,below,above,far")
+    a = ap.parse_args()
+    w, h = (int(v) for v in a.size.split("x"))
+    times = [float(t) for t in a.times.split(",")]
+    views = a.views.split(",")
+    label_h = 18
+    sheet = Image.new("RGB", (w * len(views), (h + label_h) * len(times) + 22), (24, 26, 32))
+    d = ImageDraw.Draw(sheet)
+    d.text((6, 4), "Offline preview (not a game capture). Grid: 20-block squares, darker every 100. Red post: Godzilla's "
+                   "height (45 blocks); blue: a player. Cloud %d blocks tall, %d s." % (a.height, a.seconds), fill=(220, 220, 230))
+    for r, t in enumerate(times):
+        for c, v in enumerate(views):
+            frame, info = render(v, t, a.height, a.seconds, (w, h))
+            y = 22 + r * (h + label_h)
+            sheet.paste(Image.fromarray(frame), (c * w, y + label_h))
+            d.text((c * w + 6, y + 3), "%.2f s, %s (glow %.2f, alpha %.2f)" % (t, VIEWS[v][2], info["glow"], info["alpha"]),
+                   fill=(220, 220, 230))
+            print("rendered %s at %.2f s" % (v, t), flush=True)
+    sheet.save(a.out)
+    print("wrote", a.out)
 
 
 if __name__ == "__main__":
-    args = [a for a in sys.argv[1:] if not a.startswith("--")]
-    opts = dict(a[2:].split("=") for a in sys.argv[1:] if a.startswith("--"))
-    kw = {k: (int(v) if k in ("size", "seed") else float(v)) for k, v in opts.items()}
-    frames = [render(float(t), **kw) for t in args[1:]]
-    Image.fromarray((np.clip(np.concatenate(frames, axis=1), 0, 1) * 255).astype(np.uint8)).save(args[0])
+    main()
