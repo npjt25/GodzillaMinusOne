@@ -28,6 +28,11 @@ public final class ModNetwork {
                 .encoder(ShinseiMaruPacket::encode).decoder(ShinseiMaruPacket::decode).consumerMainThread(ShinseiMaruPacket::handle).add();
         CHANNEL.messageBuilder(SearchlightPacket.class, id++, NetworkDirection.PLAY_TO_SERVER)
                 .encoder(SearchlightPacket::encode).decoder(SearchlightPacket::decode).consumerMainThread(SearchlightPacket::handle).add();
+        CHANNEL.messageBuilder(GodzillaMoveRequestPacket.class, id++, NetworkDirection.PLAY_TO_SERVER)
+                .encoder(GodzillaMoveRequestPacket::encode).decoder(GodzillaMoveRequestPacket::decode)
+                .consumerMainThread(GodzillaMoveRequestPacket::handle).add();
+        CHANNEL.messageBuilder(GodzillaMovePacket.class, id++, NetworkDirection.PLAY_TO_CLIENT)
+                .encoder(GodzillaMovePacket::encode).decoder(GodzillaMovePacket::decode).consumerMainThread(GodzillaMovePacket::handle).add();
     }
 
     public static void send(ServerPlayer player, Object message) {

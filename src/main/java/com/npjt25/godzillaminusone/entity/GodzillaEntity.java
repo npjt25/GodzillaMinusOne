@@ -2,6 +2,7 @@ package com.npjt25.godzillaminusone.entity;
 
 import com.npjt25.godzillaminusone.Config;
 import com.npjt25.godzillaminusone.GodzillaMinusOne;
+import com.npjt25.godzillaminusone.compat.Shapes;
 import com.npjt25.godzillaminusone.network.FxPacket;
 import com.npjt25.godzillaminusone.network.ModNetwork;
 import com.npjt25.godzillaminusone.registry.ModDamageTypes;
@@ -115,10 +116,10 @@ public class GodzillaEntity extends Monster implements GeoEntity {
     private static final int COLLAPSE_TICKS = 100;      // gojira_dead timer: 5 s
     private static final int DEAD_TICKS = 300;          // gojira_dead2 timer: 15 s
     private static final int ANGER_DELAY = 40;          // angry timeline: charge starts at 2.0 s
-    private static final int BEAM_START_TICK = 304;     // charge animation: the beam appears at 14.96 s (after the 4 s in-breath)
-    private static final int CHARGE_BLAST_TICK = 344;   // ...and 2 s later its impact goes up in a nuclear blast
-    private static final int BEAM_END_TICK = 388;       // charge animation: the beam is gone at 19.17 s
-    private static final int CHARGE_LENGTH = 518;       // charge animation: 25.67 s
+    public static final int BEAM_START_TICK = 304;     // charge animation: the beam appears at 14.96 s (after the 4 s in-breath)
+    public static final int CHARGE_BLAST_TICK = 344;   // ...and 2 s later its impact goes up in a nuclear blast
+    public static final int BEAM_END_TICK = 388;       // charge animation: the beam is gone at 19.17 s
+    public static final int CHARGE_LENGTH = 518;       // charge animation: 25.67 s
     private static final int AURA_INTERVAL = 10;        // idle timeline loops every 0.5 s
     private static final int REGEN_INTERVAL = 100;      // calm timeline loops every 5 s
     private static final int STUN_TICKS = 100;          // naval mine: slowness for 5 s
@@ -235,6 +236,8 @@ public class GodzillaEntity extends Monster implements GeoEntity {
     private float aimO;
     private float aimClient;
     private boolean walkAnimation;
+    /** As a player's shape: whether the player is swimming (client side). */
+    private boolean shapeSwimming;
 
     private enum Attack {
         BITE("attack", 10, 20), STOMP("stomp", 25, 65), SWIM_BITE("swim_bite", 14, 26),
@@ -980,12 +983,15 @@ public class GodzillaEntity extends Monster implements GeoEntity {
      * louder and louder closer in.
      */
     private void broadcastRoar(ServerLevel level, SoundEvent sound) {
+        broadcastRoar(level, getX(), getY() + 30.0, getZ(), sound, this.random.nextLong());
+    }
+
+    /** A roar from (x, y, z), heard {@link #ROAR_RANGE} blocks away (also a player playing as Godzilla's). */
+    public static void broadcastRoar(ServerLevel level, double x, double y, double z, SoundEvent sound, long seed) {
         Holder<SoundEvent> holder = BuiltInRegistries.SOUND_EVENT.wrapAsHolder(sound);
-        long seed = this.random.nextLong();
-        double y = getY() + 30.0;
         for (ServerPlayer player : level.players()) {
-            if (player.distanceToSqr(getX(), y, getZ()) < ROAR_RANGE * ROAR_RANGE) {
-                player.connection.send(new ClientboundSoundPacket(holder, SoundSource.HOSTILE, getX(), y, getZ(), ROAR_VOLUME, 1.0F, seed));
+            if (player.distanceToSqr(x, y, z) < ROAR_RANGE * ROAR_RANGE) {
+                player.connection.send(new ClientboundSoundPacket(holder, SoundSource.HOSTILE, x, y, z, ROAR_VOLUME, 1.0F, seed));
             }
         }
     }
@@ -1242,6 +1248,9 @@ public class GodzillaEntity extends Monster implements GeoEntity {
 
     @Override
     public void die(DamageSource source) {
+        if (!level().isClientSide && source.getEntity() instanceof Player player) {
+            Shapes.creditDefeat(player, this); // (ReMorphed: bringing him down unlocks his shape)
+        }
         if (!level().isClientSide && Config.GODZILLA_REGENERATES.get() && !source.is(DamageTypeTags.BYPASSES_INVULNERABILITY)) {
             // gojira -> gojira_dead: collapse, lie dead, then regenerate (see tick()).
             setHealth(1.0F);
@@ -1347,7 +1356,7 @@ public class GodzillaEntity extends Monster implements GeoEntity {
         return position().add(fwd.scale(forward)).add(right.scale(side)).add(0.0, up, 0.0);
     }
 
-    private static double distanceSqrToSegment(Vec3 p, Vec3 a, Vec3 b) {
+    static double distanceSqrToSegment(Vec3 p, Vec3 a, Vec3 b) {
         Vec3 ab = b.subtract(a);
         double t = Mth.clamp(p.subtract(a).dot(ab) / Math.max(ab.lengthSqr(), 1.0E-6), 0.0, 1.0);
         return p.distanceToSqr(a.add(ab.scale(t)));
@@ -1737,7 +1746,7 @@ public class GodzillaEntity extends Monster implements GeoEntity {
         if (isCharging()) {
             return state.setAndContinue(CHARGE);
         }
-        if (isSwimmingAtSurface()) {
+        if (isSwimmingAtSurface() || this.shapeSwimming) {
             return state.setAndContinue(SWIM);
         }
         if (state.isMoving()) {
@@ -1745,6 +1754,32 @@ public class GodzillaEntity extends Monster implements GeoEntity {
             return state.setAndContinue(WALK);
         }
         return state.setAndContinue(IDLE);
+    }
+
+    // ------------------------------------------------------------------ played by a player (Walkers: entity.PlayerGodzilla)
+
+    /**
+     * Client side, as a player's shape (Walkers draws it in their place, but never ticks it): up and about (not emerging
+     * from the ground), where the player is (so its sounds come from them), swimming when they are.
+     */
+    public void prepareAsShape(Player player) {
+        if (getPhase() != Phase.ACTIVE) {
+            this.entityData.set(DATA_PHASE, Phase.ACTIVE.ordinal());
+        }
+        setPosRaw(player.getX(), player.getY(), player.getZ());
+        this.shapeSwimming = player.isInWater() && !player.onGround();
+    }
+
+    /** Client side, as a player's shape: one of the moves (an animation of the "action" controller). */
+    public void playShapeMove(String animation) {
+        triggerAnim("action", animation);
+    }
+
+    /** Client side, as a player's shape: the atomic breath's charge (CHARGE_GLOWING, CHARGE_COOLING or CHARGE_NONE). */
+    public void setShapeCharge(int state) {
+        if (getChargeState() != state) {
+            setChargeState(state);
+        }
     }
 
     private void onSoundKeyframe(SoundKeyframeEvent<GodzillaEntity> event) {
