@@ -1532,6 +1532,7 @@ public class GodzillaEntity extends Monster implements GeoEntity {
         // the swipe throws what it hits away from him: it topples over and comes down as rubble beyond
         Vec3 away = new Vec3(building.x() + 0.5 - getX(), 0.0, building.z() + 0.5 - getZ());
         away = away.lengthSqr() < 1.0E-4 ? Vec3.directionFromRotation(0.0F, getYRot()) : away.normalize();
+        for (int y = building.top(); y >= bottom; y--) {
             for (int dx = -KNOCK_RADIUS; dx <= KNOCK_RADIUS; dx++) {
                 for (int dz = -KNOCK_RADIUS; dz <= KNOCK_RADIUS; dz++) {
                     if (dx * dx + dz * dz > KNOCK_RADIUS * KNOCK_RADIUS) {
