@@ -8,6 +8,7 @@ import net.minecraft.tags.BlockTags;
 import net.minecraft.util.Mth;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.item.FallingBlockEntity;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
@@ -333,6 +334,24 @@ public final class Destruction {
                 || state.is(Tags.Blocks.SANDSTONE) || state.is(Tags.Blocks.ORES) || state.is(BlockTags.TERRACOTTA)
                 || state.is(Blocks.CLAY) || state.is(Blocks.SNOW_BLOCK) || state.is(BlockTags.ICE) || state.is(Blocks.DIRT_PATH)
                 || state.is(Blocks.BEDROCK) || state.is(Blocks.MUD);
+    }
+
+    /**
+     * A block of a building Godzilla hits comes away and topples: a solid block flies off as a falling block, thrown
+     * along {@code push}, and lands as rubble wherever it comes down (nothing drops). Anything else, and solid blocks once
+     * {@code budget} is used up, just breaks (with Minecraft's own break effects, which a physics mod can pick up).
+     * Returns whether it toppled.
+     */
+    static boolean topple(ServerLevel level, BlockPos pos, BlockState state, Vec3 push, boolean budget) {
+        if (budget && state.isCollisionShapeFullBlock(level, pos) && !state.hasBlockEntity() && state.getFluidState().isEmpty()) {
+            FallingBlockEntity block = FallingBlockEntity.fall(level, pos, state);
+            block.dropItem = false;
+            block.setDeltaMovement(push);
+            block.hurtMarked = true;
+            return true;
+        }
+        level.destroyBlock(pos, false);
+        return false;
     }
 
     /** Whether a block may be destroyed; {@code breaker} is the mob doing it, or null for a bomb. */

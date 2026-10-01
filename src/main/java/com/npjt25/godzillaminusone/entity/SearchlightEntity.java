@@ -3,6 +3,8 @@ package com.npjt25.godzillaminusone.entity;
 import com.npjt25.godzillaminusone.registry.ModItems;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.core.particles.BlockParticleOption;
+import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
@@ -48,11 +50,18 @@ import java.util.Iterator;
 import java.util.Set;
 
 /**
- * A WWII searchlight. Right-click to sit at it: it turns and tilts with where you look, and while someone is
- * manning it the lamp is lit: a cone of light reaching {@link #RANGE} blocks that widens as it goes
- * ({@link #beamRadius}), lighting up a wide pool around wherever it lands (a ring of light sources, {@link #spotRadius}).
- * An Odo Island Monster caught in the beam goes berserk and comes for whoever is working the light. Hit it like a
- * boat to knock it back into its item.
+ * A WWII searchlight: a cone of light reaching {@link #RANGE} blocks that widens as it goes ({@link #beamRadius}),
+ * lighting up a wide pool around wherever it lands (a ring of light sources, {@link #spotRadius}).
+ *
+ * <ul>
+ *   <li>Left alone it sweeps round on its own, like the hand of a clock, a full turn every {@link #SWEEP_SECONDS}
+ *       seconds, at the tilt it was left at.</li>
+ *   <li>Right-click to sit at it: then it turns and tilts with where you look. The "Vehicle Action" key (R) switches
+ *       the lamp off, and on again (it stays as you left it).</li>
+ *   <li>An Odo Island Monster caught in the beam of a searchlight someone is working stares into the light and roars,
+ *       charges it and smashes it, then comes for whoever was working it. Sweeping on its own, it doesn't bother him.</li>
+ *   <li>Hit it like a boat to knock it back into its item.</li>
+ * </ul>
  */
 public class SearchlightEntity extends Entity implements GeoEntity {
     public static final double RANGE = 160.0;
@@ -62,12 +71,16 @@ public class SearchlightEntity extends Entity implements GeoEntity {
     /** Where the lamp's lens is (blocks up from the base, and ahead of the lamp's pivot). */
     public static final double LENS_HEIGHT = 1.25;
     public static final double LENS_FORWARD = 0.75;
+    /** Left alone, it sweeps round once in this many seconds. */
+    public static final int SWEEP_SECONDS = 40;
 
     private static final EntityDataAccessor<Float> DATA_AIM_YAW = SynchedEntityData.defineId(SearchlightEntity.class, EntityDataSerializers.FLOAT);
     private static final EntityDataAccessor<Float> DATA_AIM_PITCH = SynchedEntityData.defineId(SearchlightEntity.class, EntityDataSerializers.FLOAT);
     private static final EntityDataAccessor<Boolean> DATA_LIT = SynchedEntityData.defineId(SearchlightEntity.class, EntityDataSerializers.BOOLEAN);
     private static final EntityDataAccessor<Integer> DATA_WOBBLE = SynchedEntityData.defineId(SearchlightEntity.class, EntityDataSerializers.INT);
     private static final EntityDataAccessor<Float> DATA_DAMAGE = SynchedEntityData.defineId(SearchlightEntity.class, EntityDataSerializers.FLOAT);
+    /** Its switch: on (lit, manned or sweeping) or off. */
+    private static final EntityDataAccessor<Boolean> DATA_ON = SynchedEntityData.defineId(SearchlightEntity.class, EntityDataSerializers.BOOLEAN);
 
     private final AnimatableInstanceCache cache = GeckoLibUtil.createInstanceCache(this);
     /** The light sources (light blocks) it has put where the beam lands. */
@@ -85,6 +98,7 @@ public class SearchlightEntity extends Entity implements GeoEntity {
         this.entityData.define(DATA_LIT, false);
         this.entityData.define(DATA_WOBBLE, 0);
         this.entityData.define(DATA_DAMAGE, 0.0F);
+        this.entityData.define(DATA_ON, true);
     }
 
     // ------------------------------------------------------------------ aim
@@ -100,6 +114,21 @@ public class SearchlightEntity extends Entity implements GeoEntity {
 
     public boolean isLit() {
         return this.entityData.get(DATA_LIT);
+    }
+
+    /** Whether its switch is on. */
+    public boolean isSwitchedOn() {
+        return this.entityData.get(DATA_ON);
+    }
+
+    public void setSwitchedOn(boolean on) {
+        this.entityData.set(DATA_ON, on);
+    }
+
+    /** The R key, from whoever is working it: the lamp off, or back on. */
+    public void toggle() {
+        setSwitchedOn(!isSwitchedOn());
+        playSound(SoundEvents.LEVER_CLICK, 0.6F, isSwitchedOn() ? 0.7F : 0.55F);
     }
 
     public int getWobble() {
@@ -232,8 +261,11 @@ public class SearchlightEntity extends Entity implements GeoEntity {
         LivingEntity operator = getOperator();
         if (operator != null) {
             setAim(operator.getYRot(), operator.getXRot());
+        } else if (isSwitchedOn()) {
+            // nobody at it: it sweeps round on its own, like the hand of a clock
+            setAim(getAimYaw() + 360.0F / (SWEEP_SECONDS * 20.0F), Mth.clamp(getAimPitch(), -60.0F, 15.0F));
         }
-        boolean lit = operator != null;
+        boolean lit = isSwitchedOn();
         if (lit != isLit()) {
             this.entityData.set(DATA_LIT, lit);
             level.playSound(null, getX(), getY() + 1.0, getZ(), lit ? SoundEvents.BEACON_ACTIVATE : SoundEvents.BEACON_DEACTIVATE,
@@ -248,8 +280,11 @@ public class SearchlightEntity extends Entity implements GeoEntity {
         }
     }
 
-    /** Lights up a pool around where the beam lands, and catches any Odo Island Monster standing in the cone. */
-    private void shine(ServerLevel level, LivingEntity operator) {
+    /**
+     * Lights up a pool around where the beam lands, and (when someone is working it) catches any Odo Island Monster
+     * standing in the cone.
+     */
+    private void shine(ServerLevel level, @Nullable LivingEntity operator) {
         Vec3 from = lens();
         Vec3 dir = beamDirection();
         HitResult hit = beamHit(level);
@@ -272,6 +307,9 @@ public class SearchlightEntity extends Entity implements GeoEntity {
             }
         }
         moveLights(level, wanted);
+        if (operator == null) {
+            return; // (sweeping on its own, it doesn't bother him)
+        }
 
         AABB area = new AABB(from, end).inflate(beamRadius(length) + 16.0);
         for (OdoIslandMonsterEntity odo : level.getEntitiesOfClass(OdoIslandMonsterEntity.class, area, e -> e.isAlive() && !e.isBurnt())) {
@@ -280,7 +318,7 @@ public class SearchlightEntity extends Entity implements GeoEntity {
             double along = Mth.clamp(centre.subtract(from).dot(dir), 0.0, length + 2.0);
             AABB box = odo.getBoundingBox().inflate(beamRadius(along));
             if (box.contains(from) || box.clip(from, from.add(dir.scale(length + 2.0))).isPresent()) {
-                odo.spottedBy(operator);
+                odo.spottedBy(this, operator);
             }
         }
     }
@@ -346,6 +384,21 @@ public class SearchlightEntity extends Entity implements GeoEntity {
 
     // ------------------------------------------------------------------ breaking it
 
+    /** Smashed (by the Odo Island Monster): the glass shatters, whoever was at it is thrown off, nothing is left. */
+    public void smash(@Nullable Entity by) {
+        if (!(level() instanceof ServerLevel level) || isRemoved()) {
+            return;
+        }
+        ejectPassengers();
+        level.playSound(null, getX(), getY() + 1.0, getZ(), SoundEvents.GLASS_BREAK, SoundSource.BLOCKS, 2.0F, 0.8F);
+        level.playSound(null, getX(), getY() + 1.0, getZ(), SoundEvents.ANVIL_LAND, SoundSource.BLOCKS, 1.0F, 0.6F);
+        level.sendParticles(new BlockParticleOption(ParticleTypes.BLOCK, Blocks.GLASS.defaultBlockState()), getX(), getY() + LENS_HEIGHT,
+                getZ(), 40, 0.6, 0.6, 0.6, 0.2);
+        level.sendParticles(new BlockParticleOption(ParticleTypes.BLOCK, Blocks.IRON_BLOCK.defaultBlockState()), getX(), getY() + 0.8,
+                getZ(), 30, 0.7, 0.5, 0.7, 0.2);
+        discard();
+    }
+
     /** Hits work like on a boat: it rocks, and enough of them (one in creative) knock it back into its item. */
     @Override
     public boolean hurt(DamageSource source, float amount) {
@@ -383,6 +436,7 @@ public class SearchlightEntity extends Entity implements GeoEntity {
     @Override
     protected void readAdditionalSaveData(CompoundTag tag) {
         setAim(tag.getFloat("AimYaw"), tag.getFloat("AimPitch"));
+        setSwitchedOn(!tag.contains("On") || tag.getBoolean("On"));
         // lights left behind when the world was saved with the lamp lit: cleared on the next tick
         if (tag.contains("Light")) {
             this.lights.add(NbtUtils.readBlockPos(tag.getCompound("Light")));   // (saved by older versions)
@@ -397,6 +451,7 @@ public class SearchlightEntity extends Entity implements GeoEntity {
     protected void addAdditionalSaveData(CompoundTag tag) {
         tag.putFloat("AimYaw", getAimYaw());
         tag.putFloat("AimPitch", getAimPitch());
+        tag.putBoolean("On", isSwitchedOn());
         if (!this.lights.isEmpty()) {
             ListTag saved = new ListTag();
             for (BlockPos pos : this.lights) {

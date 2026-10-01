@@ -58,10 +58,13 @@ import java.util.UUID;
  *
  * <ul>
  *   <li>Left alone he wanders. Come within {@link #PROXIMITY} blocks and he charges you, biting and stomping.</li>
- *   <li>Spotted, he goes into a frenzy: caught in a searchlight's beam, or seen by a player (a player looking at him
- *       within {@link #SPOT_RANGE} blocks, or one in his own sight within {@link #SIGHT_RANGE}). He roars, then runs
- *       down whoever spotted him, faster, biting and stomping harder and twice as often, and doesn't let up for
- *       {@link #FRENZY_TICKS} ticks, crashing through whatever is in his way.</li>
+ *   <li>Spotted, he goes into a frenzy: seen by a player (a player looking at him within {@link #SPOT_RANGE} blocks,
+ *       or one in his own sight within {@link #SIGHT_RANGE}), he roars, then runs down whoever spotted him, faster,
+ *       biting and stomping harder and twice as often, and doesn't let up for {@link #FRENZY_TICKS} ticks, crashing
+ *       through whatever is in his way.</li>
+ *   <li>Caught in the beam of a searchlight someone is working, he turns and stares into the light and roars, then
+ *       charges the searchlight and smashes it, and then goes after whoever was working it. (A searchlight sweeping
+ *       on its own, with nobody at it, doesn't bother him.)</li>
  *   <li>Caught in a nuclear bomb's blast he doesn't die: he collapses, burnt to a crisp, and three minutes later he
  *       rises again as Godzilla.</li>
  * </ul>
@@ -127,6 +130,12 @@ public class OdoIslandMonsterEntity extends Monster implements GeoEntity {
     private int roarCooldown;
     private int pendingHitTicks = -1;
     private boolean pendingStomp;
+    /** The searchlight that caught him in its beam: he's going to smash it. */
+    @Nullable
+    private SearchlightEntity huntedLight;
+    /** Whoever was working it: he goes after them next. */
+    @Nullable
+    private LivingEntity lightOperator;
     // client side: when he was burnt (for the embers cooling)
     private int burntSinceTick = -1;
 
@@ -167,6 +176,7 @@ public class OdoIslandMonsterEntity extends Monster implements GeoEntity {
 
     @Override
     protected void registerGoals() {
+        this.goalSelector.addGoal(0, new LightGoal(this));
         this.goalSelector.addGoal(1, new ChargeGoal(this));
         this.goalSelector.addGoal(5, new WanderGoal(this));
         this.goalSelector.addGoal(6, new LookAtPlayerGoal(this, Player.class, 24.0F));
@@ -208,13 +218,81 @@ public class OdoIslandMonsterEntity extends Monster implements GeoEntity {
         this.entityData.set(DATA_STATE, state);
     }
 
-    /** Lit up by a searchlight: he goes into a frenzy and runs down whoever is working it. */
-    public void spottedBy(@Nullable LivingEntity operator) {
-        if (isBurnt() || !isAlive()) {
+    /**
+     * Caught in the beam of a searchlight someone is working: he goes into a frenzy, stares into the light and roars,
+     * then charges it and smashes it ({@link LightGoal}); then he goes after whoever was working it.
+     */
+    public void spottedBy(SearchlightEntity light, @Nullable LivingEntity operator) {
+        if (isBurnt() || !isAlive() || level().isClientSide) {
             return;
         }
-        frenzy(operator, true);
-        enrage(SPOTLIGHT_RAGE);
+        this.frenzyTicks = FRENZY_TICKS;
+        setFrenzyModifiers(true);
+        this.rageTicks = Math.max(this.rageTicks, SPOTLIGHT_RAGE);
+        setState(STATE_ANGRY);
+        if (operator != null && operator.isAlive()) {
+            this.lightOperator = operator;
+            this.frenzyTarget = operator;
+        }
+        if (this.huntedLight == light) {
+            return; // (already on his way to it)
+        }
+        this.huntedLight = light;
+        setTarget(null);
+        lookAtLight(light, 180.0F);
+        this.roarTicks = ROAR_LENGTH;
+        this.roarCooldown = 200;
+        triggerAnim("action", "roar");
+    }
+
+    /** The searchlight he's going to smash, if any. */
+    @Nullable
+    public SearchlightEntity getHuntedLight() {
+        SearchlightEntity light = this.huntedLight;
+        return light != null && light.isAlive() ? light : null;
+    }
+
+    /** Turns (up to {@code maxTurn} degrees) to face the light, and looks into it. */
+    private void lookAtLight(SearchlightEntity light, float maxTurn) {
+        double dx = light.getX() - getX();
+        double dz = light.getZ() - getZ();
+        float yaw = Mth.approachDegrees(getYRot(), (float) (Mth.atan2(dz, dx) * Mth.RAD_TO_DEG) - 90.0F, maxTurn);
+        setYRot(yaw);
+        this.yBodyRot = yaw;
+        this.yHeadRot = yaw;
+        getLookControl().setLookAt(light.getX(), light.getY() + SearchlightEntity.LENS_HEIGHT, light.getZ(), 30.0F, 30.0F);
+    }
+
+    boolean inReachOfLight(SearchlightEntity light) {
+        return inReachOfJaws(light) || light.getBoundingBox().getCenter().distanceTo(at(LEFT_FOOT)) < STOMP_RADIUS + 1.0;
+    }
+
+    private boolean inReachOfJaws(Entity entity) {
+        AABB box = entity.getBoundingBox();
+        return box.inflate(BITE_RADIUS).contains(at(JAWS)) || box.getCenter().distanceTo(at(JAWS)) < BITE_RADIUS + 2.0;
+    }
+
+    /** A bite (or, if it's under his feet, a stomp) at the searchlight: it lands on {@link #smashLight}. */
+    private void attackLight(SearchlightEntity light) {
+        boolean stomp = !inReachOfJaws(light);
+        this.pendingStomp = stomp;
+        this.pendingHitTicks = stomp ? STOMP_HIT : BITE_HIT;
+        this.attackCooldown = stomp ? 22 : 12;
+        triggerAnim("action", stomp ? "stomp" : "bite2");
+    }
+
+    /** His jaws (or foot) come down on the searchlight: it's smashed, and he turns on whoever was working it. */
+    public void smashLight() {
+        SearchlightEntity light = getHuntedLight();
+        this.huntedLight = null;
+        if (light != null) {
+            light.smash(this);
+        }
+        LivingEntity operator = this.lightOperator;
+        this.lightOperator = null;
+        if (operator != null && operator.isAlive()) {
+            frenzy(operator, true);
+        }
     }
 
     public boolean isFrenzied() {
@@ -383,14 +461,29 @@ public class OdoIslandMonsterEntity extends Monster implements GeoEntity {
         if (this.horizontalCollision && this.tickCount % 5 == 0 && ForgeEventFactory.getMobGriefingEvent(level, this)) {
             crashThrough(level);
         }
+        if (this.huntedLight != null && !this.huntedLight.isAlive()) {
+            // someone else broke it (or knocked it back into its item): straight on to whoever was working it
+            this.huntedLight = null;
+            if (this.lightOperator != null && this.lightOperator.isAlive()) {
+                frenzy(this.lightOperator, true);
+            }
+            this.lightOperator = null;
+        }
         if (this.pendingHitTicks >= 0 && --this.pendingHitTicks < 0) {
-            if (this.pendingStomp) {
+            SearchlightEntity light = getHuntedLight();
+            if (light != null && inReachOfLight(light)) {
+                if (this.pendingStomp) {
+                    stomp(level);
+                }
+                smashLight();
+            } else if (this.pendingStomp) {
                 stomp(level);
             } else {
                 bite(level, target);
             }
         }
-        boolean running = target != null && distanceTo(target) > (isFrenzied() ? 8.0 : 14.0) && this.roarTicks <= 0;
+        Entity chasing = getHuntedLight() != null ? getHuntedLight() : target;
+        boolean running = chasing != null && distanceTo(chasing) > (isFrenzied() ? 8.0 : 14.0) && this.roarTicks <= 0;
         if (running != isRunning()) {
             this.entityData.set(DATA_RUNNING, running);
         }
@@ -693,6 +786,52 @@ public class OdoIslandMonsterEntity extends Monster implements GeoEntity {
             this.odo.setYRot(newYaw);
             this.odo.yBodyRot = newYaw;
             this.odo.yHeadRot = newYaw;
+        }
+    }
+
+    /**
+     * Caught in a searchlight's beam: he stares into the light while he roars, then runs at the searchlight and, once
+     * it's in reach, smashes it (bite or stomp). Comes before everything else.
+     */
+    static class LightGoal extends Goal {
+        private final OdoIslandMonsterEntity odo;
+
+        LightGoal(OdoIslandMonsterEntity odo) {
+            this.odo = odo;
+            setFlags(EnumSet.of(Goal.Flag.MOVE, Goal.Flag.LOOK));
+        }
+
+        @Override
+        public boolean canUse() {
+            return !this.odo.isBurnt() && this.odo.getHuntedLight() != null;
+        }
+
+        @Override
+        public boolean requiresUpdateEveryTick() {
+            return true;
+        }
+
+        @Override
+        public void tick() {
+            SearchlightEntity light = this.odo.getHuntedLight();
+            if (light == null) {
+                return;
+            }
+            if (this.odo.roarTicks > 0) {
+                this.odo.lookAtLight(light, 12.0F); // roaring into the glare
+                return;
+            }
+            if (this.odo.inReachOfLight(light)) {
+                this.odo.lookAtLight(light, 8.0F);
+                if (this.odo.attackCooldown <= 0 && this.odo.pendingHitTicks < 0) {
+                    this.odo.attackLight(light);
+                }
+                return;
+            }
+            this.odo.getLookControl().setLookAt(light.getX(), light.getY() + SearchlightEntity.LENS_HEIGHT, light.getZ(), 30.0F, 30.0F);
+            Vec3 to = light.position().subtract(this.odo.position());
+            Vec3 goal = to.lengthSqr() > 100.0 ? light.position().subtract(to.normalize().scale(8.0)) : light.position();
+            this.odo.getMoveControl().setWantedPosition(goal.x, goal.y, goal.z, RUN_SPEED);
         }
     }
 

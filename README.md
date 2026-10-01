@@ -100,10 +100,10 @@ the blue one a player.*
   exactly as long), then rears his head up above his chest and fires (he tilts it further up at planes): the
   plates **slam back down the instant the beam appears**. The beam pours out of his open mouth, which blazes blue
   while it lasts. **Two seconds after the beam lands**, a **nuclear blast** goes off there: it kills everything
-  around it and blasts out a large crater at once, and you see it unfold as in the film's Ginza scene (see
+  around it and blasts out a **large crater** (about 96 blocks across and 20 deep) at once, and you see it unfold as in the film's Ginza scene (see
   **The atomic blast** below). Everyone nearby sees a blur, then black rain falls around ground zero (just
   particles: the weather isn't changed).
-- The blast **levels the land for 140 blocks around**: everything above **Y 65** (trees, grass, buildings,
+- The blast **levels the land for 60 blocks around**: everything above **Y 65** (trees, grass, buildings,
   hills) is obliterated, sweeping outwards from ground zero, and **nothing drops**. Seas and rivers stay. Parts of
   the area that aren't loaded yet are flattened when they load. Radius and height are in the config.
 - He then needs **3 minutes to recharge** before the next breath (change it in the config screen).
@@ -251,10 +251,10 @@ To face a statue a given way, give it a rotation, e.g. `/summon godzillaminusone
 - **Gameplay**: `config/godzillaminusone-common.toml`. The add-on's world-ending numbers (2000-block kill
   radius, Wither XXVI) are toned down by default; each option's comment lists the add-on's original value so
   you can restore it. You can also make Godzilla mortal, stop him regenerating, turn off block damage, change
-  the atomic breath's flattening (`flattenRange`, `flattenDownToY`), his first breath's delay
+  the atomic breath's crater and flattening (`craterRadius`, `scorchRadius`, `flattenRadius`, `flattenDownToY`), his first breath's delay
   (`firstBreathMinSeconds`, `firstBreathMaxSeconds`), which buildings he knocks down and how far
-  (`demolishFromHeight`, `demolishDownToHeight`), or stop him knocking them down at all. (The flattening and
-  building settings have new names, so a config file from an earlier version picks up the new defaults.)
+  (`demolishFromHeight`, `demolishDownToHeight`), or stop him knocking them down at all. (The crater, flattening
+  and building settings have new names, so a config file from an earlier version picks up the new defaults.)
 
 ## Building
 

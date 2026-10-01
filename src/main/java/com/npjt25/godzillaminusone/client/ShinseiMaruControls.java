@@ -2,8 +2,10 @@ package com.npjt25.godzillaminusone.client;
 
 import com.mojang.blaze3d.platform.InputConstants;
 import com.npjt25.godzillaminusone.GodzillaMinusOne;
+import com.npjt25.godzillaminusone.entity.SearchlightEntity;
 import com.npjt25.godzillaminusone.entity.ShinseiMaruEntity;
 import com.npjt25.godzillaminusone.network.ModNetwork;
+import com.npjt25.godzillaminusone.network.SearchlightPacket;
 import com.npjt25.godzillaminusone.network.ShinseiMaruPacket;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
@@ -17,13 +19,14 @@ import net.minecraftforge.fml.common.Mod;
 import org.lwjgl.glfw.GLFW;
 
 /**
- * The Shinsei Maru's crew, client side: the helmsman drops a naval mine over the stern with the "Drop Naval Mine" key
- * (R by default, in Controls, Godzilla Minus One), and whoever works the stern gun fires it by right-clicking, one
- * round per click (holding the button down doesn't keep firing).
+ * The "Vehicle Action" key (R by default, in Controls, Godzilla Minus One) and the Shinsei Maru's gun, client side: the
+ * Shinsei Maru's helmsman drops a naval mine over the stern with it, and whoever is at a searchlight switches its lamp
+ * off and on. Whoever works the boat's stern gun fires it by right-clicking, one round per click (holding the button
+ * down doesn't keep firing).
  */
 @Mod.EventBusSubscriber(modid = GodzillaMinusOne.MODID, bus = Mod.EventBusSubscriber.Bus.FORGE, value = Dist.CLIENT)
 public final class ShinseiMaruControls {
-    public static final KeyMapping DROP_MINE = new KeyMapping("key.godzillaminusone.drop_mine", KeyConflictContext.IN_GAME,
+    public static final KeyMapping VEHICLE_ACTION = new KeyMapping("key.godzillaminusone.vehicle_action", KeyConflictContext.IN_GAME,
             InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_R, "key.categories.godzillaminusone");
     /** Set when a click fired; cleared once the button is let go. */
     private static boolean fireHeld;
@@ -32,7 +35,7 @@ public final class ShinseiMaruControls {
     public static final class Keys {
         @SubscribeEvent
         public static void register(RegisterKeyMappingsEvent event) {
-            event.register(DROP_MINE);
+            event.register(VEHICLE_ACTION);
         }
 
         private Keys() {
@@ -63,9 +66,14 @@ public final class ShinseiMaruControls {
         if (fireHeld && !mc.options.keyUse.isDown()) {
             fireHeld = false;
         }
-        while (DROP_MINE.consumeClick()) {
-            if (mc.player != null && mc.player.getVehicle() instanceof ShinseiMaruEntity boat && boat.getControllingPassenger() == mc.player) {
+        while (VEHICLE_ACTION.consumeClick()) {
+            if (mc.player == null) {
+                continue;
+            }
+            if (mc.player.getVehicle() instanceof ShinseiMaruEntity boat && boat.getControllingPassenger() == mc.player) {
                 ModNetwork.CHANNEL.sendToServer(new ShinseiMaruPacket(boat.getId(), true));
+            } else if (mc.player.getVehicle() instanceof SearchlightEntity light && light.getOperator() == mc.player) {
+                ModNetwork.CHANNEL.sendToServer(new SearchlightPacket(light.getId()));
             }
         }
     }

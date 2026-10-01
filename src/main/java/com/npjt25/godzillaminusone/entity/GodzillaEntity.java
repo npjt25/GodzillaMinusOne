@@ -223,6 +223,9 @@ public class GodzillaEntity extends Monster implements GeoEntity {
     /** A tall building he is knocking down, or null. */
     @Nullable
     private Building demolishing;
+    /** A Shinsei Maru he's hunting while he swims (see {@link #huntBoats}). */
+    @Nullable
+    private ShinseiMaruEntity huntedBoat;
     private int demolitionSwipes;
     /** After failing to bring a building down (it won't break), he leaves buildings alone for a while. */
     private int demolitionRest;
@@ -512,7 +515,7 @@ public class GodzillaEntity extends Monster implements GeoEntity {
     }
 
     private void activeTick(ServerLevel level) {
-        if (this.tickCount % 10 == 0) {
+        if (this.tickCount % 10 == 0 && !huntBoats(level)) {
             preferPlanes(level);
         }
         LivingEntity target = getTarget();
@@ -576,6 +579,8 @@ public class GodzillaEntity extends Monster implements GeoEntity {
         if (this.pendingHitTicks >= 0) {
             if (target != null) {
                 faceTowards(target, 3.0F, 0.0F);
+            } else if (getHuntedBoat() != null) {
+                faceTowards(getHuntedBoat(), 3.0F, 0.0F);
             }
             if (--this.pendingHitTicks < 0 && this.pendingAttack != null) {
                 Attack attack = this.pendingAttack;
@@ -600,6 +605,51 @@ public class GodzillaEntity extends Monster implements GeoEntity {
         if ((moving || this.horizontalCollision) && this.tickCount % 5 == 0) {
             smashBlocks(level);
         }
+    }
+
+    /**
+     * In the water, the Shinsei Maru is his main focus: the nearest one afloat within his follow range comes before
+     * anything else (planes too). Whoever is aboard her (her helmsman first) is his target; with nobody aboard, he goes
+     * for the boat itself and bites (or claws) her to pieces. Returns whether he's hunting one.
+     */
+    private boolean huntBoats(ServerLevel level) {
+        if (!isInWater() && !isSwimmingAtSurface()) {
+            this.huntedBoat = null;
+            return false;
+        }
+        double range = getAttributeValue(Attributes.FOLLOW_RANGE);
+        ShinseiMaruEntity nearest = null;
+        double best = range * range;
+        for (ShinseiMaruEntity boat : level.getEntitiesOfClass(ShinseiMaruEntity.class, getBoundingBox().inflate(range),
+                b -> b.isAlive() && b.isAfloat())) {
+            double d = boat.distanceToSqr(this);
+            if (d < best) {
+                best = d;
+                nearest = boat;
+            }
+        }
+        this.huntedBoat = nearest;
+        if (nearest == null) {
+            return false;
+        }
+        LivingEntity crew = null;
+        for (Entity rider : nearest.getPassengers()) {
+            if (rider instanceof LivingEntity living && living.isAlive() && isValidTarget(living)) {
+                crew = living;
+                break;
+            }
+        }
+        if (getTarget() != crew) {
+            setTarget(crew);
+        }
+        return true;
+    }
+
+    /** The Shinsei Maru he's hunting, if he still is. */
+    @Nullable
+    public ShinseiMaruEntity getHuntedBoat() {
+        ShinseiMaruEntity boat = this.huntedBoat;
+        return boat != null && boat.isAlive() ? boat : null;
     }
 
     /** Whoever is flying a Shinden becomes his target (the plane itself, not its pilot). */
@@ -1005,10 +1055,13 @@ public class GodzillaEntity extends Monster implements GeoEntity {
     /** His melee combo, in order: a swipe of each hand, then the spin and tail whip. */
     private static final Attack[] COMBO = {Attack.SWIPE_RIGHT, Attack.SWIPE_LEFT, Attack.SPIN};
 
-    private void startAttack(LivingEntity target) {
+    private void startAttack(@Nullable LivingEntity target) {
         Attack attack;
         if (isSwimmingAtSurface()) {
             attack = Attack.SWIM_BITE;
+        } else if (target == null) {
+            attack = COMBO[this.comboStep];     // an empty boat in the shallows: his claws
+            this.comboStep = (this.comboStep + 1) % COMBO.length;
         } else {
             double heightAbove = target.getY() - getY();
             Vec3 offset = target.position().subtract(position()).multiply(1.0, 0.0, 1.0);
@@ -1103,6 +1156,9 @@ public class GodzillaEntity extends Monster implements GeoEntity {
             }
             boat.hurt(source, 1000.0F);
         }
+        for (ShinseiMaruEntity boat : level.getEntitiesOfClass(ShinseiMaruEntity.class, box.inflate(4.0, 2.0, 4.0))) {
+            boat.hurt(source, 1000.0F); // (wrecked: her crew go in the water, to be bitten next)
+        }
         for (LivingEntity entity : level.getEntitiesOfClass(LivingEntity.class, box, e -> e != this && e.isAlive())) {
             if (entity == target) {
                 doHurtTarget(entity);
@@ -1121,6 +1177,10 @@ public class GodzillaEntity extends Monster implements GeoEntity {
     /** Hurts everything within radius (but {@code spared}) and knocks it away from the centre, or along {@code push}. */
     private void areaAttack(ServerLevel level, Vec3 center, double radius, float damage, @Nullable LivingEntity spared, @Nullable Vec3 push) {
         DamageSource source = damageSources().mobAttack(this);
+        for (ShinseiMaruEntity boat : level.getEntitiesOfClass(ShinseiMaruEntity.class, new AABB(center, center).inflate(radius),
+                b -> b.distanceToSqr(center) <= (radius + 4.0) * (radius + 4.0))) {
+            boat.hurt(source, 1000.0F);
+        }
         for (LivingEntity entity : Blasts.livingNear(level, center, radius, this)) {
             if (entity != spared && !(entity instanceof GodzillaEntity) && !Blasts.isPilot(entity)) {
                 entity.hurt(source, damage);
@@ -1132,7 +1192,7 @@ public class GodzillaEntity extends Monster implements GeoEntity {
         }
     }
 
-    boolean canReach(LivingEntity target, double extra) {
+    boolean canReach(Entity target, double extra) {
         double dx = target.getX() - getX();
         double dz = target.getZ() - getZ();
         double dy = target.getY() - getY();
@@ -1215,6 +1275,12 @@ public class GodzillaEntity extends Monster implements GeoEntity {
     @Override
     public boolean isPushedByFluid() {
         return false;
+    }
+
+    /** He wades and swims straight through boats (the Shinsei Maru's decks are solid to everyone else). */
+    @Override
+    public boolean canCollideWith(Entity other) {
+        return !(other instanceof ShinseiMaruPart) && super.canCollideWith(other);
     }
 
     @Override
@@ -1302,6 +1368,7 @@ public class GodzillaEntity extends Monster implements GeoEntity {
         int maxZ = Mth.floor(box.maxZ);
         BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
         int broken = 0;
+        int toppled = 0;
         for (int y = minY; y <= maxY; y++) {
             for (int x = minX; x <= maxX; x++) {
                 for (int z = minZ; z <= maxZ; z++) {
@@ -1311,7 +1378,13 @@ public class GodzillaEntity extends Monster implements GeoEntity {
                         continue;
                     }
                     if (Destruction.canBreak(level, pos, state, this)) {
-                        level.destroyBlock(pos, false, this);
+                        // what he barges through high up is flung on ahead of him; the rest crumbles
+                        boolean high = y > getY() + 6.0 && isBuilt(state) && this.random.nextInt(3) == 0;
+                        if (high && Destruction.topple(level, pos, state, throwAhead(forward, y - getY()), toppled < 48)) {
+                            toppled++;
+                        } else if (!high) {
+                            level.destroyBlock(pos, false, this);
+                        }
                         if (++broken >= 400) {
                             return;
                         }
@@ -1319,6 +1392,28 @@ public class GodzillaEntity extends Monster implements GeoEntity {
                 }
             }
         }
+        // and what stood above the gap he has torn through comes crashing down
+        int over = 0;
+        for (int x = minX; x <= maxX && over < 64; x++) {
+            for (int z = minZ; z <= maxZ && over < 64; z++) {
+                for (int y = maxY + 1; y <= maxY + 24 && over < 64; y++) {
+                    BlockState state = level.getBlockState(pos.set(x, y, z));
+                    if (!isBuilt(state) || !Destruction.canBreak(level, pos, state, this)) {
+                        break;
+                    }
+                    if (Destruction.topple(level, pos, state, throwAhead(forward, y - getY()).scale(0.4), true)) {
+                        over++;
+                    }
+                }
+            }
+        }
+    }
+
+    /** How a block he hits at {@code height} above his feet is thrown: on ahead of him, higher ones further, scattering. */
+    private Vec3 throwAhead(Vec3 forward, double height) {
+        double strength = 0.3 + 0.5 * Mth.clamp(height / getBbHeight(), 0.0, 1.0);
+        return new Vec3(forward.x * strength + (this.random.nextDouble() - 0.5) * 0.3, 0.1 + this.random.nextDouble() * 0.15,
+                forward.z * strength + (this.random.nextDouble() - 0.5) * 0.3);
     }
 
     // ------------------------------------------------------------------ knocking down tall buildings
@@ -1433,7 +1528,10 @@ public class GodzillaEntity extends Monster implements GeoEntity {
         int bottom = Math.max(keep + 1, building.top() - KNOCK_LAYERS + 1);
         BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
         int knocked = 0;
-        for (int y = building.top(); y >= bottom; y--) {
+        int toppled = 0;
+        // the swipe throws what it hits away from him: it topples over and comes down as rubble beyond
+        Vec3 away = new Vec3(building.x() + 0.5 - getX(), 0.0, building.z() + 0.5 - getZ());
+        away = away.lengthSqr() < 1.0E-4 ? Vec3.directionFromRotation(0.0F, getYRot()) : away.normalize();
             for (int dx = -KNOCK_RADIUS; dx <= KNOCK_RADIUS; dx++) {
                 for (int dz = -KNOCK_RADIUS; dz <= KNOCK_RADIUS; dz++) {
                     if (dx * dx + dz * dz > KNOCK_RADIUS * KNOCK_RADIUS) {
@@ -1444,11 +1542,20 @@ public class GodzillaEntity extends Monster implements GeoEntity {
                             || !Destruction.canBreak(level, pos, state, this)) {
                         continue;
                     }
-                    if (knocked % 6 == 0) {
-                        level.sendParticles(new BlockParticleOption(ParticleTypes.BLOCK, state), pos.getX() + 0.5, pos.getY() + 0.5,
-                                pos.getZ() + 0.5, 4, 0.6, 0.6, 0.6, 0.2);
+                    double up = (y - bottom + 1) / (double) Math.max(1, building.top() - bottom + 1);
+                    Vec3 push = new Vec3(away.x * (0.35 + 0.45 * up) + (this.random.nextDouble() - 0.5) * 0.25, 0.12 + 0.2 * up,
+                            away.z * (0.35 + 0.45 * up) + (this.random.nextDouble() - 0.5) * 0.25);
+                    if (toppled < 160 && this.random.nextInt(3) != 0 && Destruction.topple(level, pos, state, push, true)) {
+                        toppled++;
+                    } else if (knocked % 4 == 0) {
+                        level.destroyBlock(pos, false, this); // (Minecraft's own break effects: a physics mod can show its pieces)
+                    } else {
+                        if (knocked % 6 == 0) {
+                            level.sendParticles(new BlockParticleOption(ParticleTypes.BLOCK, state), pos.getX() + 0.5, pos.getY() + 0.5,
+                                    pos.getZ() + 0.5, 4, 0.6, 0.6, 0.6, 0.2);
+                        }
+                        level.setBlock(pos, Blocks.AIR.defaultBlockState(), Block.UPDATE_CLIENTS);
                     }
-                    level.setBlock(pos, Blocks.AIR.defaultBlockState(), Block.UPDATE_CLIENTS);
                     knocked++;
                 }
             }
@@ -1712,7 +1819,7 @@ public class GodzillaEntity extends Monster implements GeoEntity {
         @Override
         public boolean canUse() {
             LivingEntity target = this.godzilla.getTarget();
-            return this.godzilla.isActive() && target != null && target.isAlive();
+            return this.godzilla.isActive() && (target != null && target.isAlive() || this.godzilla.getHuntedBoat() != null);
         }
 
         @Override
@@ -1723,6 +1830,17 @@ public class GodzillaEntity extends Monster implements GeoEntity {
         @Override
         public void tick() {
             LivingEntity target = this.godzilla.getTarget();
+            ShinseiMaruEntity boat = this.godzilla.getHuntedBoat();
+            if (target == null && boat != null) {
+                // nobody aboard her: he goes for the boat itself
+                this.godzilla.getLookControl().setLookAt(boat, 10.0F, 10.0F);
+                if (this.godzilla.canReach(boat, 0.0) && this.godzilla.attackCooldown <= 0 && this.godzilla.roaringTicks <= 0
+                        && this.godzilla.pendingHitTicks < 0) {
+                    this.godzilla.startAttack(null);
+                }
+                this.godzilla.getMoveControl().setWantedPosition(boat.getX(), boat.getY(), boat.getZ(), 1.0);
+                return;
+            }
             if (target == null) {
                 return;
             }

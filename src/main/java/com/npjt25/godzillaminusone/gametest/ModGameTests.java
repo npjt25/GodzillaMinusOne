@@ -15,6 +15,7 @@ import com.npjt25.godzillaminusone.entity.OdoIslandMonsterEntity;
 import com.npjt25.godzillaminusone.entity.SearchlightEntity;
 import com.npjt25.godzillaminusone.entity.ShindenEntity;
 import com.npjt25.godzillaminusone.entity.ShinseiMaruEntity;
+import com.npjt25.godzillaminusone.entity.ShinseiMaruPart;
 import com.npjt25.godzillaminusone.item.RemoteDetonatorItem;
 import com.npjt25.godzillaminusone.menu.ShinseiMaruMenu;
 import com.npjt25.godzillaminusone.registry.ModDamageTypes;
@@ -474,12 +475,52 @@ public final class ModGameTests {
         helper.assertFalse(odo.getTarget() == operator, "he shouldn't be after anyone yet");
         helper.succeedWhen(() -> {
             helper.assertTrue(light.isLit(), "manned, the searchlight should be lit");
-            helper.assertTrue(odo.getTarget() == operator, "caught in the beam he should go for the operator, target " + odo.getTarget());
+            helper.assertTrue(odo.getHuntedLight() == light, "caught in the beam he should go for the searchlight first");
             helper.assertTrue(odo.getState() == OdoIslandMonsterEntity.STATE_ANGRY, "he should be enraged");
             helper.assertTrue(odo.isFrenzied(), "a searchlight should send him into a frenzy");
             helper.assertTrue(light.getLights().size() >= 2, "the beam should light up a pool around where it lands, lights "
                     + light.getLights());
-            remove(odo, operator, light);
+            // his jaws come down on it: it's smashed, and he turns on whoever was working it
+            odo.smashLight();
+            helper.assertTrue(light.isRemoved(), "he should smash the searchlight");
+            helper.assertTrue(odo.getTarget() == operator, "then he should go for its operator, target " + odo.getTarget());
+            remove(odo, operator);
+        });
+    }
+
+    /**
+     * Left alone, a searchlight sweeps round on its own, lit, without bothering the Odo Island Monster in its path; its
+     * switch turns it off.
+     */
+    @GameTest(template = FLOOR, batch = "gmo_searchlight_sweep", timeoutTicks = 200)
+    public static void anUnmannedSearchlightSweepsOnItsOwn(GameTestHelper helper) {
+        int floor = floorY(helper);
+        for (int x = 0; x <= 8; x++) {
+            for (int y = floor + 1; y <= floor + 4; y++) {
+                for (int z = 0; z <= 18; z++) {
+                    helper.setBlock(new BlockPos(x, y, z), Blocks.AIR.defaultBlockState());
+                }
+            }
+        }
+        OdoIslandMonsterEntity odo = spawnOdo(helper, floor, 14);
+        odo.setNoAi(true);
+        SearchlightEntity light = helper.spawn(ModEntities.SEARCHLIGHT.get(), new Vec3(4.5, floor + 1, 2.5));
+        light.setAim(0.0F, 0.0F); // starting down the corridor, at him
+        helper.runAtTickTime(100, () -> {
+            helper.assertTrue(light.isLit(), "unmanned, it should still be lit");
+            helper.assertTrue(Math.abs(light.getAimYaw()) > 20.0F, "it should have swept round, yaw " + light.getAimYaw());
+            helper.assertTrue(odo.getHuntedLight() == null && !odo.isFrenzied(), "sweeping on its own, it shouldn't bother him");
+            light.setSwitchedOn(false);
+        });
+        helper.runAtTickTime(110, () -> {
+            helper.assertFalse(light.isLit(), "switched off, it should go dark");
+            float yaw = light.getAimYaw();
+            helper.runAfterDelay(20, () -> {
+                helper.assertTrue(light.getAimYaw() == yaw, "switched off, it should stop sweeping");
+                helper.assertTrue(light.getLights().isEmpty(), "and its pool of light should go out");
+                remove(odo, light);
+                helper.succeed();
+            });
         });
     }
 
@@ -738,5 +779,56 @@ public final class ModGameTests {
         helper.assertTrue(blast.fallout(3.0F) == 0.0F && blast.fallout(60.0F) == 1.0F && blast.fallout(179.0F) == 0.0F,
                 "black rain should fall from the cloud after the fireball, until it breaks up");
         helper.succeed();
+    }
+
+    /** In the water the Shinsei Maru is his main focus: he hunts her, and whoever is aboard her is his target. */
+    @GameTest(template = FLOOR, batch = "gmo_boat_focus", timeoutTicks = 200)
+    public static void inTheWaterHeGoesForTheShinseiMaru(GameTestHelper helper) {
+        int depth = 20;
+        int floor = floorY(helper);
+        fillPool(helper, floor, depth, false);
+        GodzillaEntity godzilla = spawnActiveGodzilla(helper);
+        godzilla.setBreathCooldown(100000);
+        godzilla.moveTo(helper.absoluteVec(new Vec3(4.5, floor + 1, 4.5)));
+        Pig bystander = helper.spawn(EntityType.PIG, new Vec3(1.5, floor + depth + 1, 1.5));
+        bystander.setNoAi(true);
+        ShinseiMaruEntity boat = helper.spawn(ModEntities.SHINSEI_MARU.get(), new Vec3(4.5, floor + depth, 9.5));
+        Pig crew = helper.spawn(EntityType.PIG, new Vec3(4.5, floor + depth + 2, 9.5));
+        crew.setNoAi(true);
+        helper.assertTrue(crew.startRiding(boat, true), "a pig should be able to board her");
+        helper.succeedWhen(() -> {
+            helper.assertTrue(godzilla.getHuntedBoat() == boat, "in the water he should be after the Shinsei Maru");
+            helper.assertTrue(godzilla.getTarget() == crew, "whoever is aboard her should be his target, was " + godzilla.getTarget());
+            remove(godzilla, boat, crew, bystander);
+            fillPool(helper, floor, depth, true);
+        });
+    }
+
+    /**
+     * The Shinsei Maru has two stations: a click on her stern takes the machine gun, anywhere else the wheel (and the
+     * mines); her decks are solid sections along her whole length, not just her middle.
+     */
+    @GameTest(template = FLOOR, batch = "gmo_boat_seats")
+    public static void theShinseiMaruHasAHelmAndAGun(GameTestHelper helper) {
+        ShinseiMaruEntity boat = helper.spawn(ModEntities.SHINSEI_MARU.get(), new Vec3(4.5, floorY(helper) + 1, 4.5));
+        ShinseiMaruPart[] parts = boat.getParts();
+        ShinseiMaruPart stern = parts[parts.length - 1];
+        Player gunner = helper.makeMockPlayer();
+        Player helmsman = helper.makeMockPlayer();
+        helper.assertTrue(stern.interact(gunner, InteractionHand.MAIN_HAND).consumesAction(), "a click on her stern should board her");
+        helper.assertTrue(boat.getGunner() == gunner && boat.getControllingPassenger() == null,
+                "a click on her stern should take the gun, not the wheel");
+        helper.assertTrue(boat.interact(helmsman, InteractionHand.MAIN_HAND).consumesAction(), "the second aboard should board her");
+        helper.assertTrue(boat.getControllingPassenger() == helmsman && boat.getGunner() == gunner,
+                "the second aboard should take the wheel, the gunner keep the gun");
+        helper.assertTrue(!boat.canBeCollidedWith() && stern.canBeCollidedWith(), "her decks (her parts) should be what's solid");
+        helper.succeedWhen(() -> {
+            double length = parts[0].position().distanceTo(stern.position());
+            helper.assertTrue(length > 10.0, "her decks should run her whole length, bow to stern " + length);
+            helper.assertTrue(stern.getBoundingBox().maxY - boat.getY() > 2.0, "her stern platform should stand above the water");
+            gunner.stopRiding();
+            helmsman.stopRiding();
+            remove(boat);
+        });
     }
 }

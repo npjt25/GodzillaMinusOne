@@ -134,16 +134,17 @@ public final class Config {
                 .comment("Wither amplifier of the blast's radiation (add-on: 25).")
                 .defineInRange("radiationAmplifier", 3, 0, 255);
         ATOMIC_BLAST_CRATER_RADIUS = BUILDER
-                .comment("Radius of the crater blasted out where the atomic breath lands (0 = no block damage; also needs mobGriefing).")
-                .defineInRange("blastCraterRadius", 24, 0, 64);
+                .comment("Radius of the crater blasted out where the atomic breath lands: a bowl about half as deep as it is",
+                        "wide, floored with scorched rubble (0 = no block damage; also needs mobGriefing).")
+                .defineInRange("craterRadius", 48, 0, 96);
         ATOMIC_BLAST_DESTRUCTION_RADIUS = BUILDER
                 .comment("Around the crater the blast wave flattens trees and buildings and scorches the ground out to this radius.")
-                .defineInRange("blastWaveRadius", 64, 0, 160);
+                .defineInRange("scorchRadius", 60, 0, 160);
         ATOMIC_FLATTEN_RADIUS = BUILDER
                 .comment("Everything above flattenDownToY within this many blocks of where the atomic breath lands (trees, grass,",
                         "buildings, hills) is erased, leaving the land flat; nothing drops. Chunks loaded later are flattened as they load.",
                         "0 = off; also needs mobGriefing.")
-                .defineInRange("flattenRange", 140, 0, 2000);
+                .defineInRange("flattenRadius", 60, 0, 2000);
         ATOMIC_FLATTEN_LEVEL = BUILDER
                 .comment("The height (Y) the atomic breath flattens the land down to: anything above it is obliterated.")
                 .defineInRange("flattenDownToY", 65, -64, 320);

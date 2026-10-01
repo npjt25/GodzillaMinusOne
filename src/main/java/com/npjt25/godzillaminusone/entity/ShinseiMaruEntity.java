@@ -51,20 +51,27 @@ import software.bernie.geckolib.core.animatable.instance.AnimatableInstanceCache
 import software.bernie.geckolib.core.animation.AnimatableManager;
 import software.bernie.geckolib.util.GeckoLibUtil;
 
+import java.util.ArrayList;
+import java.util.List;
+
 /**
  * The Shinsei Maru: the small, run-down wooden minesweeper (a converted fishing boat) from the film, built to clear
  * the sea of the war's magnetic mines (model: tools/make_props.py).
  *
  * <ul>
- *   <li>Right-click to board: the first aboard takes the wheel up on the wheelhouse roof (W/S throttle, A/D steer; she
- *       makes {@link #MAX_SPEED} blocks a tick flat out, as fast as Godzilla swims), the second mans the machine gun
- *       at the stern.</li>
+ *   <li>Two places to man: right-click her stern (the gun platform, or her from astern) to take the machine gun;
+ *       anywhere else to take the wheel up on the wheelhouse roof (W/S throttle, A/D steer; she makes
+ *       {@link #MAX_SPEED} blocks a tick flat out, as fast as Godzilla swims) and drop the naval mines.</li>
  *   <li>The Type 93 13 mm machine gun at the stern points aft and swings {@link #GUN_ARC} degrees either way: its
  *       gunner (or the helmsman, when there's no gunner) aims it by looking and fires one round per click
  *       (client.ShinseiMaruControls). A round sets off a naval mine it hits.</li>
  *   <li>Sneak and right-click to open her mine hold ({@link #MINE_SLOTS} slots, naval mines only; right-clicking her
- *       with a naval mine in hand loads it too). The helmsman drops one over the stern with the "Drop Naval Mine" key
+ *       with a naval mine in hand loads it too). The helmsman drops one over the stern with the "Vehicle Action" key
  *       (R): it floats there, and goes off when Godzilla comes near.</li>
+ *   <li>Her decks are solid ({@link ShinseiMaruPart}s along her length: the foredeck, the wheelhouse roof, the after
+ *       deck and the stern platform), and whoever stands on them is carried along as she moves and turns.</li>
+ *   <li>At sea she rides the swell: she heaves up and down with it, and pitches and rolls as it passes under her
+ *       (rougher in the rain, and rougher still in a thunderstorm).</li>
  *   <li>Hit her like a boat to knock her back into her item (with her mines); explosions and Godzilla wreck her.</li>
  * </ul>
  */
@@ -97,8 +104,22 @@ public class ShinseiMaruEntity extends Entity implements GeoEntity {
     private static final EntityDataAccessor<Integer> DATA_MINES = SynchedEntityData.defineId(ShinseiMaruEntity.class, EntityDataSerializers.INT);
     private static final EntityDataAccessor<Integer> DATA_WOBBLE = SynchedEntityData.defineId(ShinseiMaruEntity.class, EntityDataSerializers.INT);
     private static final EntityDataAccessor<Float> DATA_DAMAGE = SynchedEntityData.defineId(ShinseiMaruEntity.class, EntityDataSerializers.FLOAT);
+    /** The entity id of whoever took the gun (-1: nobody chose it). */
+    private static final EntityDataAccessor<Integer> DATA_GUNNER = SynchedEntityData.defineId(ShinseiMaruEntity.class, EntityDataSerializers.INT);
+    /** A click this far astern of her middle (or from there) takes the gun. */
+    private static final double GUN_STATION = -2.8;
 
     private final AnimatableInstanceCache cache = GeckoLibUtil.createInstanceCache(this);
+    /** Her hull and decks, bow to stern (forward of her middle, width, deck height above the keel). */
+    private final ShinseiMaruPart[] parts = {
+            new ShinseiMaruPart(this, 5.6, 2.2F, 2.2),     // the bow
+            new ShinseiMaruPart(this, 4.0, 3.4F, 2.2),     // the foredeck
+            new ShinseiMaruPart(this, 2.4, 3.4F, 2.2),
+            new ShinseiMaruPart(this, 0.4, 2.8F, 4.45),    // the wheelhouse (its roof)
+            new ShinseiMaruPart(this, -1.6, 2.8F, 4.45),
+            new ShinseiMaruPart(this, -3.0, 3.4F, 2.2),    // the after deck
+            new ShinseiMaruPart(this, -4.4, 3.2F, 2.35),   // the stern platform
+            new ShinseiMaruPart(this, -5.6, 3.2F, 2.35)};
     private final SimpleContainer mines = new SimpleContainer(MINE_SLOTS) {
         @Override
         public boolean canPlaceItem(int slot, ItemStack stack) {
@@ -118,6 +139,8 @@ public class ShinseiMaruEntity extends Entity implements GeoEntity {
 
     public ShinseiMaruEntity(EntityType<? extends ShinseiMaruEntity> type, Level level) {
         super(type, level);
+        // (her parts take the ids after hers, here and on every client: see setId)
+        setId(getId());
         this.noCulling = true; // her bow and stern, mast and gun reach well outside her hitbox
         this.blocksBuilding = true;
         this.mines.addListener(container -> {
@@ -134,6 +157,25 @@ public class ShinseiMaruEntity extends Entity implements GeoEntity {
         this.entityData.define(DATA_MINES, 0);
         this.entityData.define(DATA_WOBBLE, 0);
         this.entityData.define(DATA_DAMAGE, 0.0F);
+        this.entityData.define(DATA_GUNNER, -1);
+    }
+
+    @Override
+    public void setId(int id) {
+        super.setId(id);
+        for (int i = 0; i < this.parts.length; i++) {
+            this.parts[i].setId(id + i + 1);
+        }
+    }
+
+    @Override
+    public boolean isMultipartEntity() {
+        return true;
+    }
+
+    @Override
+    public ShinseiMaruPart[] getParts() {
+        return this.parts;
     }
 
     public static boolean isMine(ItemStack stack) {
@@ -194,16 +236,35 @@ public class ShinseiMaruEntity extends Entity implements GeoEntity {
 
     // ------------------------------------------------------------------ crew
 
+    /** The one at the gun: whoever took it, or (when nobody chose it) the second aboard. */
+    @Nullable
+    private Entity gunStation() {
+        int id = this.entityData.get(DATA_GUNNER);
+        for (Entity passenger : getPassengers()) {
+            if (passenger.getId() == id) {
+                return passenger;
+            }
+        }
+        return getPassengers().size() > 1 ? getPassengers().get(1) : null;
+    }
+
+    /** The helmsman: whoever is aboard and not at the gun. */
     @Nullable
     @Override
     public LivingEntity getControllingPassenger() {
-        return getFirstPassenger() instanceof Player player ? player : null;
+        Entity gun = gunStation();
+        for (Entity passenger : getPassengers()) {
+            if (passenger != gun && passenger instanceof Player player) {
+                return player;
+            }
+        }
+        return null;
     }
 
-    /** Who works the gun: the gunner, or the helmsman when there's nobody else aboard. */
+    /** Who works the gun: the gunner, or the helmsman when there's nobody at it. */
     @Nullable
     public Player getGunner() {
-        if (getPassengers().size() > 1 && getPassengers().get(1) instanceof Player gunner) {
+        if (gunStation() instanceof Player gunner) {
             return gunner;
         }
         return getControllingPassenger() instanceof Player helmsman ? helmsman : null;
@@ -215,11 +276,19 @@ public class ShinseiMaruEntity extends Entity implements GeoEntity {
     }
 
     @Override
+    protected void removePassenger(Entity passenger) {
+        super.removePassenger(passenger);
+        if (passenger.getId() == this.entityData.get(DATA_GUNNER)) {
+            this.entityData.set(DATA_GUNNER, -1);
+        }
+    }
+
+    @Override
     protected void positionRider(Entity passenger, Entity.MoveFunction move) {
         if (!hasPassenger(passenger)) {
             return;
         }
-        Vec3 seat = at(getPassengers().indexOf(passenger) == 0 ? HELM : GUNNER);
+        Vec3 seat = at(passenger == gunStation() ? GUNNER : HELM);
         move.accept(passenger, seat.x, seat.y + passenger.getMyRidingOffset(), seat.z);
         // the crew turn with her
         passenger.setYRot(passenger.getYRot() + this.deltaRotation);
@@ -253,13 +322,41 @@ public class ShinseiMaruEntity extends Entity implements GeoEntity {
             }
             return InteractionResult.sidedSuccess(level().isClientSide);
         }
-        if (!canAddPassenger(player)) {
+        return board(player, forwardOf(player.position()) < GUN_STATION);
+    }
+
+    /** A click on one of her parts: the stern takes the gun, the rest the wheel. */
+    InteractionResult interactFromPart(ShinseiMaruPart part, Player player, InteractionHand hand) {
+        if (player.isSecondaryUseActive() || isMine(player.getItemInHand(hand)) && !hasPassenger(player)) {
+            return interact(player, hand);
+        }
+        return board(player, part.forward < GUN_STATION);
+    }
+
+    /** Takes the gun (if it's free) or the wheel (if that's free); otherwise the other station. */
+    private InteractionResult board(Player player, boolean wantsGun) {
+        if (!canAddPassenger(player) || hasPassenger(player)) {
             return InteractionResult.PASS;
         }
-        if (!level().isClientSide) {
-            return player.startRiding(this) ? InteractionResult.CONSUME : InteractionResult.PASS;
+        if (level().isClientSide) {
+            return InteractionResult.SUCCESS;
         }
-        return InteractionResult.SUCCESS;
+        boolean gunFree = gunStation() == null;
+        boolean wheelFree = getControllingPassenger() == null;
+        boolean gun = wantsGun ? gunFree : !wheelFree && gunFree;
+        if (!player.startRiding(this)) {
+            return InteractionResult.PASS;
+        }
+        if (gun) {
+            this.entityData.set(DATA_GUNNER, player.getId());
+        }
+        return InteractionResult.CONSUME;
+    }
+
+    /** How far forward of her middle a point is (negative: astern). */
+    private double forwardOf(Vec3 point) {
+        Vec3 forward = Vec3.directionFromRotation(0.0F, getYRot());
+        return (point.x - getX()) * forward.x + (point.z - getZ()) * forward.z;
     }
 
     private void openHold(ServerPlayer player) {
@@ -356,6 +453,9 @@ public class ShinseiMaruEntity extends Entity implements GeoEntity {
     @Override
     public void tick() {
         super.tick();
+        Vec3 before = position();
+        float yawBefore = getYRot();
+        List<Entity> standing = standingOnDeck();
         tickLerp();
         this.deltaRotation = 0.0F;
         if (isControlledByLocalInstance()) {
@@ -369,6 +469,10 @@ public class ShinseiMaruEntity extends Entity implements GeoEntity {
             setDeltaMovement(Vec3.ZERO);
         }
         checkInsideBlocks();
+        for (ShinseiMaruPart part : this.parts) {
+            part.follow();
+        }
+        carry(standing, before, getYRot() - yawBefore);
         if (!level().isClientSide) {
             if (getWobble() > 0) {
                 this.entityData.set(DATA_WOBBLE, getWobble() - 1);
@@ -380,6 +484,54 @@ public class ShinseiMaruEntity extends Entity implements GeoEntity {
             if (gunner != null) {
                 aimGun(gunner);
             }
+        }
+    }
+
+    /**
+     * Who is standing on her decks (not aboard): each side moves its own, the client its player, the server everything
+     * else (players move themselves).
+     */
+    private List<Entity> standingOnDeck() {
+        List<Entity> standing = new ArrayList<>();
+        AABB decks = getBoundingBox();
+        for (ShinseiMaruPart part : this.parts) {
+            decks = decks.minmax(part.getBoundingBox());
+        }
+        for (Entity entity : level().getEntities(this, decks.inflate(0.5, 1.0, 0.5),
+                e -> !e.isPassenger() && !(e instanceof ShinseiMaruPart) && !e.noPhysics && !e.isSpectator())) {
+            boolean ours = level().isClientSide ? entity instanceof Player player && player.isLocalPlayer() : !(entity instanceof Player);
+            if (!ours) {
+                continue;
+            }
+            AABB feet = entity.getBoundingBox();
+            for (ShinseiMaruPart part : this.parts) {
+                AABB deck = part.getBoundingBox();
+                if (feet.minY >= deck.maxY - 0.1 && feet.minY <= deck.maxY + 0.35 && feet.maxX > deck.minX && feet.minX < deck.maxX
+                        && feet.maxZ > deck.minZ && feet.minZ < deck.maxZ) {
+                    standing.add(entity);
+                    break;
+                }
+            }
+        }
+        return standing;
+    }
+
+    /** Moves those standing on her decks along with her: as far as she went, and round as far as she turned. */
+    private void carry(List<Entity> standing, Vec3 before, float turned) {
+        Vec3 moved = position().subtract(before);
+        if (standing.isEmpty() || moved.lengthSqr() < 1.0E-8 && Math.abs(turned) < 1.0E-4F) {
+            return;
+        }
+        double cos = Math.cos(-turned * Mth.DEG_TO_RAD);
+        double sin = Math.sin(-turned * Mth.DEG_TO_RAD);
+        for (Entity entity : standing) {
+            double rx = entity.getX() - before.x;
+            double rz = entity.getZ() - before.z;
+            double x = before.x + rx * cos - rz * sin + moved.x;
+            double z = before.z + rx * sin + rz * cos + moved.z;
+            entity.setPos(x, entity.getY() + moved.y, z);
+            entity.setYRot(entity.getYRot() + turned);
+            entity.setYHeadRot(entity.getYHeadRot() + turned);
         }
     }
 
@@ -408,14 +560,43 @@ public class ShinseiMaruEntity extends Entity implements GeoEntity {
         double surface = waterSurface();
         Vec3 v = getDeltaMovement();
         if (!Double.isNaN(surface)) {
-            double bob = Math.sin(this.tickCount * 0.08) * 0.06;
-            double vy = Mth.clamp((surface - DRAFT + bob - getY()) * 0.25, -0.35, 0.35);
+            double heave = swell(getX(), getZ(), level().getGameTime());
+            double vy = Mth.clamp((surface - DRAFT + heave - getY()) * 0.25, -0.35, 0.35);
             setDeltaMovement(v.x, vy, v.z);
             resetFallDistance();
         } else {
             this.speed *= 0.6;
             setDeltaMovement(v.x * 0.6, onGround() ? 0.0 : v.y - 0.08, v.z * 0.6);
         }
+    }
+
+    /**
+     * The height of the sea's swell (blocks above or below its calm surface) at (x, z) at a moment: two long rollers
+     * crossing, a little higher in the rain and higher still in a thunderstorm. She heaves with it; the renderer
+     * pitches and rolls her by how it slopes under her bow and stern, port and starboard.
+     */
+    public double swell(double x, double z, double time) {
+        double height = 0.14 * (1.0 + level().getRainLevel(1.0F) + 1.5 * level().getThunderLevel(1.0F));
+        return height * (Math.sin(time * 0.11 + x * 0.09 + z * 0.03) + 0.6 * Math.sin(time * 0.07 - z * 0.08 + x * 0.02 + 1.3));
+    }
+
+    /** Her pitch (degrees, bow up) and roll (degrees, to starboard) on the swell at a moment, for the renderer. */
+    public float[] swellTilt(double time) {
+        if (!isAfloat()) {
+            return new float[] {0.0F, 0.0F};
+        }
+        Vec3 bow = at(new Vec3(0.0, 0.0, 5.0));
+        Vec3 stern = at(new Vec3(0.0, 0.0, -5.0));
+        Vec3 port = at(new Vec3(-1.8, 0.0, 0.0));
+        Vec3 starboard = at(new Vec3(1.8, 0.0, 0.0));
+        double pitch = Math.atan2(swell(bow.x, bow.z, time) - swell(stern.x, stern.z, time), 10.0);
+        double roll = Math.atan2(swell(port.x, port.z, time) - swell(starboard.x, starboard.z, time), 3.6);
+        return new float[] {(float) Math.toDegrees(pitch) * 2.0F, (float) Math.toDegrees(roll) * 1.5F};
+    }
+
+    /** Whether she's afloat (not aground). */
+    public boolean isAfloat() {
+        return !Double.isNaN(waterSurface());
     }
 
     /** The height of the water's surface under her middle, or NaN if she's not in water. */
@@ -470,7 +651,7 @@ public class ShinseiMaruEntity extends Entity implements GeoEntity {
 
     @Override
     public boolean canBeCollidedWith() {
-        return true;
+        return false; // (her parts are her solid hull and decks)
     }
 
     @Override

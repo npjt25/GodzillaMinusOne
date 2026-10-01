@@ -26,6 +26,8 @@ public final class ModNetwork {
                 .encoder(ShindenFirePacket::encode).decoder(ShindenFirePacket::decode).consumerMainThread(ShindenFirePacket::handle).add();
         CHANNEL.messageBuilder(ShinseiMaruPacket.class, id++, NetworkDirection.PLAY_TO_SERVER)
                 .encoder(ShinseiMaruPacket::encode).decoder(ShinseiMaruPacket::decode).consumerMainThread(ShinseiMaruPacket::handle).add();
+        CHANNEL.messageBuilder(SearchlightPacket.class, id++, NetworkDirection.PLAY_TO_SERVER)
+                .encoder(SearchlightPacket::encode).decoder(SearchlightPacket::decode).consumerMainThread(SearchlightPacket::handle).add();
     }
 
     public static void send(ServerPlayer player, Object message) {
