@@ -24,21 +24,38 @@ import software.bernie.geckolib.util.GeckoLibUtil;
  * /summon gives it a Rotation). Hit one in creative mode, or /kill it, to remove it.
  */
 public class GodzillaStatueEntity extends Entity implements GeoEntity {
+    /** What of him is aglow, as when he charges his atomic breath. */
+    public enum Glow {
+        /** Nothing but his eyes. */
+        NONE,
+        /** The dorsal plates along his tail (the first to light up). */
+        TAIL,
+        /** Fully charged: every dorsal plate, and the inside of his mouth. */
+        CHARGED
+    }
+
     public enum Stance {
         /** Roaring, one arm flung out, the glowing tail raised high round his side. */
-        CHARGING_ROAR("pose_charging_roar", true),
+        CHARGING_ROAR("pose_charging_roar", Glow.TAIL),
         /** The tail swung round in front of him, its tip rising. */
-        TAIL_WHIP("pose_tail_whip", false),
+        TAIL_WHIP("pose_tail_whip", Glow.NONE),
         /** Roaring up at the sky, arms spread. */
-        SKY_ROAR("pose_sky_roar", false);
+        SKY_ROAR("pose_sky_roar", Glow.NONE),
+        /**
+         * The 70th anniversary poster: braced and snarling down at you, mouth and plates aglow, one arm reaching
+         * forward, the tail rising behind him in a tall J. Best seen from low down in front of him.
+         */
+        POSTER_SNARL("pose_poster_snarl", Glow.CHARGED),
+        /** Turned three-quarters, growling, the tail swept round in front of him in a broad open hook. */
+        TAIL_HOOK("pose_tail_hook", Glow.NONE);
 
         public final String id;
-        public final boolean glowingTail;
+        public final Glow glow;
         final RawAnimation animation;
 
-        Stance(String id, boolean glowingTail) {
+        Stance(String id, Glow glow) {
             this.id = id;
-            this.glowingTail = glowingTail;
+            this.glow = glow;
             this.animation = RawAnimation.begin().thenLoop("animation.gojira." + id);
         }
     }

@@ -15,10 +15,15 @@ twice):
     then snapping through in a wave from its base to its tip),
   * "animation.gojira.swim_peek": while he swims, his head rises out of the water (eyes just above the surface,
     the snout level) and glares ahead for 4 seconds, then sinks back,
-  * three held poses for the thumbnail statues (entity.GodzillaStatueEntity), after the film's posters:
+  * five held poses for the thumbnail statues (entity.GodzillaStatueEntity), after the film's posters:
     "animation.gojira.pose_charging_roar" (roaring, one arm flung out, the glowing tail raised high round his
-    side), "pose_tail_whip" (the tail swung round in front of him, its tip rising) and "pose_sky_roar" (roaring
-    up at the sky, arms spread). The tail whip's tail was solved for with a small search (see tail waypoints).
+    side), "pose_tail_whip" (the tail swung round in front of him, its tip rising), "pose_sky_roar" (roaring
+    up at the sky, arms spread), "pose_poster_snarl" (the 70th anniversary poster: braced and snarling, one arm
+    reaching forward, the tail rising behind him in a tall J) and "pose_tail_hook" (turned three-quarters away,
+    growling, the tail swept round in front of him in a broad open hook). The tails were solved for with a small
+    search (see the tail waypoints), and the last two arms likewise, from where their elbows, wrists and fingers
+    should be; their Root is turned so that the statue, which turns to face you, shows the poster's angle, and
+    lowered so that the bent legs still stand on the ground.
 """
 import json
 import math
@@ -430,16 +435,49 @@ POSES = {
         "bone18": [0, -12, 0],
         "Leg": [-6, 0, 0], "Leg2": [4, 0, 0],
     },
+    # Seen from in front (where the statue faces), he stands turned 30 degrees to his right, so that you see him
+    # from his front left, from low down, as on the poster. The tail (waypoints, in blocks right/up/forward:
+    # (0,14,-10) (-2,16,-20) (-6,24,-27) (-8,36,-29) (-8,47,-29), tip (-7,59,-28)) runs back from his hips, out
+    # towards his left, then rises steeply, higher than his head. The left hand reaches forward at the bottom of his
+    # chest, its claws turned up towards you; the right hangs out to the side, lower. Mouth and plates are lit
+    # (GodzillaStatueEntity.Glow.CHARGED).
+    "pose_poster_snarl": {
+        "Root": {"rotation": [0, 30, 0], "position": [0, -2.3, 0]},
+        "Leg2": [-14, -4, 0], "Leg_bone2": [12, 0, 0], "Foot2": [2, 0, 0],
+        "Leg": [8, 0, 4], "Leg_bone": [10, 0, 0], "Foot": [-18, 0, -4],
+        "Body": [-2, 0, 0], "Metalbody": [-6, -8, 0], "Chest": [-8, -8, 0],
+        "Neck": [32, 0, 0], "neck2": [16, -15, 0], "Head": [0, -25, 6], "Jew": [24, 0, 0],
+        "Left_arm": [1.3, 13.4, -18.9], "bone4": [-16.7, 10.1, -4.1], "bone5": [-80, 40, 40], "Finger2": [15, 0, 0],
+        "Right_arm": [2.7, -12.8, 24.2], "bone": [18.7, -0.9, 6.4], "bone2": [10, 0, -10], "Finger": [20, 0, 0],
+        "bone11": [40.8, -0.7, 0], "bone13": [-8.5, 15.8, 0], "bone14": [6.3, 7.7, 0], "bone16": [17.8, 0, 0],
+        "bone17": [21.1, -2.7, 0], "bone18": [21.4, -3, 0],
+    },
+    # Turned 55 degrees to his right, so that from in front you see his left side three-quarters on, his head to
+    # your left. Knees bent, hunched forward, growling; the near (left) arm bent in front of his chest, the hand
+    # hanging from the wrist, the far one lower. The tail (waypoints, as above: (-11,16,-2) (-16,14,6) (-12,12,16)
+    # (-3,16,24) (4,23,28), tip (8,35,28)) comes round his left side and across in front of his legs, then curls up
+    # on your left, the tip turning back in. No glow.
+    "pose_tail_hook": {
+        "Root": {"rotation": [0, 55, 0], "position": [0, -4.5, 0]},
+        "Leg2": [-20, 0, 0], "Leg_bone2": [30, 0, 0], "Foot2": [-10, 0, 0],
+        "Leg": [-10, 0, 4], "Leg_bone": [28, 0, 0], "Foot": [-18, 0, -4],
+        "Body": [6, 0, 0], "Metalbody": [6, 6, 0], "Chest": [8, 4, 0],
+        "Neck": [18, 0, 0], "Head": [-10, 0, 0], "Jew": [20, 0, 0],
+        "Left_arm": [-29.2, 2.2, -2.1], "bone4": [-13, 8.2, 17.5], "bone5": [40, 0, 0], "Finger2": [25, 0, 0],
+        "Right_arm": [-8.8, -0.7, 4.5], "bone": [-20.3, -8.3, -13.7], "bone2": [30, 0, 0], "Finger": [20, 0, 0],
+        "bone11": [49.3, 79.3, 0], "bone13": [-29.9, 70.6, 0], "bone14": [-11.1, 53.3, 0], "bone16": [12.2, 22.4, 0],
+        "bone17": [36.4, 5.3, 0], "bone18": [47.6, 0.7, 0],
+    },
 }
 
 
 def poses(anims):
     for name, pose in POSES.items():
-        anims["animation.gojira." + name] = {
-            "loop": True,
-            "animation_length": 1.0,
-            "bones": {bone: {"rotation": [round(float(q), 3) for q in rot]} for bone, rot in pose.items()},
-        }
+        bones = {}
+        for bone, value in pose.items():
+            channels = value if isinstance(value, dict) else {"rotation": value}
+            bones[bone] = {channel: [round(float(q), 3) for q in v] for channel, v in channels.items()}
+        anims["animation.gojira." + name] = {"loop": True, "animation_length": 1.0, "bones": bones}
 
 
 def main():

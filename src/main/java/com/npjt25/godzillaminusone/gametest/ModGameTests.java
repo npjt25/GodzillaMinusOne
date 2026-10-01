@@ -388,12 +388,25 @@ public final class ModGameTests {
 
     @GameTest(template = FLOOR, batch = "gmo_statue")
     public static void aPoseStatueHoldsStill(GameTestHelper helper) {
-        GodzillaStatueEntity statue = helper.spawn(ModEntities.GODZILLA_POSE_SKY_ROAR.get(), new Vec3(4.5, floorY(helper) + 4, 4.5));
-        Vec3 at = statue.position();
-        helper.assertFalse(statue.hurt(helper.getLevel().damageSources().generic(), 1000.0F), "a statue can't be hurt");
+        List<GodzillaStatueEntity> statues = new ArrayList<>();
+        List<Vec3> spots = new ArrayList<>();
+        int y = floorY(helper) + 4;
+        for (EntityType<GodzillaStatueEntity> type : List.of(ModEntities.GODZILLA_POSE_CHARGING_ROAR.get(), ModEntities.GODZILLA_POSE_TAIL_WHIP.get(),
+                ModEntities.GODZILLA_POSE_SKY_ROAR.get(), ModEntities.GODZILLA_POSE_POSTER_SNARL.get(), ModEntities.GODZILLA_POSE_TAIL_HOOK.get())) {
+            GodzillaStatueEntity statue = helper.spawn(type, new Vec3(4.5, y + 2 * statues.size(), 4.5));
+            helper.assertFalse(statue.hurt(helper.getLevel().damageSources().generic(), 1000.0F), "a statue can't be hurt");
+            statues.add(statue);
+            spots.add(statue.position());
+        }
+        helper.assertTrue(statues.get(3).getStance().glow == GodzillaStatueEntity.Glow.CHARGED, "the poster's statue should be fully charged");
+        helper.assertTrue(statues.get(4).getStance().glow == GodzillaStatueEntity.Glow.NONE, "the tail hook's statue should be unlit");
         helper.runAfterDelay(20, () -> {
-            helper.assertTrue(statue.isAlive() && statue.position().equals(at), "it should stay just where it was put, even in mid-air");
-            statue.discard();
+            for (int i = 0; i < statues.size(); i++) {
+                GodzillaStatueEntity statue = statues.get(i);
+                helper.assertTrue(statue.isAlive() && statue.position().equals(spots.get(i)),
+                        statue.getStance().id + " should stay just where it was put, even in mid-air");
+                statue.discard();
+            }
             helper.succeed();
         });
     }

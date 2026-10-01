@@ -9,7 +9,7 @@ form from the start of the film): Monster122's
 **Godzillasaurus** from the "G-1" Bedrock add-on, with its own model and animations. There are also the **Shinsei
 Maru**, the film's little minesweeper with its stern machine gun and a hold of naval mines, a **searchlight**, a
 **nuclear bomb**, a **remote detonator** for the naval mines, and posed **Godzilla statues** for screenshots and
-thumbnails.
+thumbnails. With **Walkers** or **ReMorphed** installed, you can **play as Godzilla**.
 
 ![Godzilla: front, side, three-quarter and charged](docs/godzilla_preview.png)
 
@@ -36,7 +36,9 @@ a player.*
 
 ![Godzilla statues](docs/poses_preview.png)
 
-*The thumbnail statues: charging roar (its tail plates glow in game), tail whip, roar to the sky.*
+*The thumbnail statues as you see them standing in front of each (they turn to face you): charging roar (its tail
+plates aglow), tail whip, roar to the sky, the 70th anniversary poster (mouth and every plate aglow) and the tail
+hook. Offline renders (tools/preview_poses.py) on a one-block grid with a player.*
 
 ![The atomic blast, from a player's eye](docs/blast_sequence.png)
 
@@ -59,6 +61,9 @@ the blue one a player.*
 - [GeckoLib](https://www.curseforge.com/minecraft/mc-mods/geckolib) 4.x for 1.20.1 (4.8.4 tested against)
 - Optional: [AttributeFix](https://www.curseforge.com/minecraft/mc-mods/attributefix), only if you raise
   Godzilla's max health above 1024 in the config
+- Optional: [Walkers](https://www.curseforge.com/minecraft/mc-mods/woodwalkers) (5.8.x, with its library
+  CraftedCore) and, if you like, [ReMorphed](https://www.curseforge.com/minecraft/mc-mods/remorphed) (4.2.x), to
+  play as Godzilla (see **Playing as Godzilla**). Neither is needed otherwise.
 
 ## What's in it
 
@@ -75,7 +80,7 @@ the blue one a player.*
 | *(new, from the film)* | **Shinsei Maru**, the minesweeper: a boat with a stern machine gun and a hold of naval mines |
 | *(new)* | **Searchlight**, a mountable WWII searchlight |
 | *(new)* | **Nuclear Bomb**, called in from the sky |
-| *(new)* | **Godzilla statues** in three poses, `/summon` only |
+| *(new)* | **Godzilla statues** in five poses, `/summon` only |
 
 ### Godzilla
 
@@ -85,10 +90,13 @@ the blue one a player.*
   you get closer (loud, but not painful in headphones).
 - **Radiation aura**: anything within 16 blocks gets "RADIATION POISONING" and Wither.
 - Every footfall shakes the camera, hurts everything near him and **crushes a footprint** of rubble into the
-  ground. He smashes through blocks (needs `mobGriefing`).
+  ground. He smashes through blocks (needs `mobGriefing`), and **buildings fall over** as he wades through them
+  or swipes at them: the walls high up beside him topple as falling blocks, thrown the way he's going (or away
+  from his swipe), and come crashing down; what's below them breaks apart.
 - **He knocks down tall buildings**: when there's nothing in sight for him to kill and he sees anything built
   standing **half his height (23 blocks) or more** above the ground (within 64 blocks), he goes over and swipes
-  at it, ten layers at a time, until it's down to **a quarter of his height (11 blocks)**, then leaves it alone.
+  at it, ten layers at a time (the top of it toppling away from him), until it's down to **a quarter of his
+  height (11 blocks)**, then leaves it alone.
   Trees and hills don't count. A mob turning up sends him after it instead.
 - **He roars every 2 minutes** (stopping where he is to do it); set how often in the config screen.
 - Up close he attacks in a combo: a **claw swipe with each hand**, then a **heavy spin** of his whole body with
@@ -114,6 +122,9 @@ the blue one a player.*
   water he **swims at the surface** with his dorsal plates out of the water, runs down boats and bites at them
   (a new swimming bite, he doesn't stand up). Every 10 seconds his **head comes up out of the water** and
   glares around for 4 seconds, then sinks back under.
+- **In the water, the Shinsei Maru is his main focus**: while he's swimming (or wading) and she's afloat within
+  his reach, he forgets everything else and goes after her, for her helmsman first, then her gunner, and keeps
+  after her even with nobody aboard. One bite or swipe wrecks her.
 - **Only naval mines hurt him** (as in the add-on), each taking about 10% of his health and stunning him.
   At zero health he collapses, lies dead for 15 seconds, then regenerates and rises again.
 
@@ -151,7 +162,10 @@ the blue one a player.*
   His walk, roar, two bites (one with a swipe of his arm), stomp and burnt pose are the add-on's animations.
 - Left alone he wanders and ignores you, but get within about 16 blocks and he **charges**: he runs you down,
   crashing through trees and fences, and **bites** or **stomps** you.
-- **Spotted, he goes into a frenzy**: caught in a searchlight's beam, seen by a player (a player looking at him
+- **Lit by a searchlight someone is working, he goes for the light**: he turns to stare straight into it and
+  roars, then charges it, bites or stomps it to pieces (glass shattering, the iron frame clanging down), and
+  comes straight for whoever was working it, in a frenzy. A searchlight sweeping on its own doesn't bother him.
+- **Spotted, he goes into a frenzy**: seen by a player (a player looking at him
   from up to 64 blocks away, or one he can see within 32), or hurt by one, he roars and comes for them: a third
   faster, biting and stomping 60% harder and twice as often, crashing through wooden doors too, and he
   doesn't let up for 90 seconds, even when they're out of sight.
@@ -164,10 +178,15 @@ the blue one a player.*
 - Crafted from iron ingots, glass, a redstone lamp and iron blocks (iron ingot, glass, iron ingot / iron
   ingot, redstone lamp, iron ingot / three iron blocks). Right-click the ground to set it up facing the way
   you look.
-- Right-click it to sit at it: the lamp turns and tilts with where you look, and while you're manning it the
-  beam is lit, reaching 160 blocks. It widens as it goes and lights up **a wide pool** where it lands: a bright
+- **Left alone it sweeps round on its own**, like the hand of a clock, a full turn every 40 seconds, at the tilt it
+  was left at, throwing a white beam.
+- Right-click it to sit at it: the lamp turns and tilts with where you look. The beam reaches 160 blocks. Press
+  **R** ("Vehicle Action" in Controls) to switch the lamp **off**, and again to switch it on; it stays as you left
+  it. It widens as it goes and lights up **a wide pool** where it lands: a bright
   spot 10 to 25 blocks across (wider the further it reaches) on whatever it hits, lit by a ring of light
   sources up to 7 blocks out. Sneak to get off.
+- An Odo Island Monster caught in the beam while you're working it comes for the light, smashes it and then
+  comes for you (see above).
 - Hit it like a boat to knock it back into its item.
 
 ### Shinsei Maru
@@ -175,15 +194,20 @@ the blue one a player.*
 - The film's small, run-down wooden minesweeper, about 13.5 blocks long. Crafted from a boat with five dark oak
   planks under it and an iron ingot on top (iron ingot in the top middle / planks, boat, planks / three planks).
   Use it on water to put her in, facing the way you look.
-- **Right-click to board.** The first aboard takes the **wheel**, up on the wheelhouse roof: **W/S** throttle,
-  **A/D** steer. Flat out she's **as fast as Godzilla swims** after something (8.4 blocks a second). The second
-  aboard mans the **Type 93 13 mm machine gun** on the stern platform.
+- **You can walk on all her decks**: the foredeck, the wheelhouse roof, the after deck and the stern platform.
+  Standing on her, you're carried along as she moves and turns.
+- **Two places to man.** Right-click her **stern** (the gun platform, or her from astern) to take the **Type 93
+  13 mm machine gun**; right-click her **anywhere else** to take the **wheel**, up on the wheelhouse roof, and the
+  mines. At the wheel: **W** ahead, **S** astern, **A/D** steer; she moves the way her bow points. Flat out she's
+  **as fast as Godzilla swims** after something (8.4 blocks a second).
 - **The gun points aft** and swings 135 degrees either way: its gunner (or the helmsman, sailing alone) aims it
   by looking and **fires one round per right-click**. A round **sets off a naval mine** it hits.
 - **Naval mines**: sneak and right-click her to open her **hold** (9 slots, naval mines only), or right-click her
-  with a naval mine in hand to load it. Up to three show in the rack on deck. The helmsman presses **R** ("Drop
-  Naval Mine" in Controls) to **drop one over the stern**: it floats there, and goes off when Godzilla comes near
+  with a naval mine in hand to load it. Up to three show in the rack on deck. The helmsman presses **R** ("Vehicle
+  Action" in Controls) to **drop one over the stern**: it floats there, and goes off when Godzilla comes near
   (his radiation sets it off), like the film's mine dragged into his mouth.
+- **She rides the waves**: at sea she heaves up and down with the swell and pitches and rolls as it passes under
+  her, rougher in the rain and rougher still in a thunderstorm.
 - Hit her like a boat to knock her back into her item, mines and all (one hit in creative). Explosions and
   Godzilla smash her to matchwood, throwing the crew in the water.
 
@@ -228,8 +252,42 @@ hurt. Hit it in creative mode, or `/kill` it, to remove it.
 | Roaring, one arm flung out, the glowing tail raised high round his side | `/summon godzillaminusone:godzilla_pose_charging_roar` |
 | The tail swung round in front of him, its tip rising | `/summon godzillaminusone:godzilla_pose_tail_whip` |
 | Roaring up at the sky, arms spread | `/summon godzillaminusone:godzilla_pose_sky_roar` |
+| The 70th anniversary poster: braced in a low crouch, snarling down at you with his mouth lit blue, his left hand reaching forward with its claws turned up, every dorsal plate aglow and the tail rising behind him in a tall J | `/summon godzillaminusone:godzilla_pose_poster_snarl` |
+| Turned three-quarters to your left, knees bent, growling, the near arm in front of his chest, the tail swept round in front of his legs and curling up in a broad open hook (unlit) | `/summon godzillaminusone:godzilla_pose_tail_hook` |
 
 To face a statue a given way, give it a rotation, e.g. `/summon godzillaminusone:godzilla_pose_sky_roar ~ ~ ~ {Rotation:[180f,0f]}`.
+The last two already stand turned within themselves (30 and 55 degrees), so that a statue facing you shows you
+the poster's angle: get down low in front of them and look up, as the posters' cameras do. Their feet, the poster
+statue's fingers and tail tip, and the tail hook's far arm and where its tail joins him aren't in the pictures,
+so those are made up to match.
+
+### Playing as Godzilla (Walkers / ReMorphed)
+
+With [Walkers](https://www.curseforge.com/minecraft/mc-mods/woodwalkers) installed you can take Godzilla's shape:
+
+- **Unlocking him**: with Walkers, hold its unlock key (**U**) while looking at him, or use
+  `/walkers change2ndShape <player> godzillaminusone:godzilla` (then **G** switches to him and back); with
+  ReMorphed, **bringing him down** counts as killing him (he never really dies) and unlocks his shape, or use
+  `/remorphed addShape <player> godzillaminusone:godzilla`, then pick him from ReMorphed's menu.
+- As him, a small list of his moves and their keys sits in the **top left corner** of the screen:
+  - **Z: Tail Whip**, a spin of his whole body, the tail sweeping round twice,
+  - **H: Scratch**, a claw swipe (right, then left),
+  - **J: Bite** (a swimming bite in the water),
+  - **K: Roar**: weakens and slows everything within 48 blocks for 10 seconds,
+  - **B: Atomic Breath**: the full charge, beam and nuclear blast where it lands (flattening too, with
+    `mobGriefing`), then a **3 minute** recharge, counted down beside it (change it in the config: it's his
+    breath interval). You stand rooted while it charges and fires.
+  All five are in Controls under Godzilla Minus One, to rebind.
+- Walkers' own keys are G, U, V and R (its shape's ability). **R is also this mod's "Vehicle Action"** (the Shinsei
+  Maru's mines, the searchlight's lamp); rebind one of them if you use both.
+
+### Physics Mod
+
+There's no special support for Physics Mod (it has no public way for other mods to hook in), but the mod does
+its own physics where it matters and leaves the rest to it: the Shinsei Maru rides the swell (see above), and the
+blocks of a building Godzilla goes through or swipes at topple over as falling blocks. A share of them break
+the ordinary way, with their usual block-breaking effect, so Physics Mod, if installed, can shatter those into
+pieces as it does any broken block. Nothing here has been tried in game with Physics Mod itself.
 
 ## Configuration
 
@@ -281,6 +339,7 @@ Then make Godzilla's burns, edit the animations, and build the rest:
 ```
 python3 tools/godzilla_burns.py         # the burns round his mouth after the beam (on the add-on's texture layout)
 python3 tools/edit_animations.py        # in-breath, beam from the mouth, swimming bite and peek, melee combo, statue poses
+python3 tools/godzilla_mouth_glow.py    # the glow inside his mouth for the poster statue
 python3 tools/make_sounds.py            # the in-breath, the nuclear bomb's air-raid siren, single gunshots (Shinden, Shinsei Maru)
 python3 tools/make_odo_model.py "path/to/G-1(RE)"   # the Odo Island Monster, from Monster122's G-1 resource pack (hide greyed)
 python3 tools/make_props.py             # the searchlight, nuclear bomb and Shinsei Maru models
@@ -295,7 +354,8 @@ python3 tools/make_cloud_sprites.py     # the atomic blast's smoke, fire and fla
 the game uses the sprites made from them, `textures/effect/nuclear_cloud.png`.)
 
 Previews without starting the game: `tools/render_preview.py` renders a cube model with its texture (and any
-animation frame, optionally on a one-block grid with a player for scale); `tools/preview_blast.py` renders the
+animation frame, optionally on a one-block grid with a player for scale, from a perspective camera with glowing
+parts); `tools/preview_poses.py` renders the statues as you see them in game; `tools/preview_blast.py` renders the
 atomic blast (`tools/nuclear_cloud_model.py`, the same cloud as the game's `NuclearCloud` and `BlastTimeline`) at
 given times and viewpoints.
 
@@ -311,5 +371,8 @@ The atomic blast's mushroom cloud is built from **Alex's Caves**' (by **AlexModG
 sprites are cut from its `mushroom_cloud` and `mushroom_cloud_glow` textures, and it's drawn in layers as its
 `MushroomCloudParticle` draws its cloud (the texture, then the glow texture added on while it's hot). Its sequence
 and look follow the Ginza blast in *Godzilla Minus One*.
+
+Playing as Godzilla works with **Walkers** and **ReMorphed** by **To_Craft** (MIT licence), through their public
+APIs, looked up by name only when they're installed; nothing of theirs is included in this mod.
 
 Godzilla is a trademark of Toho Co., Ltd.

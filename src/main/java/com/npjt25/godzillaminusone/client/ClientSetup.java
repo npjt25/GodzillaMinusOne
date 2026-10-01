@@ -48,6 +48,8 @@ public final class ClientSetup {
         event.registerEntityRenderer(ModEntities.GODZILLA_POSE_CHARGING_ROAR.get(), GodzillaStatueRenderer::new);
         event.registerEntityRenderer(ModEntities.GODZILLA_POSE_TAIL_WHIP.get(), GodzillaStatueRenderer::new);
         event.registerEntityRenderer(ModEntities.GODZILLA_POSE_SKY_ROAR.get(), GodzillaStatueRenderer::new);
+        event.registerEntityRenderer(ModEntities.GODZILLA_POSE_POSTER_SNARL.get(), GodzillaStatueRenderer::new);
+        event.registerEntityRenderer(ModEntities.GODZILLA_POSE_TAIL_HOOK.get(), GodzillaStatueRenderer::new);
     }
 
     @SubscribeEvent

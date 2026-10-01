@@ -1,7 +1,8 @@
 """Tiny software renderer for Bedrock/GeckoLib geometry files.
 
 Used to preview entity models + textures outside of Minecraft (e.g. to check
-the Godzilla recolour). Orthographic, z-buffered, flat-shaded.
+the Godzilla recolour). Orthographic (or, with a camera, perspective), z-buffered, flat-shaded; glowing parts
+(overlays: emissive textures on some bones) are added on top, with a soft bloom.
 
     python3 tools/render_preview.py <geo.json> <texture.png> <out.png> [yaw] [pitch] [size]
 """
@@ -197,9 +198,26 @@ def scale_props(scale, ground, player_at=None):
     return quads
 
 
+def look_at(eye, target, up=(0.0, 1.0, 0.0)):
+    """Rows: the camera's right, up and forward (into the picture), for render(camera=...)."""
+    f = np.asarray(target, float) - np.asarray(eye, float)
+    f /= np.linalg.norm(f)
+    r = np.cross(f, up)
+    r /= np.linalg.norm(r)
+    return np.array([r, np.cross(r, f), f])
+
+
 def render(geo_path, tex_path, out_path, yaw=150.0, pitch=15.0, size=900, pose=None, bg=(34, 38, 46),
-           hide=(), extra_scale=1.0, flat_bones=None, fit_bones=None, props=None, fit_props=False):
+           hide=(), extra_scale=1.0, flat_bones=None, fit_bones=None, props=None, fit_props=False,
+           camera=None, overlays=(), bloom=0.0, width=None):
+    """camera: {"eye": (x, y, z), "target": (x, y, z), "fov": degrees} in the model's space (pixels, x negated as
+    in bone_matrices) for a perspective view instead of the orthographic yaw/pitch one (which fits the model to the
+    picture). overlays: (texture path, bone names, brightness) glowing parts, added on top of the model where the
+    texture isn't clear; bloom: how much of that glow spreads round it. width: a wider picture (default square)."""
     bones, tw, th = load_geo(geo_path)
+    width = width or size
+    glow_tex = [(np.array(Image.open(path).convert("RGBA")).astype(float) / 255.0, set(names), gain)
+                for path, names, gain in overlays]
     tex = np.array(Image.open(tex_path).convert("RGBA")).astype(float) / 255.0
     TH, TW = tex.shape[:2]
     mats = bone_matrices(bones, pose)
@@ -219,52 +237,86 @@ def render(geo_path, tex_path, out_path, yaw=150.0, pitch=15.0, size=900, pose=N
             for name, corners, uvs in face_list(c, tw, th):
                 pts = (C @ np.c_[corners, np.ones(4)].T).T[:, :3]
                 quads.append((pts, uvs, (flat_bones or {}).get(b["name"]), b["name"]))
-    prop_quads = [(corners, None, rgb, "#prop") for corners, rgb in (props or [])]
+    # (props are wound the other way round from the cubes' faces, whose normals point inwards)
+    prop_quads = [(np.asarray(corners)[::-1], None, rgb, "#prop") for corners, rgb in (props or [])]
     fit = [q[0] for q in quads if not fit_bones or q[3] in fit_bones] + ([q[0] for q in prop_quads] if fit_props else [])
     quads += prop_quads
-    allpts = np.concatenate(fit)
-    vp = (view @ allpts.T).T
-    lo, hi = vp.min(0), vp.max(0)
-    scale = (size * 0.9) / max(hi[0] - lo[0], hi[1] - lo[1]) * extra_scale
-    center = (lo + hi) / 2
+    if camera is None:
+        allpts = np.concatenate(fit)
+        vp = (view @ allpts.T).T
+        lo, hi = vp.min(0), vp.max(0)
+        scale = (size * 0.9) / max(hi[0] - lo[0], hi[1] - lo[1]) * extra_scale
+        center = (lo + hi) / 2
+    else:
+        eye = np.asarray(camera["eye"], float)
+        cam = look_at(eye, camera["target"])
+        focal = (size / 2) / math.tan(math.radians(camera.get("fov", 50.0)) / 2)
 
-    img = np.zeros((size, size, 3))
-    img[:] = np.array(bg) / 255.0
-    zbuf = np.full((size, size), -np.inf)
+    img = np.zeros((size, width, 3))
+    if np.ndim(bg) == 2:                             # a gradient, top to bottom
+        top, bottom = np.array(bg[0]) / 255.0, np.array(bg[1]) / 255.0
+        img[:] = top + (bottom - top) * np.linspace(0, 1, size)[:, None, None]
+    else:
+        img[:] = np.array(bg) / 255.0
+    zbuf = np.full((size, width), -np.inf)
+    glow = np.zeros((size, width, 3))
     light = np.array([0.4, 0.8, -0.45])
     light /= np.linalg.norm(light)
 
-    for pts, uvs, flat, _ in quads:
-        p = (view @ pts.T).T
-        sx = (p[:, 0] - center[0]) * scale + size / 2
-        sy = -(p[:, 1] - center[1]) * scale + size / 2
-        z = p[:, 2]
-        # parallelogram param: P = P0 + a*(P1-P0) + b*(P3-P0)
-        e1 = np.array([sx[1] - sx[0], sy[1] - sy[0]])
-        e2 = np.array([sx[3] - sx[0], sy[3] - sy[0]])
-        det = e1[0] * e2[1] - e1[1] * e2[0]
-        if abs(det) < 1e-6:
-            continue
-        # back-face culling via the normal (cull faces pointing away from the viewer)
-        n = np.cross(p[1] - p[0], p[3] - p[0])
+    for pts, uvs, flat, bone in quads:
+        n = np.cross(pts[1] - pts[0], pts[3] - pts[0])
         nn = np.linalg.norm(n)
         if nn < 1e-9:
             continue
         n /= nn
-        if n[2] > 0:  # viewer looks along +z in view space
-            continue
-        xmin, xmax = int(max(0, np.floor(sx.min()))), int(min(size - 1, np.ceil(sx.max())))
+        if camera is None:
+            p = (view @ pts.T).T
+            sx = (p[:, 0] - center[0]) * scale + width / 2
+            sy = -(p[:, 1] - center[1]) * scale + size / 2
+            # back-face culling via the (inward) normal: the viewer looks along +z
+            if (view @ n)[2] < 0:
+                continue
+        else:
+            p = (cam @ (pts - eye).T).T
+            if (p[:, 2] < 1.0).any() or n @ (pts[0] - eye) < 0:
+                continue                             # behind the camera, or facing away from it (n points inwards)
+            sx = width / 2 + focal * p[:, 0] / p[:, 2]
+            sy = size / 2 - focal * p[:, 1] / p[:, 2]
+        xmin, xmax = int(max(0, np.floor(sx.min()))), int(min(width - 1, np.ceil(sx.max())))
         ymin, ymax = int(max(0, np.floor(sy.min()))), int(min(size - 1, np.ceil(sy.max())))
         if xmin > xmax or ymin > ymax:
             continue
         X, Y = np.meshgrid(np.arange(xmin, xmax + 1) + 0.5, np.arange(ymin, ymax + 1) + 0.5)
-        dx, dy = X - sx[0], Y - sy[0]
-        a = (dx * e2[1] - dy * e2[0]) / det
-        bcoef = (e1[0] * dy - e1[1] * dx) / det
+        # parallelogram param: P = P0 + a*(P1-P0) + b*(P3-P0)
+        if camera is None:
+            e1 = np.array([sx[1] - sx[0], sy[1] - sy[0]])
+            e2 = np.array([sx[3] - sx[0], sy[3] - sy[0]])
+            det = e1[0] * e2[1] - e1[1] * e2[0]
+            if abs(det) < 1e-6:
+                continue
+            dx, dy = X - sx[0], Y - sy[0]
+            a = (dx * e2[1] - dy * e2[0]) / det
+            bcoef = (e1[0] * dy - e1[1] * dx) / det
+            z = p[:, 2]
+            depth = -(z[0] + a * (z[1] - z[0]) + bcoef * (z[3] - z[0]))
+        else:
+            # where each pixel's ray meets the face's plane
+            e1, e2 = p[1] - p[0], p[3] - p[0]
+            pn = np.cross(e1, e2)
+            d = np.stack([(X - width / 2) / focal, -(Y - size / 2) / focal, np.ones_like(X)], -1)
+            dn = d @ pn
+            if np.abs(dn).max() < 1e-9:
+                continue
+            with np.errstate(divide="ignore", invalid="ignore"):
+                t = (pn @ p[0]) / dn
+            hit = d * t[..., None] - p[0]
+            u1, u2 = np.cross(e2, pn), np.cross(pn, e1)
+            a = (hit @ u1) / (e1 @ u1)
+            bcoef = (hit @ u2) / (e2 @ u2)
+            depth = -t
         inside = (a >= 0) & (a <= 1) & (bcoef >= 0) & (bcoef <= 1)
         if not inside.any():
             continue
-        depth = -(z[0] + a * (z[1] - z[0]) + bcoef * (z[3] - z[0]))
         if uvs is None:
             col = np.empty(a.shape + (4,))
             col[...] = list(flat) + [1.0]
@@ -291,6 +343,18 @@ def render(geo_path, tex_path, out_path, yaw=150.0, pitch=15.0, size=900, pose=N
         rgb = col[..., :3] * shade
         img[ymin:ymax + 1, xmin:xmax + 1][win] = rgb[win]
         sub[win] = depth[win]
+        lit = np.zeros(rgb.shape)
+        if uvs is not None:
+            for gtex, names, gain in glow_tex:
+                if bone in names:
+                    g = gtex[ty, tx]
+                    lit += np.where(g[..., 3:] > 0.1, g[..., :3] * gain, 0.0)
+        glow[ymin:ymax + 1, xmin:xmax + 1][win] = lit[win]
+    img += glow
+    if bloom > 0 and glow.any():
+        from scipy.ndimage import gaussian_filter
+        spread = size / 90.0
+        img += bloom * (gaussian_filter(glow, (spread, spread, 0)) * 1.6 + gaussian_filter(glow, (spread * 4, spread * 4, 0)))
     Image.fromarray((np.clip(img, 0, 1) * 255).astype("uint8")).save(out_path)
 
 

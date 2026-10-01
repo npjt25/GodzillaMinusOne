@@ -19,18 +19,28 @@ import software.bernie.geckolib.renderer.layer.GeoRenderLayer;
 
 import java.util.Set;
 
-/** A posed Godzilla statue: his model at his size, with his glowing eyes, and for the charging pose his tail aglow. */
+/**
+ * A posed Godzilla statue: his model at his size, with his glowing eyes, and, as its stance has it, his tail's plates
+ * aglow (as a charge begins) or every plate and the inside of his mouth (fully charged).
+ */
 public class GodzillaStatueRenderer extends GeoEntityRenderer<GodzillaStatueEntity> {
     private static final ResourceLocation EYES = GodzillaMinusOne.id("textures/entity/godzilla_glow.png");
     private static final ResourceLocation PLATE_GLOW = GodzillaMinusOne.id("textures/entity/godzilla_charged_glow.png");
+    private static final ResourceLocation MOUTH_GLOW = GodzillaMinusOne.id("textures/entity/godzilla_mouth_glow.png");
     /** The dorsal plates along the tail (the first to light up when he charges). */
     private static final Set<String> TAIL_PLATES = Set.of("T15", "T16", "T17", "T18", "T19", "T20", "T21", "T22");
+    /** All his dorsal plates: down his back and neck too. */
+    private static final Set<String> ALL_PLATES = Set.of("T", "T2", "T3", "T4", "T5", "T6", "T7", "T8", "T9", "T10", "T11",
+            "T12", "T13", "T14", "T15", "T16", "T17", "T18", "T19", "T20", "T21", "T22");
+    /** His head and jaw: the mouth's glow is painted on the inside of them (textures/entity/godzilla_mouth_glow.png). */
+    private static final Set<String> MOUTH = Set.of("Head", "Jew");
 
     private enum Pass {
-        MODEL, EYES, PLATES
+        MODEL, EYES, PLATES, MOUTH
     }
 
     private Pass pass = Pass.MODEL;
+    private Set<String> plates = TAIL_PLATES;
 
     public GodzillaStatueRenderer(EntityRendererProvider.Context context) {
         super(context, new DefaultedEntityGeoModel<>(GodzillaMinusOne.id("godzilla")));
@@ -48,7 +58,7 @@ public class GodzillaStatueRenderer extends GeoEntityRenderer<GodzillaStatueEnti
     public void renderCubesOfBone(PoseStack poseStack, GeoBone bone, VertexConsumer buffer, int packedLight, int packedOverlay,
                                   float red, float green, float blue, float alpha) {
         String name = bone.getName();
-        if ("B".equals(name) || (this.pass == Pass.PLATES && !TAIL_PLATES.contains(name))) {
+        if ("B".equals(name) || (this.pass == Pass.PLATES && !this.plates.contains(name)) || (this.pass == Pass.MOUTH && !MOUTH.contains(name))) {
             return; // (bone B is the beam, stowed inside his head)
         }
         super.renderCubesOfBone(poseStack, bone, buffer, packedLight, packedOverlay, red, green, blue, alpha);
@@ -66,10 +76,16 @@ public class GodzillaStatueRenderer extends GeoEntityRenderer<GodzillaStatueEnti
         public void render(PoseStack poseStack, GodzillaStatueEntity entity, BakedGeoModel model, RenderType renderType, MultiBufferSource buffers,
                            VertexConsumer buffer, float partialTick, int packedLight, int packedOverlay) {
             pass(Pass.EYES, poseStack, entity, model, buffers, RenderType.eyes(EYES), partialTick, 1.0F);
-            if (entity.getStance().glowingTail) {
-                float time = entity.tickCount + partialTick;
-                pass(Pass.PLATES, poseStack, entity, model, buffers, RenderType.eyes(PLATE_GLOW), partialTick,
-                        0.85F + 0.15F * Mth.sin(time * 0.35F));
+            GodzillaStatueEntity.Glow glow = entity.getStance().glow;
+            if (glow == GodzillaStatueEntity.Glow.NONE) {
+                return;
+            }
+            float time = entity.tickCount + partialTick;
+            float pulse = 0.85F + 0.15F * Mth.sin(time * 0.35F);
+            this.statue.plates = glow == GodzillaStatueEntity.Glow.CHARGED ? ALL_PLATES : TAIL_PLATES;
+            pass(Pass.PLATES, poseStack, entity, model, buffers, RenderType.eyes(PLATE_GLOW), partialTick, pulse);
+            if (glow == GodzillaStatueEntity.Glow.CHARGED) {
+                pass(Pass.MOUTH, poseStack, entity, model, buffers, RenderType.eyes(MOUTH_GLOW), partialTick, pulse);
             }
         }
 
