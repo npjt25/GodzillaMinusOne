@@ -734,7 +734,8 @@ public final class ModGameTests {
             }
             helper.assertTrue(helper.getBlockState(new BlockPos(3, floor, 3)).is(Blocks.STONE), "the ground at the level should stay");
             helper.assertTrue(helper.getBlockState(new BlockPos(4, floor, 4)).is(Blocks.STONE), "the ground at the level should stay");
-            List<ItemEntity> drops = helper.getLevel().getEntitiesOfClass(ItemEntity.class, new AABB(middle).inflate(16.0));
+            // (only round the flattened ground: neighbouring tests' frames can shed their buttons as they're cleared)
+            List<ItemEntity> drops = helper.getLevel().getEntitiesOfClass(ItemEntity.class, new AABB(middle).inflate(4.0, 10.0, 4.0));
             helper.assertTrue(drops.isEmpty(), "nothing should drop: " + drops);
         });
     }
