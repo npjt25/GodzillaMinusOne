@@ -331,7 +331,7 @@ public final class Destruction {
                 }
                 if (isGround(state)) {
                     if (this.random.nextDouble() < intensity * 0.6) {
-                        BlockState burnt = scorch(state, this.random.nextInt(5) == 0);
+                        BlockState burnt = scorch(state, false);   // (no gravel: nothing out here that could fall and drop)
                         if (burnt != null) {
                             this.level.setBlock(pos, burnt, FLAGS);
                         }
@@ -381,8 +381,7 @@ public final class Destruction {
                 to = roll < 0.1 * intensity ? Blocks.AIR.defaultBlockState() : roll < 0.25 * intensity ? Blocks.COBBLESTONE.defaultBlockState()
                         : roll < 0.8 ? Blocks.CRACKED_STONE_BRICKS.defaultBlockState() : null;
             } else if (state.is(Blocks.COBBLESTONE) || state.is(Blocks.BRICKS) || state.is(Tags.Blocks.COBBLESTONE)) {
-                double roll = r.nextDouble();
-                to = roll < 0.15 * intensity ? Blocks.AIR.defaultBlockState() : roll < 0.25 * intensity ? Blocks.GRAVEL.defaultBlockState() : null;
+                to = r.nextDouble() < 0.2 * intensity ? Blocks.AIR.defaultBlockState() : null;
             } else if (state.getDestroySpeed(this.level, pos) >= 0.0F && state.getDestroySpeed(this.level, pos) < 20.0F) {
                 to = r.nextDouble() < 0.12 * intensity ? Blocks.AIR.defaultBlockState() : null;   // anything else built: holed
             }
