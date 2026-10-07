@@ -743,7 +743,10 @@ public class GodzillaEntity extends Monster implements GeoEntity {
                 }
             }
         }
-        if (Config.FOOTPRINTS.get() && Config.GODZILLA_BREAKS_BLOCKS.get() && ForgeEventFactory.getMobGriefingEvent(level, this)) {
+        Building spared = this.demolishing;
+        boolean onIt = spared != null && Math.abs(foot.x - spared.x()) <= KNOCK_RADIUS + FOOT_HALF_LENGTH
+                && Math.abs(foot.z - spared.z()) <= KNOCK_RADIUS + FOOT_HALF_LENGTH;
+        if (!onIt && Config.FOOTPRINTS.get() && Config.GODZILLA_BREAKS_BLOCKS.get() && ForgeEventFactory.getMobGriefingEvent(level, this)) {
             Destruction.footprint(level, this, foot, this.yBodyRot, FOOT_HALF_WIDTH, FOOT_HALF_LENGTH);
         }
     }
@@ -1416,9 +1419,15 @@ public class GodzillaEntity extends Monster implements GeoEntity {
         BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
         int broken = 0;
         int toppled = 0;
+        // (the building he's knocking down to size keeps what he means to leave of it, even if he walks into it)
+        Building spared = this.demolishing;
+        int sparedTop = spared != null ? spared.ground() + keptHeight() : Integer.MIN_VALUE;
         for (int y = minY; y <= maxY; y++) {
             for (int x = minX; x <= maxX; x++) {
                 for (int z = minZ; z <= maxZ; z++) {
+                    if (y <= sparedTop && Math.abs(x - spared.x()) <= KNOCK_RADIUS && Math.abs(z - spared.z()) <= KNOCK_RADIUS) {
+                        continue;
+                    }
                     pos.set(x, y, z);
                     BlockState state = level.getBlockState(pos);
                     if (state.isAir() || state.getBlock() instanceof LiquidBlock || state.getFluidState().is(FluidTags.LAVA)) {
