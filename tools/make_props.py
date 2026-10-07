@@ -322,7 +322,10 @@ def shinsei_maru():
             c.append(hb(side * 1.9, 3.3, z - 0.4, side * 1.96, 3.95, z + 0.4, "window"))
             c.append(hb(side * 1.9, 2.7, z - 0.18, side * 1.93, 3.3, z + 0.18, "grime"))
         c.append(hb(side * 1.9, 2.4, -0.9, side * 1.92, 2.9, -0.3, "flake"))
-    c.append(hb(-0.55, 3.25, 2.94, -0.05, 3.85, 3.0, "wood"))                                         # boarded window
+    for dx in (-0.25, 0.25):                                                                          # ladder to the roof
+        c.append(hb(-1.2 + dx - 0.04, 2.2, 2.98, -1.2 + dx + 0.04, 4.9, 3.06, "metal"))
+    for y in np.arange(2.5, 4.5, 0.35):
+        c.append(hb(-1.45, y, 3.0, -0.95, y + 0.06, 3.06, "metal"))
     c.append(hb(-0.4, 2.2, 2.94, 0.4, 3.9, 3.0, "wood"))                                              # the door
     c.append(hb(0.25, 2.95, 3.0, 0.32, 3.05, 3.05, "metal"))
     for dx, dy, sx, sy in ((0, 0.42, 0.9, 0.16), (0, -0.42, 0.9, 0.16), (0.42, 0, 0.16, 0.9), (-0.42, 0, 0.16, 0.9)):

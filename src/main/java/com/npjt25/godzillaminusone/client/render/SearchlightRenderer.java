@@ -1,6 +1,7 @@
 package com.npjt25.godzillaminusone.client.render;
 
 import com.mojang.blaze3d.vertex.PoseStack;
+import net.minecraft.client.Minecraft;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.mojang.math.Axis;
 import com.npjt25.godzillaminusone.GodzillaMinusOne;
@@ -63,7 +64,11 @@ public class SearchlightRenderer extends GeoEntityRenderer<SearchlightEntity> {
         }
     }
 
-    /** A cone of light from the lens to where the beam lands, bright at the lamp and fading with distance. */
+    /**
+     * A soft shaft of light from the lens to where the beam lands: drawn facing you, brightest down its middle and fading
+     * to nothing at its edges (no hard outline), inside a fainter halo, bright at the lamp and fading with distance; a very
+     * faint, finely divided cone round it gives it body when you look along it.
+     */
     private static void renderBeam(SearchlightEntity entity, float partialTick, PoseStack poseStack, MultiBufferSource buffers) {
         Vec3 from = entity.lens().subtract(entity.position());
         Vec3 dir = entity.beamDirection();
@@ -78,27 +83,58 @@ public class SearchlightRenderer extends GeoEntityRenderer<SearchlightEntity> {
         Vec3 b = dir.cross(a).normalize();
         VertexConsumer buffer = buffers.getBuffer(RenderType.lightning());
         Matrix4f pose = poseStack.last().pose();
-        int steps = Math.max(4, (int) (length / 8.0));
+        Vec3 eye = Minecraft.getInstance().gameRenderer.getMainCamera().getPosition().subtract(entity.getPosition(partialTick));
+        int steps = Math.max(8, (int) (length / 4.0));
         for (int s = 0; s < steps; s++) {
             double d0 = length * s / steps;
             double d1 = length * (s + 1) / steps;
             float r0 = (float) SearchlightEntity.beamRadius(d0);
             float r1 = (float) SearchlightEntity.beamRadius(d1);
-            float alpha0 = (float) (0.32 * Math.pow(1.0 - d0 / length, 1.3));
-            float alpha1 = (float) (0.32 * Math.pow(1.0 - d1 / length, 1.3));
+            float alpha0 = (float) (0.42 * Math.pow(1.0 - d0 / length, 1.3));
+            float alpha1 = (float) (0.42 * Math.pow(1.0 - d1 / length, 1.3));
             Vec3 c0 = from.add(dir.scale(d0));
             Vec3 c1 = from.add(dir.scale(d1));
-            for (int i = 0; i < SEGMENTS; i++) {
-                double t0 = Math.PI * 2.0 * i / SEGMENTS;
-                double t1 = Math.PI * 2.0 * (i + 1) / SEGMENTS;
+            Vec3 w0 = across(dir, eye.subtract(c0), a);
+            Vec3 w1 = across(dir, eye.subtract(c1), a);
+            shaft(buffer, pose, c0, c1, w0.scale(r0), w1.scale(r1), alpha0, alpha1);                 // the shaft
+            shaft(buffer, pose, c0, c1, w0.scale(r0 * 1.9), w1.scale(r1 * 1.9), alpha0 * 0.3F, alpha1 * 0.3F); // its halo
+            for (int i = 0; i < SHELL_SEGMENTS; i++) {
+                double t0 = Math.PI * 2.0 * i / SHELL_SEGMENTS;
+                double t1 = Math.PI * 2.0 * (i + 1) / SHELL_SEGMENTS;
                 Vec3 e0 = a.scale(Math.cos(t0)).add(b.scale(Math.sin(t0)));
                 Vec3 e1 = a.scale(Math.cos(t1)).add(b.scale(Math.sin(t1)));
-                // both windings, so the beam shows from inside and outside
-                quad(buffer, pose, c0.add(e0.scale(r0)), c0.add(e1.scale(r0)), c1.add(e1.scale(r1)), c1.add(e0.scale(r1)), alpha0, alpha1);
-                quad(buffer, pose, c0.add(e1.scale(r0)), c0.add(e0.scale(r0)), c1.add(e0.scale(r1)), c1.add(e1.scale(r1)), alpha0, alpha1);
+                float s0 = alpha0 * 0.12F;
+                float s1 = alpha1 * 0.12F;
+                // both windings, so it shows from inside and outside
+                quad(buffer, pose, c0.add(e0.scale(r0)), c0.add(e1.scale(r0)), c1.add(e1.scale(r1)), c1.add(e0.scale(r1)), s0, s1);
+                quad(buffer, pose, c0.add(e1.scale(r0)), c0.add(e0.scale(r0)), c1.add(e0.scale(r1)), c1.add(e1.scale(r1)), s0, s1);
             }
         }
         renderSpot(entity, hit, length, buffer, pose);
+    }
+
+    private static final int SHELL_SEGMENTS = 40;
+
+    /** Across the beam and across the line of sight to it (so a strip along that faces you); {@code fallback} end-on. */
+    private static Vec3 across(Vec3 dir, Vec3 toEye, Vec3 fallback) {
+        Vec3 w = dir.cross(toEye);
+        return w.lengthSqr() < 1.0E-6 ? fallback : w.normalize();
+    }
+
+    /** A strip from c0 to c1, {@code w} each side: bright down the middle, clear at the edges (both windings). */
+    private static void shaft(VertexConsumer buffer, Matrix4f pose, Vec3 c0, Vec3 c1, Vec3 w0, Vec3 w1, float alpha0, float alpha1) {
+        for (int side = -1; side <= 1; side += 2) {
+            Vec3 e0 = c0.add(w0.scale(side));
+            Vec3 e1 = c1.add(w1.scale(side));
+            vertex(buffer, pose, c0, alpha0);
+            vertex(buffer, pose, e0, 0.0F);
+            vertex(buffer, pose, e1, 0.0F);
+            vertex(buffer, pose, c1, alpha1);
+            vertex(buffer, pose, c1, alpha1);
+            vertex(buffer, pose, e1, 0.0F);
+            vertex(buffer, pose, e0, 0.0F);
+            vertex(buffer, pose, c0, alpha0);
+        }
     }
 
     /** Rings of the pool of light it casts where it lands: radius (fraction of the pool's) and brightness. */

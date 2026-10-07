@@ -173,6 +173,9 @@ public final class PlayerGodzilla {
         if (event.phase != TickEvent.Phase.END || !(event.player instanceof ServerPlayer player)) {
             return;
         }
+        if (player.isAlive() && isGodzilla(player)) {
+            stomp(player);
+        }
         State state = STATES.get(player.getUUID());
         if (state == null) {
             return;
@@ -194,8 +197,61 @@ public final class PlayerGodzilla {
         }
     }
 
+    /** Where each player playing as him was a moment ago, and how many strides he's taken (left foot, right foot). */
+    private static final Map<UUID, Vec3> LAST_POSITION = new HashMap<>();
+    private static final Map<UUID, Integer> STRIDES = new HashMap<>();
+
+    /**
+     * Walking as him, he breaks through whatever he walks into (anything but the ground, as the mob does, if
+     * godzillaBreaksBlocks is on and the player may build here) and crushes a footprint where each foot comes down.
+     */
+    private static void stomp(ServerPlayer player) {
+        if (player.tickCount % 4 != 0) {
+            return;
+        }
+        Vec3 now = player.position();
+        Vec3 before = LAST_POSITION.put(player.getUUID(), now);
+        if (before == null || !Config.GODZILLA_BREAKS_BLOCKS.get() || !player.mayBuild() || player.isSpectator()) {
+            return;
+        }
+        Vec3 moved = new Vec3(now.x - before.x, 0.0, now.z - before.z);
+        if (moved.lengthSqr() < 0.15 * 0.15) {
+            return;
+        }
+        ServerLevel level = player.serverLevel();
+        Vec3 dir = moved.normalize();
+        AABB box = player.getBoundingBox().expandTowards(dir.x * 3.0, 0.0, dir.z * 3.0).inflate(1.0, 0.0, 1.0);
+        BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
+        int broken = 0;
+        for (int y = Mth.floor(player.getY()) + 1; y <= Mth.floor(box.maxY) && broken < 300; y++) {
+            for (int x = Mth.floor(box.minX); x <= Mth.floor(box.maxX) && broken < 300; x++) {
+                for (int z = Mth.floor(box.minZ); z <= Mth.floor(box.maxZ) && broken < 300; z++) {
+                    BlockState state = level.getBlockState(pos.set(x, y, z));
+                    if (state.isAir() || !state.getFluidState().isEmpty()) {
+                        continue;
+                    }
+                    if (Destruction.canBreak(level, pos, state, player)) {
+                        level.destroyBlock(pos, false, player);
+                        broken++;
+                    }
+                }
+            }
+        }
+        // every couple of seconds' walking, a foot comes down: a footprint crushed where it lands
+        int strides = STRIDES.merge(player.getUUID(), 1, Integer::sum);
+        if (strides % 4 == 0 && player.onGround()) {
+            double side = (strides / 4) % 2 == 0 ? GodzillaEntity.FOOT_SIDE : -GodzillaEntity.FOOT_SIDE;
+            float yaw = player.yBodyRot;
+            Vec3 fwd = Vec3.directionFromRotation(0.0F, yaw);
+            Vec3 foot = now.add(fwd.scale(GodzillaEntity.FOOT_FORWARD)).add(-fwd.z * side, 0.0, fwd.x * side);
+            Destruction.footprint(level, player, foot, yaw, GodzillaEntity.FOOT_HALF_WIDTH, GodzillaEntity.FOOT_HALF_LENGTH);
+        }
+    }
+
     @SubscribeEvent
     public static void onLogout(PlayerEvent.PlayerLoggedOutEvent event) {
+        LAST_POSITION.remove(event.getEntity().getUUID());
+        STRIDES.remove(event.getEntity().getUUID());
         State state = STATES.get(event.getEntity().getUUID());
         if (state != null && event.getEntity() instanceof ServerPlayer player) {
             stop(player, state);

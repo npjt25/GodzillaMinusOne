@@ -100,6 +100,10 @@ public class OdoIslandMonsterEntity extends Monster implements GeoEntity {
     private static final double BITE_RADIUS = 4.5;
     public static final Vec3 LEFT_FOOT = new Vec3(-2.3, 0.0, -0.5);
     private static final double STOMP_RADIUS = 6.0;
+    /** Going for a searchlight, a player who comes this close draws him off it. */
+    private static final double DISTRACTED_BY_PLAYER = 12.0;
+    /** Within this many blocks of a searchlight he can't reach, he tears down whatever it stands on or behind. */
+    private static final double TEAR_DOWN_RANGE = 14.0;
     /** Ticks into the bite, the stomp and the roar: the jaws close, the foot lands, the roar is over. */
     private static final int BITE_HIT = 15;
     private static final int STOMP_HIT = 22;
@@ -461,6 +465,23 @@ public class OdoIslandMonsterEntity extends Monster implements GeoEntity {
         if (this.horizontalCollision && this.tickCount % 5 == 0 && ForgeEventFactory.getMobGriefingEvent(level, this)) {
             crashThrough(level);
         }
+        SearchlightEntity hunted = getHuntedLight();
+        if (hunted != null && this.tickCount % 10 == 0 && this.roarTicks <= 0) {
+            // a player coming up close draws him off the light, onto them
+            Player near = level.getNearestPlayer(getX(), getY(), getZ(), DISTRACTED_BY_PLAYER,
+                    p -> p.isAlive() && !p.isSpectator() && !((Player) p).isCreative() && p != this.lightOperator
+                            && p.getVehicle() != this.huntedLight && hasLineOfSight(p));
+            if (near != null) {
+                this.huntedLight = null;
+                this.lightOperator = null;
+                frenzy(near, true);
+                hunted = null;
+            }
+        }
+        if (hunted != null && this.tickCount % 5 == 0 && !inReachOfLight(hunted) && ForgeEventFactory.getMobGriefingEvent(level, this)
+                && hunted.position().distanceTo(position()) < TEAR_DOWN_RANGE) {
+            tearDownTowards(level, hunted);
+        }
         if (this.huntedLight != null && !this.huntedLight.isAlive()) {
             // someone else broke it (or knocked it back into its item): straight on to whoever was working it
             this.huntedLight = null;
@@ -504,6 +525,47 @@ public class OdoIslandMonsterEntity extends Monster implements GeoEntity {
         ModNetwork.shake(level, position(), 160.0, 1.5F, 3.0F);
         GodzillaMinusOne.LOGGER.debug("An Odo Island Monster rose again as Godzilla at {}", blockPosition());
         discard();
+    }
+
+    /**
+     * The searchlight is on or in a building he can't get his jaws to: he tears through whatever stands between him and
+     * it, whatever it's made of (but not the ground), and once he's under it, the building it stands on comes down, and
+     * the light with it.
+     */
+    private void tearDownTowards(ServerLevel level, SearchlightEntity light) {
+        Vec3 to = light.position().subtract(position());
+        double horizontal = Math.sqrt(to.x * to.x + to.z * to.z);
+        AABB box = getBoundingBox().expandTowards(Mth.clamp(to.x, -4.0, 4.0), 0.0, Mth.clamp(to.z, -4.0, 4.0)).inflate(0.5, 0.0, 0.5);
+        if (horizontal < BITE_RADIUS + 4.0 && light.getY() > getY()) {
+            // close under it: bring down what it stands on
+            box = box.minmax(new AABB(light.getX() - 2.0, getY() + 1.0, light.getZ() - 2.0, light.getX() + 2.0, light.getY(), light.getZ() + 2.0));
+        }
+        BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
+        int broken = 0;
+        for (int y = Mth.floor(box.maxY); y >= Mth.floor(getY()) + 1; y--) {
+            for (int x = Mth.floor(box.minX); x <= Mth.floor(box.maxX); x++) {
+                for (int z = Mth.floor(box.minZ); z <= Mth.floor(box.maxZ); z++) {
+                    BlockState state = level.getBlockState(pos.set(x, y, z));
+                    if (state.isAir() || !state.getFluidState().isEmpty() || Destruction.isGround(state)) {
+                        continue;
+                    }
+                    float hardness = state.getDestroySpeed(level, pos);
+                    if (hardness >= 0.0F && hardness < 50.0F && Destruction.canBreak(level, pos, state, this)) {
+                        level.destroyBlock(pos, false, this);
+                        if (++broken >= 80) {
+                            return;
+                        }
+                    }
+                }
+            }
+        }
+        if (horizontal < BITE_RADIUS + 4.0 && light.getY() > getY() + 1.0) {
+            BlockPos under = BlockPos.containing(light.getX(), light.getY() - 0.5, light.getZ());
+            if (level.getBlockState(under).getCollisionShape(level, under).isEmpty()) {
+                // nothing left holding it up: it comes down with the building
+                smashLight();
+            }
+        }
     }
 
     /** Trees, plants, fences and glass in his way give; stone and earth don't. */

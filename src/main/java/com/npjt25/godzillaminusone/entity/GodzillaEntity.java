@@ -134,8 +134,8 @@ public class GodzillaEntity extends Monster implements GeoEntity {
     /** Where his feet land (blocks right, forward) and the footprint's half width and half length. */
     public static final double FOOT_SIDE = 7.96;
     public static final double FOOT_FORWARD = 4.17;
-    private static final double FOOT_HALF_WIDTH = 2.85;
-    private static final double FOOT_HALF_LENGTH = 5.05;
+    static final double FOOT_HALF_WIDTH = 2.85;
+    static final double FOOT_HALF_LENGTH = 5.05;
 
     // Swimming: in water at least this deep he floats with his back just under the surface (his belly hangs
     // 12 blocks below his back in the swimming pose).
@@ -161,9 +161,11 @@ public class GodzillaEntity extends Monster implements GeoEntity {
     private static final double BEAM_REACH = 195.0;
     /** The beam veers this far left of where he faces, so he turns this far right to aim it. */
     private static final float BEAM_YAW = (float) Math.toDegrees(Math.atan2(7.59, 193.85));
-    /** Extra head pitch to aim at a target (degrees, up); the beam never slopes down more than 20 degrees. */
-    private static final float MIN_AIM = -13.5F;
+    /** Extra head pitch to aim at a target (degrees, up): from well down at the ground to steeply up at planes. */
+    private static final float MIN_AIM = -30.0F;
     private static final float MAX_AIM = 60.0F;
+    /** How far he turns his head left or right of where his body faces to aim the beam (degrees). */
+    public static final float MAX_AIM_YAW = 50.0F;
 
     private static final RawAnimation IDLE = RawAnimation.begin().thenLoop("animation.gojira.idle");
     private static final RawAnimation WALK = RawAnimation.begin().thenLoop("animation.gojira.walking");
@@ -187,6 +189,8 @@ public class GodzillaEntity extends Monster implements GeoEntity {
     private static final EntityDataAccessor<Integer> DATA_PHASE = SynchedEntityData.defineId(GodzillaEntity.class, EntityDataSerializers.INT);
     private static final EntityDataAccessor<Integer> DATA_CHARGE = SynchedEntityData.defineId(GodzillaEntity.class, EntityDataSerializers.INT);
     private static final EntityDataAccessor<Float> DATA_AIM = SynchedEntityData.defineId(GodzillaEntity.class, EntityDataSerializers.FLOAT);
+    /** His head turned left or right of his body to aim the beam (degrees, to his right). */
+    private static final EntityDataAccessor<Float> DATA_AIM_YAW = SynchedEntityData.defineId(GodzillaEntity.class, EntityDataSerializers.FLOAT);
     private static final EntityDataAccessor<Boolean> DATA_SWIMMING = SynchedEntityData.defineId(GodzillaEntity.class, EntityDataSerializers.BOOLEAN);
     private static final EntityDataAccessor<Integer> DATA_BURNS = SynchedEntityData.defineId(GodzillaEntity.class, EntityDataSerializers.INT);
 
@@ -235,6 +239,8 @@ public class GodzillaEntity extends Monster implements GeoEntity {
     private int chargeChangedTick;
     private float aimO;
     private float aimClient;
+    private float aimYawO;
+    private float aimYawClient;
     private boolean walkAnimation;
     /** As a player's shape: whether the player is swimming (client side). */
     private boolean shapeSwimming;
@@ -300,6 +306,7 @@ public class GodzillaEntity extends Monster implements GeoEntity {
         this.entityData.define(DATA_PHASE, Phase.EMERGING.ordinal());
         this.entityData.define(DATA_CHARGE, CHARGE_NONE);
         this.entityData.define(DATA_AIM, 0.0F);
+        this.entityData.define(DATA_AIM_YAW, 0.0F);
         this.entityData.define(DATA_SWIMMING, false);
         this.entityData.define(DATA_BURNS, 0);
     }
@@ -368,6 +375,11 @@ public class GodzillaEntity extends Monster implements GeoEntity {
         return level().isClientSide ? Mth.lerp(partialTick, this.aimO, this.aimClient) : this.entityData.get(DATA_AIM);
     }
 
+    /** His head turned left or right of his body, aiming the atomic breath (degrees, to his right). */
+    public float getAimYaw(float partialTick) {
+        return level().isClientSide ? Mth.lerp(partialTick, this.aimYawO, this.aimYawClient) : this.entityData.get(DATA_AIM_YAW);
+    }
+
     /** Whether the walk cycle (played at {@link #WALK_ANIM_SPEED}) is the current animation. */
     public boolean isWalkAnimation() {
         return this.walkAnimation;
@@ -422,6 +434,7 @@ public class GodzillaEntity extends Monster implements GeoEntity {
                 this.stunTicks = 0;
                 setChargeState(CHARGE_NONE);
                 this.entityData.set(DATA_AIM, 0.0F);
+                this.entityData.set(DATA_AIM_YAW, 0.0F);
                 setTarget(null);
                 this.bossEvent.setVisible(false);
             }
@@ -464,6 +477,8 @@ public class GodzillaEntity extends Monster implements GeoEntity {
         if (!(level() instanceof ServerLevel level)) {
             this.aimO = this.aimClient;
             this.aimClient = Mth.approach(this.aimClient, this.entityData.get(DATA_AIM), 4.0F);
+            this.aimYawO = this.aimYawClient;
+            this.aimYawClient = Mth.approach(this.aimYawClient, this.entityData.get(DATA_AIM_YAW), 5.0F);
             if (getBurnTicks() > 0) {
                 burnEffects();
             }
@@ -834,10 +849,18 @@ public class GodzillaEntity extends Monster implements GeoEntity {
         }
     }
 
-    /** Tilts his head towards the target: up at planes, down a little at things close by. */
+    /**
+     * Points his head at the target: tilted up at planes and down at things close by, and turned left or right
+     * (up to {@link #MAX_AIM_YAW}) wherever it is, his body following round more slowly.
+     */
     private void updateAim(@Nullable LivingEntity target) {
         float wanted = 0.0F;
+        float wantedYaw = 0.0F;
         if (target != null) {
+            Vec3 head = locator(HEAD.x, HEAD.y, HEAD.z);
+            Vec3 to = target.getBoundingBox().getCenter().subtract(head);
+            float yaw = (float) (Mth.atan2(to.z, to.x) * Mth.RAD_TO_DEG) - 90.0F;
+            wantedYaw = Mth.clamp(Mth.wrapDegrees(yaw - this.yBodyRot) + BEAM_YAW, -MAX_AIM_YAW, MAX_AIM_YAW);
             Vec3 mouth = locator(BEAM_NEAR.x, BEAM_NEAR.y, BEAM_NEAR.z);
             Vec3 at = target.getBoundingBox().getCenter();
             double horizontal = Math.max(1.0, Math.sqrt(Mth.square(at.x - mouth.x) + Mth.square(at.z - mouth.z)));
@@ -849,18 +872,33 @@ public class GodzillaEntity extends Monster implements GeoEntity {
         if (aim != wanted) {
             this.entityData.set(DATA_AIM, Mth.approach(aim, wanted, 1.5F));
         }
+        float aimYaw = this.entityData.get(DATA_AIM_YAW);
+        if (aimYaw != wantedYaw) {
+            this.entityData.set(DATA_AIM_YAW, Mth.approach(aimYaw, wantedYaw, 3.0F));
+        }
     }
 
-    /** The beam with his head tilted by {@code aim} degrees: {start, end} in world space ({@link #BEAM_REACH} long). */
+    /**
+     * The beam with his head tilted by {@code aim} degrees (and turned as it is now): {start, end} in world space
+     * ({@link #BEAM_REACH} long).
+     */
     public Vec3[] beamLine(float aim) {
         double a = Math.toRadians(aim);
         double cos = Math.cos(a);
         double sin = Math.sin(a);
-        Vec3 near = tiltAboutHead(BEAM_NEAR, cos, sin);
-        Vec3 far = tiltAboutHead(BEAM_FAR, cos, sin);
+        double y = Math.toRadians(level().isClientSide ? this.aimYawClient : this.entityData.get(DATA_AIM_YAW));
+        Vec3 near = turnAboutHead(tiltAboutHead(BEAM_NEAR, cos, sin), Math.cos(y), Math.sin(y));
+        Vec3 far = turnAboutHead(tiltAboutHead(BEAM_FAR, cos, sin), Math.cos(y), Math.sin(y));
         Vec3 dir = far.subtract(near).normalize();
         Vec3 end = near.add(dir.scale(BEAM_REACH));
         return new Vec3[]{locator(near.x, near.y, near.z), locator(end.x, end.y, end.z)};
+    }
+
+    /** Turns a point (right, up, forward of him) to his right about his head's pivot. */
+    private static Vec3 turnAboutHead(Vec3 p, double cos, double sin) {
+        double side = p.x - HEAD.x;
+        double fwd = p.z - HEAD.z;
+        return new Vec3(HEAD.x + side * cos + fwd * sin, p.y, HEAD.z - side * sin + fwd * cos);
     }
 
     private static Vec3 tiltAboutHead(Vec3 p, double cos, double sin) {
@@ -1768,6 +1806,18 @@ public class GodzillaEntity extends Monster implements GeoEntity {
         }
         setPosRaw(player.getX(), player.getY(), player.getZ());
         this.shapeSwimming = player.isInWater() && !player.onGround();
+        // charging, his head follows where the player looks (the beam goes where they look)
+        float pitch = 0.0F;
+        float yaw = 0.0F;
+        if (getChargeState() == CHARGE_GLOWING) {
+            double base = Math.toDegrees(Math.atan2(BEAM_FAR.y - BEAM_NEAR.y, BEAM_FAR.z - BEAM_NEAR.z));
+            pitch = Mth.clamp((float) (-player.getXRot() - base), MIN_AIM, MAX_AIM);
+            yaw = Mth.clamp(Mth.wrapDegrees(player.getYHeadRot() - player.yBodyRot), -MAX_AIM_YAW, MAX_AIM_YAW);
+        }
+        this.aimO = this.aimClient;
+        this.aimClient = pitch;
+        this.aimYawO = this.aimYawClient;
+        this.aimYawClient = yaw;
     }
 
     /** Client side, as a player's shape: one of the moves (an animation of the "action" controller). */

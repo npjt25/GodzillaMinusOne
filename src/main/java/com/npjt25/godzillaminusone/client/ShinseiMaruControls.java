@@ -21,15 +21,13 @@ import org.lwjgl.glfw.GLFW;
 /**
  * The "Vehicle Action" key (R by default, in Controls, Godzilla Minus One) and the Shinsei Maru's gun, client side: the
  * Shinsei Maru's helmsman drops a naval mine over the stern with it, and whoever is at a searchlight switches its lamp
- * off and on. Whoever works the boat's stern gun fires it by right-clicking, one round per click (holding the button
- * down doesn't keep firing).
+ * off and on. Whoever is in the gunner's seat fires the boat's stern gun by holding right-click: it's automatic, firing
+ * as long as the button is held (the game repeats the click every 4 ticks, the gun's rate of fire).
  */
 @Mod.EventBusSubscriber(modid = GodzillaMinusOne.MODID, bus = Mod.EventBusSubscriber.Bus.FORGE, value = Dist.CLIENT)
 public final class ShinseiMaruControls {
     public static final KeyMapping VEHICLE_ACTION = new KeyMapping("key.godzillaminusone.vehicle_action", KeyConflictContext.IN_GAME,
             InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_R, "key.categories.godzillaminusone");
-    /** Set when a click fired; cleared once the button is let go. */
-    private static boolean fireHeld;
 
     @Mod.EventBusSubscriber(modid = GodzillaMinusOne.MODID, bus = Mod.EventBusSubscriber.Bus.MOD, value = Dist.CLIENT)
     public static final class Keys {
@@ -51,10 +49,7 @@ public final class ShinseiMaruControls {
         }
         event.setCanceled(true);
         event.setSwingHand(false);
-        if (!fireHeld) {
-            fireHeld = true;
-            ModNetwork.CHANNEL.sendToServer(new ShinseiMaruPacket(boat.getId(), false));
-        }
+        ModNetwork.CHANNEL.sendToServer(new ShinseiMaruPacket(boat.getId(), false));
     }
 
     @SubscribeEvent
@@ -63,9 +58,6 @@ public final class ShinseiMaruControls {
             return;
         }
         Minecraft mc = Minecraft.getInstance();
-        if (fireHeld && !mc.options.keyUse.isDown()) {
-            fireHeld = false;
-        }
         while (VEHICLE_ACTION.consumeClick()) {
             if (mc.player == null) {
                 continue;

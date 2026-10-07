@@ -107,8 +107,9 @@ the blue one a player.*
 - With a target he **charges his atomic breath**: the dorsal plates light up blue one by one from the tail to
   the neck as they punch up, mobs freeze in fear, he breathes in for 4 seconds (the in-breath sound lasts
   exactly as long), the inside of his mouth glowing blue, faintly at first and ever brighter until it blazes just as
-  he fires, then rears his head up above his chest and fires (he tilts it further up at planes): the
-  plates **slam back down the instant the beam appears**. The beam pours out of his open mouth, which blazes blue
+  he fires, then rears his head up above his chest and fires, **his head turned to whatever he's firing at**: left
+  or right, up at planes, down at things close by (his body following round more slowly). The
+  plates **slam back down the instant the beam appears**. The beam pours out between his open jaws, which blaze blue
   while it lasts. **Two seconds after the beam lands**, a **nuclear blast** goes off there: it kills everything
   around it and blasts out a **large crater** (about 96 blocks across and 20 deep) at once, and you see it unfold as in the film's Ginza scene (see
   **The atomic blast** below). Everyone nearby sees a blur, then black rain falls around ground zero (just
@@ -170,7 +171,10 @@ the blue one a player.*
   crashing through trees and fences, and **bites** or **stomps** you.
 - **Lit by a searchlight someone is working, he goes for the light**: he turns to stare straight into it and
   roars, then charges it, bites or stomps it to pieces (glass shattering, the iron frame clanging down), and
-  comes straight for whoever was working it, in a frenzy. A searchlight sweeping on its own doesn't bother him.
+  comes straight for whoever was working it, in a frenzy. If the searchlight is up on or inside a building, he
+  **tears through the building** to get at it (whatever it's made of), and brings down what it stands on, the light
+  coming down with it. A player who comes close (12 blocks) while he's after the light draws him off it, onto them.
+  A searchlight sweeping on its own doesn't bother him.
 - **Spotted, he goes into a frenzy**: seen by a player (a player looking at him
   from up to 64 blocks away, or one he can see within 32), or hurt by one, he roars and comes for them: a third
   faster, biting and stomping 60% harder and twice as often, crashing through wooden doors too, and he
@@ -184,6 +188,7 @@ the blue one a player.*
 - Crafted from iron ingots, glass, a redstone lamp and iron blocks (iron ingot, glass, iron ingot / iron
   ingot, redstone lamp, iron ingot / three iron blocks). Right-click the ground to set it up facing the way
   you look.
+- The beam is a soft shaft of light, brightest down its middle and fading to nothing at its edges.
 - **Left alone it sweeps round on its own**, like the hand of a clock, a full turn every 40 seconds, at the tilt it
   was left at, throwing a white beam.
 - Right-click it to sit at it: the lamp turns and tilts with where you look. The beam reaches 160 blocks. Press
@@ -204,20 +209,20 @@ the blue one a player.*
 - **You can walk on all her decks** without falling through: the foredeck, the side decks round the wheelhouse,
   its roof, the after deck and the stern platform. Standing on her, you're carried along as she moves and turns; if
   she moves into you, you're pushed out (onto her deck if you're nearly up there).
-- **Boarding ladders** on both sides, just aft of the wheelhouse: walk or swim into one to climb up to her deck
-  (sneak to hold on).
-- **Two places to man.** Right-click her **stern** (the gun platform, or her from astern) to take the **Type 93
-  13 mm machine gun**; right-click her **anywhere else** to take the **wheel**, up on the wheelhouse roof, and the
-  mines. At the wheel: **W** ahead, **S** astern, **A/D** steer; she moves the way her bow points. Flat out she's
+- **Boarding ladders** on both sides, just aft of the wheelhouse, and one up the back of the wheelhouse to its roof
+  and the wheel: walk or swim into one to climb it (sneak to hold on).
+- **Two seats.** Right-click her **stern** (the gun platform) to take the **gunner's seat** at the **Type 93 13 mm
+  machine gun**; right-click her **anywhere else** to take the **wheel**, up on the wheelhouse roof, and the mines.
+  Only the gunner works the gun. The seats move with her deck as she rocks, so the gunner stays level with the gun. At the wheel: **W** ahead, **S** astern, **A/D** steer; she moves the way her bow points. Flat out she's
   **as fast as Godzilla swims** after something (8.4 blocks a second).
-- **The gun points aft** and swings 135 degrees either way: its gunner (or the helmsman, sailing alone) aims it
-  by looking and **fires one round per right-click**. A round **sets off a naval mine** it hits.
+- **The gun points aft** and swings 135 degrees either way: the gunner aims it by looking, and it's **automatic**:
+  hold right-click and it keeps firing (five rounds a second). A round **sets off a naval mine** it hits.
 - **Naval mines**: sneak and right-click her to open her **hold** (9 slots, naval mines only), or right-click her
   with a naval mine in hand to load it. Up to three show in the rack on deck. The helmsman presses **R** ("Vehicle
   Action" in Controls) to **drop one over the stern**: it floats there, and goes off when Godzilla comes near
   (his radiation sets it off), like the film's mine dragged into his mouth.
 - **She rides the waves**: at sea she heaves up and down with the swell and pitches and rolls as it passes under
-  her, and every few seconds a bigger wave slaps her side and sets her rocking; rougher in the rain, rougher still
+  her, and every few seconds a bigger wave slaps her side and rocks her a little; rougher in the rain, rougher still
   in a thunderstorm. With **Physics Mod** installed the swell runs higher, to go with its ocean waves (Physics Mod
   has no way for other mods to read its waves, so hers are her own, not exactly its).
 - Hit her like a boat to knock her back into her item, mines and all (one hit in creative). Explosions and
@@ -281,6 +286,9 @@ With [Walkers](https://www.curseforge.com/minecraft/mc-mods/woodwalkers) install
   `/walkers change2ndShape <player> godzillaminusone:godzilla` (then **G** switches to him and back); with
   ReMorphed, **bringing him down** counts as killing him (he never really dies) and unlocks his shape, or use
   `/remorphed addShape <player> godzillaminusone:godzilla`, then pick him from ReMorphed's menu.
+- Walking as him, you **break through whatever you walk into** (buildings, trees, hills: anything but the ground
+  under you) and **crush a footprint** where each foot comes down, as he does (if `godzillaBreaksBlocks` is on and
+  you're allowed to build there). Charging the breath, his head follows where you look.
 - As him you're always in **third person** (the camera pulled far enough back to show all of him; F5 still turns
   it round to face you), back to first person when you change back.
 - As him, a small list of his moves and their keys sits in the **top left corner** of the screen:

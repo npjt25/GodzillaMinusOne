@@ -72,8 +72,9 @@ import java.util.List;
  *       carried along as she moves and turns. Her own box covers all of her (Minecraft only looks at a multipart
  *       entity's parts where its own box is), so she does her own collisions with blocks, along her hull; anything
  *       she moves into (or that finds itself inside her) is pushed out, onto her deck if it's nearly up there.</li>
- *   <li>Boarding ladders on both sides, just aft of the wheelhouse: walk (or swim) into one to climb it, sneak to
- *       hold on.</li>
+ *   <li>Boarding ladders on both sides, just aft of the wheelhouse, and one up the back of the wheelhouse to its roof
+ *       (the helm): walk (or swim) into one to climb it, sneak to hold on.</li>
+ *   <li>The crew's seats move with her deck as she pitches and rolls, so the gunner stays level with the gun.</li>
  *   <li>At sea she rides the swell: she heaves up and down with it, and pitches and rolls as it passes under her
  *       (rougher in the rain, rougher still in a thunderstorm, and higher with Physics Mod installed), and now and
  *       then a bigger wave slaps her side and sets her rocking.</li>
@@ -102,6 +103,9 @@ public class ShinseiMaruEntity extends Entity implements GeoEntity {
     private static final double DECK = 2.2;
     /** The boarding ladders, port and starboard: how far forward of her middle. */
     private static final double LADDER = -3.6;
+    /** The ladder up the back of the wheelhouse to its roof: how far to starboard (it's to port of the door). */
+    private static final double ROOF_LADDER = -1.2;
+    private static final double WHEELHOUSE_AFT = -2.94;
 
     /** How far the gun swings either side of dead astern, and up and down (degrees). */
     public static final float GUN_ARC = 135.0F;
@@ -143,7 +147,7 @@ public class ShinseiMaruEntity extends Entity implements GeoEntity {
 
     private ShinseiMaruPart[] makeParts() {
         List<ShinseiMaruPart> list = new ArrayList<>();
-        list.add(new ShinseiMaruPart(this, 0.0, 7.0, 2.6F, 2.6));                       // the bow
+        list.add(new ShinseiMaruPart(this, 0.0, 7.0, 2.6F, DECK));                      // the bow
         for (double f : new double[] {4.6, 2.4, -3.9}) {                                 // the foredeck, the after deck
             for (double s : new double[] {-1.4, 1.4}) {
                 list.add(new ShinseiMaruPart(this, s, f, 2.8F, DECK));
@@ -288,13 +292,10 @@ public class ShinseiMaruEntity extends Entity implements GeoEntity {
         return null;
     }
 
-    /** Who works the gun: the gunner, or the helmsman when there's nobody at it. */
+    /** Who works the gun: whoever is in the gunner's seat (the helmsman has the wheel and the mines, not the gun). */
     @Nullable
     public Player getGunner() {
-        if (gunStation() instanceof Player gunner) {
-            return gunner;
-        }
-        return getControllingPassenger() instanceof Player helmsman ? helmsman : null;
+        return gunStation() instanceof Player gunner ? gunner : null;
     }
 
     @Override
@@ -315,7 +316,7 @@ public class ShinseiMaruEntity extends Entity implements GeoEntity {
         if (!hasPassenger(passenger)) {
             return;
         }
-        Vec3 seat = at(passenger == gunStation() ? GUNNER : HELM);
+        Vec3 seat = at(onDeck(passenger == gunStation() ? GUNNER : HELM));
         move.accept(passenger, seat.x, seat.y + passenger.getMyRidingOffset(), seat.z);
         // the crew turn with her
         passenger.setYRot(passenger.getYRot() + this.deltaRotation);
@@ -619,9 +620,12 @@ public class ShinseiMaruEntity extends Entity implements GeoEntity {
         double dx = living.getX() - getX();
         double dz = living.getZ() - getZ();
         double f = dx * forward.x + dz * forward.z;
-        double s = Math.abs(-dx * forward.z + dz * forward.x);
+        double s = -dx * forward.z + dz * forward.x;
         double y = living.getY() - getY();
-        if (Math.abs(f - LADDER) > 0.6 || s < BEAM - 0.4 || s > BEAM + 1.0 || y < -1.5 || y > DECK + 0.5) {
+        boolean side = Math.abs(f - LADDER) <= 0.6 && Math.abs(s) >= BEAM - 0.4 && Math.abs(s) <= BEAM + 1.0 && y >= -1.5 && y <= DECK + 0.5;
+        boolean roof = Math.abs(s - ROOF_LADDER) <= 0.55 && f <= WHEELHOUSE_AFT + 0.1 && f >= WHEELHOUSE_AFT - 0.9
+                && y >= DECK - 0.3 && y <= HELM.y + 0.5;
+        if (!side && !roof) {
             return;
         }
         living.resetFallDistance();
@@ -736,7 +740,7 @@ public class ShinseiMaruEntity extends Entity implements GeoEntity {
      * themselves can't be read (it has no API), so hers are her own, not exactly its.
      */
     private double seaState() {
-        return 0.2 * (1.0 + level().getRainLevel(1.0F) + 1.5 * level().getThunderLevel(1.0F)) * (physicsMod() ? 1.8 : 1.0);
+        return 0.13 * (1.0 + level().getRainLevel(1.0F) + 1.5 * level().getThunderLevel(1.0F)) * (physicsMod() ? 1.8 : 1.0);
     }
 
     @Nullable
@@ -772,8 +776,30 @@ public class ShinseiMaruEntity extends Entity implements GeoEntity {
         Vec3 starboard = at(new Vec3(BEAM, 0.0, 0.0));
         double pitch = Math.atan2(swell(bow.x, bow.z, time) - swell(stern.x, stern.z, time), 12.0);
         double roll = Math.atan2(swell(port.x, port.z, time) - swell(starboard.x, starboard.z, time), 2.0 * BEAM);
-        double slap = slap(time) * seaState() / 0.2;
-        return new float[] {(float) (Math.toDegrees(pitch) * 2.2 + slap * 1.5), (float) (Math.toDegrees(roll) * 2.5 + slap * 6.0)};
+        double slap = slap(time) * seaState() / 0.13;
+        return new float[] {(float) (Math.toDegrees(pitch) * 1.6 + slap * 0.8), (float) (Math.toDegrees(roll) * 1.8 + slap * 3.5)};
+    }
+
+    /**
+     * A point on her (blocks to starboard, up from her keel, forward) where it is as she pitches and rolls on the swell,
+     * as her renderer tilts her: about her waterline, rolled, then pitched.
+     */
+    private Vec3 onDeck(Vec3 local) {
+        float[] tilt = swellTilt(level().getGameTime());
+        if (tilt[0] == 0.0F && tilt[1] == 0.0F) {
+            return local;
+        }
+        // in the model's frame (x to port, z aft), as the renderer turns it
+        double x = -local.x;
+        double y = local.y - DRAFT;
+        double z = -local.z;
+        double roll = Math.toRadians(tilt[1]);
+        double x1 = x * Math.cos(roll) - y * Math.sin(roll);
+        double y1 = x * Math.sin(roll) + y * Math.cos(roll);
+        double pitch = Math.toRadians(-tilt[0]);
+        double y2 = y1 * Math.cos(pitch) - z * Math.sin(pitch);
+        double z2 = y1 * Math.sin(pitch) + z * Math.cos(pitch);
+        return new Vec3(-x1, y2 + DRAFT, -z2);
     }
 
     /** Whether she's afloat (not aground). */
