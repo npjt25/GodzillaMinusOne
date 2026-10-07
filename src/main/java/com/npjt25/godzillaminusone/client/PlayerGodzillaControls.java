@@ -30,8 +30,12 @@ import net.minecraftforge.client.settings.KeyConflictContext;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
+import org.jetbrains.annotations.Nullable;
 import org.lwjgl.glfw.GLFW;
 
+import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
@@ -144,7 +148,40 @@ public final class PlayerGodzillaControls {
         if (hit.getType() != HitResult.Type.MISS) {
             at = hit.getLocation().add(look.scale(0.5));
         }
-        camera.setPosition(at.x, at.y, at.z);
+        place(camera, at);
+    }
+
+    @Nullable
+    private static Method setPosition;
+    private static boolean lookedUp;
+
+    /**
+     * Camera#setPosition(Vec3) is protected, and its name differs between the development and the released game, so
+     * it's found by its signature: the only method of Camera taking just a Vec3 and returning nothing.
+     */
+    private static void place(Camera camera, Vec3 at) {
+        if (!lookedUp) {
+            lookedUp = true;
+            for (Method method : Camera.class.getDeclaredMethods()) {
+                if (!Modifier.isStatic(method.getModifiers()) && method.getReturnType() == void.class
+                        && Arrays.equals(method.getParameterTypes(), new Class<?>[] {Vec3.class})) {
+                    try {
+                        method.setAccessible(true);
+                        setPosition = method;
+                    } catch (RuntimeException e) {
+                        GodzillaMinusOne.LOGGER.warn("Can't move the camera back to frame Godzilla", e);
+                    }
+                    break;
+                }
+            }
+        }
+        if (setPosition != null) {
+            try {
+                setPosition.invoke(camera, at);
+            } catch (ReflectiveOperationException e) {
+                setPosition = null;
+            }
+        }
     }
 
     /** How far back the camera has to be for all of him, tail and all, to fit in the picture. */
