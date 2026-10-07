@@ -144,7 +144,7 @@ public final class PlayerGodzillaControls {
         if (hit.getType() != HitResult.Type.MISS) {
             at = hit.getLocation().add(look.scale(0.5));
         }
-        camera.setPosition(at);
+        camera.setPosition(at.x, at.y, at.z);
     }
 
     /** How far back the camera has to be for all of him, tail and all, to fit in the picture. */
