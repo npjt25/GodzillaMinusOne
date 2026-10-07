@@ -9,17 +9,23 @@ import com.npjt25.godzillaminusone.network.GodzillaMovePacket;
 import com.npjt25.godzillaminusone.network.GodzillaMoveRequestPacket;
 import com.npjt25.godzillaminusone.network.ModNetwork;
 import net.minecraft.ChatFormatting;
+import net.minecraft.client.Camera;
+import net.minecraft.client.CameraType;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.level.ClipContext;
+import net.minecraft.world.phys.HitResult;
+import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.ClientPlayerNetworkEvent;
 import net.minecraftforge.client.event.RegisterKeyMappingsEvent;
 import net.minecraftforge.client.event.RenderGuiEvent;
 import net.minecraftforge.client.event.RenderPlayerEvent;
+import net.minecraftforge.client.event.ViewportEvent;
 import net.minecraftforge.client.settings.KeyConflictContext;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
@@ -35,6 +41,8 @@ import java.util.Map;
  * Minus One: Z tail whip, H scratch, J bite, K roar, B atomic breath; Walkers' own keys are G, U, R and V), a small list
  * of them in the top left corner of the screen (with the breath's recharge time), and his animations on every
  * player playing as him: Walkers draws him in their place but never runs him, so here he's told what they're doing.
+ * As him you see yourself from behind (third person, forced: back to first person when you change back), the camera
+ * pulled far enough back for all of him to be in the picture.
  */
 @Mod.EventBusSubscriber(modid = GodzillaMinusOne.MODID, bus = Mod.EventBusSubscriber.Bus.FORGE, value = Dist.CLIENT)
 public final class PlayerGodzillaControls {
@@ -52,6 +60,8 @@ public final class PlayerGodzillaControls {
     private static int clientTicks;
     /** When this player's atomic breath is ready (client ticks), as the server last told us. */
     private static int breathReadyAt;
+    /** Whether we put the camera into third person (to put it back in first person when the player changes back). */
+    private static boolean forcedThirdPerson;
     /** Players playing as Godzilla who are charging their breath: when they started (client ticks). */
     private static final Map<Integer, Integer> CHARGING = new HashMap<>();
 
@@ -80,6 +90,15 @@ public final class PlayerGodzillaControls {
         clientTicks++;
         Minecraft mc = Minecraft.getInstance();
         boolean godzilla = mc.player != null && Shapes.godzillaOf(mc.player) != null;
+        if (godzilla && mc.options.getCameraType().isFirstPerson()) {
+            mc.options.setCameraType(CameraType.THIRD_PERSON_BACK);
+            forcedThirdPerson = true;
+        } else if (!godzilla && forcedThirdPerson) {
+            forcedThirdPerson = false;
+            if (mc.player != null) {
+                mc.options.setCameraType(CameraType.FIRST_PERSON);
+            }
+        }
         for (int i = 0; i < KEYS.length; i++) {
             while (KEYS[i].consumeClick()) {
                 if (godzilla) {
@@ -106,6 +125,31 @@ public final class PlayerGodzillaControls {
                 shape.setShapeCharge(t >= GodzillaEntity.BEAM_END_TICK ? GodzillaEntity.CHARGE_COOLING : GodzillaEntity.CHARGE_GLOWING);
             }
         }
+    }
+
+    /**
+     * As Godzilla, in third person: the camera looks at the middle of him from {@link #cameraDistance} away (instead of
+     * Minecraft's 4 blocks from the eyes, which is inside him), closer if the ground or a wall is in the way.
+     */
+    @SubscribeEvent
+    public static void onCameraSetup(ViewportEvent.ComputeCameraAngles event) {
+        Camera camera = event.getCamera();
+        if (!camera.isDetached() || !(camera.getEntity() instanceof Player player) || Shapes.godzillaOf(player) == null) {
+            return;
+        }
+        Vec3 middle = player.getPosition((float) event.getPartialTick()).add(0.0, player.getBbHeight() * 0.55, 0.0);
+        Vec3 look = new Vec3(camera.getLookVector());
+        Vec3 at = middle.subtract(look.scale(cameraDistance(player)));
+        HitResult hit = player.level().clip(new ClipContext(middle, at, ClipContext.Block.VISUAL, ClipContext.Fluid.NONE, player));
+        if (hit.getType() != HitResult.Type.MISS) {
+            at = hit.getLocation().add(look.scale(0.5));
+        }
+        camera.setPosition(at);
+    }
+
+    /** How far back the camera has to be for all of him, tail and all, to fit in the picture. */
+    static double cameraDistance(Player player) {
+        return Math.max(4.0, player.getBbHeight() * 1.3 + 6.0);
     }
 
     /** Before a player is drawn: if they're Godzilla, he's got ready to be drawn as them. */
@@ -189,6 +233,7 @@ public final class PlayerGodzillaControls {
     @SubscribeEvent
     public static void onLogout(ClientPlayerNetworkEvent.LoggingOut event) {
         CHARGING.clear();
+        forcedThirdPerson = false;
         breathReadyAt = 0;
     }
 

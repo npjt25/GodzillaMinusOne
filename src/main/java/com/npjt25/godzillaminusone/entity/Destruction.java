@@ -12,6 +12,7 @@ import net.minecraft.world.entity.item.FallingBlockEntity;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.properties.BlockStateProperties;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.common.Tags;
@@ -125,13 +126,15 @@ public final class Destruction {
 
     /**
      * The atomic breath's impact: a crater of radius {@code crater} and, out to {@code radius}, a blast wave that
-     * flattens trees and buildings and scorches the ground. It races outwards from the impact over ~1 second.
+     * flattens trees and buildings and scorches the ground; out to {@code ruins}, what it leaves standing is left in
+     * ruins. It races outwards from the impact.
      */
-    public static void atomicBlast(ServerLevel level, @Nullable LivingEntity breaker, Vec3 center, int crater, int radius) {
-        if (crater <= 0 && radius <= 0) {
+    public static void atomicBlast(ServerLevel level, @Nullable LivingEntity breaker, Vec3 center, int crater, int radius, int ruins) {
+        if (crater <= 0 && radius <= 0 && ruins <= 0) {
             return;
         }
-        WAVES.add(new BlastWave(level, breaker, BlockPos.containing(center), crater, Math.max(crater, radius)));
+        int scorch = Math.max(crater, radius);
+        WAVES.add(new BlastWave(level, breaker, BlockPos.containing(center), crater, scorch, Math.max(scorch, ruins)));
     }
 
     @SubscribeEvent
@@ -166,6 +169,8 @@ public final class Destruction {
         final LivingEntity breaker;
         final BlockPos center;
         final int crater;
+        /** Out to here the wave knocks things down; beyond it, out to {@link #radius}, it leaves them in ruins. */
+        final int scorch;
         final int radius;
         /** Columns sorted by distance from the center: (dx, dz) packed into an int, and their distances. */
         final int[] columns;
@@ -174,11 +179,12 @@ public final class Destruction {
         int next;
         double front;
 
-        BlastWave(ServerLevel level, @Nullable LivingEntity breaker, BlockPos center, int crater, int radius) {
+        BlastWave(ServerLevel level, @Nullable LivingEntity breaker, BlockPos center, int crater, int scorch, int radius) {
             this.level = level;
             this.breaker = breaker;
             this.center = center;
             this.crater = crater;
+            this.scorch = scorch;
             this.radius = radius;
             this.random = level.getRandom();
             List<long[]> cols = new ArrayList<>();
@@ -215,7 +221,7 @@ public final class Destruction {
                 if (!this.level.isLoaded(new BlockPos(x, this.center.getY(), z))) {
                     continue;
                 }
-                work += d < this.crater ? craterColumn(x, z, d) : blastColumn(x, z, d);
+                work += d < this.crater ? craterColumn(x, z, d) : d <= this.scorch ? blastColumn(x, z, d) : ruinColumn(x, z, d);
             }
             return this.next >= this.columns.length;
         }
@@ -258,7 +264,7 @@ public final class Destruction {
         /** The blast wave: trees and buildings are knocked down (fewer further out), grass is scorched, fires start. */
         private int blastColumn(int x, int z, float d) {
             BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
-            double f = (d - this.crater) / Math.max(1.0, this.radius - this.crater);
+            double f = (d - this.crater) / Math.max(1.0, this.scorch - this.crater);
             double chance = Math.pow(1.0 - f, 1.6);
             int top = this.level.getHeight(Heightmap.Types.WORLD_SURFACE, x, z) - 1;
             int work = 1;
@@ -286,11 +292,109 @@ public final class Destruction {
                 // Plants, trees and buildings. Obsidian-strength blocks survive.
                 float hardness = state.getDestroySpeed(this.level, pos);
                 double resist = hardness < 0.0F || hardness > 20.0F ? 0.0 : hardness < 3.5F ? 1.0 : 0.35;
-                if (this.random.nextDouble() < chance * resist && canBreak(this.level, pos, state, this.breaker)) {
+                if (!canBreak(this.level, pos, state, this.breaker)) {
+                    continue;
+                }
+                if (this.random.nextDouble() < chance * resist) {
                     this.level.setBlock(pos, Blocks.AIR.defaultBlockState(), FLAGS);
+                } else {
+                    ruin(pos, state, 1.0);   // what's left standing is a ruin
                 }
             }
             return work;
+        }
+
+        /**
+         * Beyond the blast wave's reach: trees and buildings are left standing, but in ruins (less so further out), the
+         * grass dead and scorched in patches.
+         */
+        private int ruinColumn(int x, int z, float d) {
+            BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
+            double f = (d - this.scorch) / Math.max(1.0, this.radius - this.scorch);
+            double intensity = 0.3 + 0.7 * Math.pow(1.0 - f, 1.3);
+            int top = this.level.getHeight(Heightmap.Types.WORLD_SURFACE, x, z) - 1;
+            int work = 1;
+            for (int y = top; y > top - 40; y--) {
+                BlockState state = this.level.getBlockState(pos.set(x, y, z));
+                work++;
+                if (state.isAir()) {
+                    continue;
+                }
+                if (!state.getFluidState().isEmpty()) {
+                    break;
+                }
+                if (!canBreak(this.level, pos, state, this.breaker)) {
+                    if (isGround(state)) {
+                        break;
+                    }
+                    continue;
+                }
+                if (isGround(state)) {
+                    if (this.random.nextDouble() < intensity * 0.6) {
+                        BlockState burnt = scorch(state, this.random.nextInt(5) == 0);
+                        if (burnt != null) {
+                            this.level.setBlock(pos, burnt, FLAGS);
+                        }
+                    }
+                    if (this.random.nextDouble() < intensity * 0.012) {
+                        setFire(pos.setY(y + 1));
+                    }
+                    break;
+                }
+                ruin(pos, state, intensity);
+            }
+            return work;
+        }
+
+        /**
+         * A block of a tree or building the blast has passed over, ruined: leaves burnt away and trunks charred, plants and
+         * crops dead, glass blown in, cloth burnt, wooden walls and roofs holed and charred, stonework cracked and holed,
+         * now and then a fire. Doors and beds are left (half of one would be left floating). {@code intensity}, 0 to 1:
+         * how badly.
+         */
+        private void ruin(BlockPos pos, BlockState state, double intensity) {
+            RandomSource r = this.random;
+            BlockState to = null;
+            if (state.is(BlockTags.LEAVES)) {
+                to = r.nextDouble() < 0.5 + 0.5 * intensity ? Blocks.AIR.defaultBlockState() : null;
+            } else if (state.is(BlockTags.LOGS)) {
+                to = r.nextDouble() < 0.12 * intensity ? Blocks.AIR.defaultBlockState()
+                        : r.nextDouble() < 0.4 + 0.6 * intensity ? charred(state) : null;
+            } else if (state.is(BlockTags.CROPS) || state.is(BlockTags.SAPLINGS) || state.is(BlockTags.FLOWERS)
+                    || (state.canBeReplaced() && !state.is(Blocks.FIRE))) {
+                to = r.nextInt(4) == 0 && state.is(BlockTags.FLOWERS) ? Blocks.DEAD_BUSH.defaultBlockState() : Blocks.AIR.defaultBlockState();
+            } else if (state.is(Tags.Blocks.GLASS) || state.is(Tags.Blocks.GLASS_PANES) || state.is(BlockTags.WOOL)
+                    || state.is(BlockTags.WOOL_CARPETS) || state.is(Blocks.HAY_BLOCK) || state.is(BlockTags.BANNERS)) {
+                to = Blocks.AIR.defaultBlockState();
+            } else if (state.is(BlockTags.DOORS) || state.is(BlockTags.BEDS)) {
+                return;
+            } else if (state.is(BlockTags.PLANKS) || state.is(BlockTags.WOODEN_STAIRS) || state.is(BlockTags.WOODEN_SLABS)
+                    || state.is(BlockTags.WOODEN_FENCES) || state.is(BlockTags.WOODEN_TRAPDOORS) || state.is(BlockTags.FENCE_GATES)) {
+                double roll = r.nextDouble();
+                to = roll < 0.15 + 0.4 * intensity ? Blocks.AIR.defaultBlockState()
+                        : roll < 0.3 + 0.55 * intensity && state.is(BlockTags.PLANKS) ? Blocks.DARK_OAK_PLANKS.defaultBlockState() : null;
+                if (to == null && r.nextDouble() < 0.02 * intensity) {
+                    setFire(pos.above());
+                }
+            } else if (state.is(Blocks.STONE_BRICKS) || state.is(Blocks.MOSSY_STONE_BRICKS)) {
+                double roll = r.nextDouble();
+                to = roll < 0.1 * intensity ? Blocks.AIR.defaultBlockState() : roll < 0.25 * intensity ? Blocks.COBBLESTONE.defaultBlockState()
+                        : roll < 0.8 ? Blocks.CRACKED_STONE_BRICKS.defaultBlockState() : null;
+            } else if (state.is(Blocks.COBBLESTONE) || state.is(Blocks.BRICKS) || state.is(Tags.Blocks.COBBLESTONE)) {
+                double roll = r.nextDouble();
+                to = roll < 0.15 * intensity ? Blocks.AIR.defaultBlockState() : roll < 0.25 * intensity ? Blocks.GRAVEL.defaultBlockState() : null;
+            } else if (state.getDestroySpeed(this.level, pos) >= 0.0F && state.getDestroySpeed(this.level, pos) < 20.0F) {
+                to = r.nextDouble() < 0.12 * intensity ? Blocks.AIR.defaultBlockState() : null;   // anything else built: holed
+            }
+            if (to != null) {
+                this.level.setBlock(pos, to, FLAGS);
+            }
+        }
+
+        /** A trunk burnt black, its grain (axis) kept. */
+        private static BlockState charred(BlockState log) {
+            BlockState basalt = Blocks.BASALT.defaultBlockState();
+            return log.hasProperty(BlockStateProperties.AXIS) ? basalt.setValue(BlockStateProperties.AXIS, log.getValue(BlockStateProperties.AXIS)) : basalt;
         }
 
         private void setFire(BlockPos pos) {

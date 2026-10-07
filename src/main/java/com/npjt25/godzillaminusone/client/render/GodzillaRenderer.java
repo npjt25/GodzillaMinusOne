@@ -39,6 +39,12 @@ public class GodzillaRenderer extends GeoEntityRenderer<GodzillaEntity> {
 
     private static final ResourceLocation EYES = GodzillaMinusOne.id("textures/entity/godzilla_glow.png");
     private static final ResourceLocation PLATE_GLOW = GodzillaMinusOne.id("textures/entity/godzilla_charged_glow.png");
+    /** The inside of his mouth (tools/godzilla_mouth_glow.py), lit as he breathes in and while he fires. */
+    private static final ResourceLocation MOUTH_GLOW = GodzillaMinusOne.id("textures/entity/godzilla_mouth_glow.png");
+    private static final Set<String> MOUTH_BONES = Set.of("Head", "Jew");
+    /** Charge animation seconds: the in-breath begins (jaw opening), and the beam appears (tools/edit_animations.py). */
+    private static final float INHALE_START = 10.42F;
+    private static final float FIRE = 14.92F;
     private static final ResourceLocation BEAM_CORE = GodzillaMinusOne.id("textures/entity/godzilla_beam.png");
     private static final ResourceLocation BEAM_SWIRL = new ResourceLocation("textures/entity/creeper/creeper_armor.png");
     private static final ResourceLocation BURNS = GodzillaMinusOne.id("textures/entity/godzilla_burns.png");
@@ -59,7 +65,7 @@ public class GodzillaRenderer extends GeoEntityRenderer<GodzillaEntity> {
             Map.entry("T10", 8.54F), Map.entry("T11", 8.54F));
 
     private enum Pass {
-        MODEL, EYES, BURNS, PLATES, BEAM
+        MODEL, EYES, BURNS, PLATES, MOUTH, BEAM
     }
 
     private Pass pass = Pass.MODEL;
@@ -98,6 +104,11 @@ public class GodzillaRenderer extends GeoEntityRenderer<GodzillaEntity> {
                     }
                 }
             }
+            case MOUTH -> {
+                if (MOUTH_BONES.contains(name)) {
+                    super.renderCubesOfBone(poseStack, bone, buffer, packedLight, packedOverlay, red, green, blue, alpha);
+                }
+            }
             case BEAM -> {
                 if (BEAM_BONE.equals(name)) {
                     super.renderCubesOfBone(poseStack, bone, buffer, packedLight, packedOverlay, red, green, blue, alpha);
@@ -113,6 +124,22 @@ public class GodzillaRenderer extends GeoEntityRenderer<GodzillaEntity> {
         }
         float x = Mth.clamp((this.chargeSeconds - time) / 0.4F, 0.0F, 1.0F);
         return x * x * (3.0F - 2.0F * x) * (0.85F + 0.15F * Mth.sin(this.chargeSeconds * 7.0F));
+    }
+
+    /**
+     * How brightly the inside of his mouth glows: from nothing as he starts to breathe in, slowly at first, then ever
+     * faster and brighter until it blazes as he fires (and on while the beam lasts), fading as he cools down.
+     */
+    private float mouthGlow() {
+        if (this.coolingFade >= 0.0F) {
+            return this.coolingFade;
+        }
+        if (this.chargeSeconds >= FIRE) {
+            return 1.0F;
+        }
+        float x = Mth.clamp((this.chargeSeconds - INHALE_START) / (FIRE - INHALE_START), 0.0F, 1.0F);
+        float flicker = 0.92F + 0.08F * Mth.sin(this.chargeSeconds * (9.0F + 14.0F * x));
+        return x * x * x * flicker;
     }
 
     private void renderPass(Pass pass, PoseStack poseStack, GodzillaEntity entity, BakedGeoModel model, MultiBufferSource buffers,
@@ -170,6 +197,16 @@ public class GodzillaRenderer extends GeoEntityRenderer<GodzillaEntity> {
             this.godzilla.coolingFade = state == GodzillaEntity.CHARGE_COOLING
                     ? Mth.clamp(1.0F - entity.getCoolingSeconds(partialTick) / 1.5F, 0.0F, 1.0F) : -1.0F;
             this.godzilla.renderPass(Pass.PLATES, poseStack, entity, model, buffers, RenderType.eyes(PLATE_GLOW), partialTick, 1.0F, 1.0F, 1.0F);
+            float mouth = this.godzilla.mouthGlow();
+            if (mouth > 0.01F) {
+                this.godzilla.renderPass(Pass.MOUTH, poseStack, entity, model, buffers, RenderType.eyes(MOUTH_GLOW), partialTick, mouth, mouth, mouth);
+                if (mouth > 0.6F) {
+                    // right before he fires: a second, brighter layer, the blue turning white-hot
+                    float hot = (mouth - 0.6F) / 0.4F;
+                    this.godzilla.renderPass(Pass.MOUTH, poseStack, entity, model, buffers, RenderType.eyes(MOUTH_GLOW), partialTick,
+                            hot * 0.8F, hot, hot);
+                }
+            }
         }
     }
 

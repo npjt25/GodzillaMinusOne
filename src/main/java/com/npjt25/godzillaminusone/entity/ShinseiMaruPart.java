@@ -22,13 +22,15 @@ import org.jetbrains.annotations.Nullable;
  */
 public class ShinseiMaruPart extends PartEntity<ShinseiMaruEntity> {
     /** Where it sits on her: blocks to starboard (0: on her centreline) and forward of her middle. */
+    final double side;
     final double forward;
     /** The height of its top (the deck or roof there) above her keel. */
     final double top;
     private final EntityDimensions size;
 
-    public ShinseiMaruPart(ShinseiMaruEntity boat, double forward, float width, double top) {
+    public ShinseiMaruPart(ShinseiMaruEntity boat, double side, double forward, float width, double top) {
         super(boat);
+        this.side = side;
         this.forward = forward;
         this.top = top;
         this.size = EntityDimensions.scalable(width, (float) top);
@@ -37,7 +39,7 @@ public class ShinseiMaruPart extends PartEntity<ShinseiMaruEntity> {
 
     /** Puts it back in its place on her. */
     void follow() {
-        Vec3 at = getParent().at(new Vec3(0.0, 0.0, this.forward));
+        Vec3 at = getParent().at(new Vec3(this.side, 0.0, this.forward));
         this.xo = getX();
         this.yo = getY();
         this.zo = getZ();
@@ -68,7 +70,7 @@ public class ShinseiMaruPart extends PartEntity<ShinseiMaruEntity> {
 
     @Override
     public boolean isPickable() {
-        return getParent().isPickable();
+        return !getParent().isRemoved();
     }
 
     @Override

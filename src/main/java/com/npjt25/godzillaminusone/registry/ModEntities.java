@@ -61,7 +61,7 @@ public final class ModEntities {
 
     public static final RegistryObject<EntityType<ShinseiMaruEntity>> SHINSEI_MARU = ENTITIES.register("shinsei_maru",
             () -> EntityType.Builder.<ShinseiMaruEntity>of(ShinseiMaruEntity::new, MobCategory.MISC)
-                    .sized(6.5F, 3.0F)
+                    .sized(19.5F, 5.0F)   // (all of her, whichever way she heads: see ShinseiMaruEntity's parts)
                     .clientTrackingRange(16)
                     .updateInterval(1)
                     .build(GodzillaMinusOne.id("shinsei_maru").toString()));

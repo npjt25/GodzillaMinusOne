@@ -144,7 +144,8 @@ public final class Blasts {
             int ground = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, Mth.floor(impact.x), Mth.floor(impact.z));
             zero = new Vec3(impact.x, Math.min(impact.y, ground), impact.z);
             if (destroyBlocks) {
-                Destruction.atomicBlast(level, breaker, zero, Config.ATOMIC_BLAST_CRATER_RADIUS.get(), Config.ATOMIC_BLAST_DESTRUCTION_RADIUS.get());
+                Destruction.atomicBlast(level, breaker, zero, Config.ATOMIC_BLAST_CRATER_RADIUS.get(), Config.ATOMIC_BLAST_DESTRUCTION_RADIUS.get(),
+                        Config.ATOMIC_BLAST_RUIN_RADIUS.get());
             }
         }
         ModNetwork.sendNear(level, zero, 1024.0, new FxPacket(FxPacket.Type.ATOMIC_BLAST, zero, yaw, grounded ? 1.0F : 0.0F));

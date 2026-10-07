@@ -28,9 +28,10 @@ three-quarters, walking, roaring, and burnt to a crisp by a nuclear bomb. Same g
 
 ![The Shinsei Maru](docs/shinsei_maru_preview.png)
 
-*The Shinsei Maru: the wheel up on the wheelhouse roof, cages on the foredeck, a rack of recovered naval mines
-astern, and the Type 93 machine gun on the stern platform pointing aft. Offline renders on a one-block grid, with
-a player.*
+*The Shinsei Maru, run down and weather-beaten: rust weeping down her hull, paint flaking, a rust-red waterline,
+tyres for fenders, the wheel up on the wheelhouse roof, nets, floats and cages on the foredeck, boarding ladders
+port and starboard, a rack of recovered naval mines astern and the Type 93 machine gun on the stern platform.
+Offline renders.*
 
 ![Searchlight and nuclear bomb](docs/props_preview.png)
 
@@ -105,12 +106,17 @@ the blue one a player.*
 - For the first **2 to 3 minutes after he appears** he can't use his atomic breath yet.
 - With a target he **charges his atomic breath**: the dorsal plates light up blue one by one from the tail to
   the neck as they punch up, mobs freeze in fear, he breathes in for 4 seconds (the in-breath sound lasts
-  exactly as long), then rears his head up above his chest and fires (he tilts it further up at planes): the
+  exactly as long), the inside of his mouth glowing blue, faintly at first and ever brighter until it blazes just as
+  he fires, then rears his head up above his chest and fires (he tilts it further up at planes): the
   plates **slam back down the instant the beam appears**. The beam pours out of his open mouth, which blazes blue
   while it lasts. **Two seconds after the beam lands**, a **nuclear blast** goes off there: it kills everything
   around it and blasts out a **large crater** (about 96 blocks across and 20 deep) at once, and you see it unfold as in the film's Ginza scene (see
   **The atomic blast** below). Everyone nearby sees a blur, then black rain falls around ground zero (just
   particles: the weather isn't changed).
+- **Out to 100 blocks the world is left in ruins**: whatever is still standing (trees, buildings, villages) is
+  burnt and broken: leaves burnt away and trunks charred black, crops and grass dead, windows blown in, wooden walls
+  and roofs holed and charred, stonework cracked and holed, fires here and there (less damage further out). The
+  radius is `ruinRadius` in the config.
 - The blast **levels the land for 60 blocks around**: everything above **Y 65** (trees, grass, buildings,
   hills) is obliterated, sweeping outwards from ground zero, and **nothing drops**. Seas and rivers stay. Parts of
   the area that aren't loaded yet are flattened when they load. Radius and height are in the config.
@@ -191,11 +197,15 @@ the blue one a player.*
 
 ### Shinsei Maru
 
-- The film's small, run-down wooden minesweeper, about 13.5 blocks long. Crafted from a boat with five dark oak
+- The film's small, run-down, weather-beaten minesweeper, **16.3 blocks long and 5.6 wide**: rust streaks, flaking
+  paint, patched planks, tyres for fenders, nets and floats heaped on the foredeck. Crafted from a boat with five dark oak
   planks under it and an iron ingot on top (iron ingot in the top middle / planks, boat, planks / three planks).
   Use it on water to put her in, facing the way you look.
-- **You can walk on all her decks**: the foredeck, the wheelhouse roof, the after deck and the stern platform.
-  Standing on her, you're carried along as she moves and turns.
+- **You can walk on all her decks** without falling through: the foredeck, the side decks round the wheelhouse,
+  its roof, the after deck and the stern platform. Standing on her, you're carried along as she moves and turns; if
+  she moves into you, you're pushed out (onto her deck if you're nearly up there).
+- **Boarding ladders** on both sides, just aft of the wheelhouse: walk or swim into one to climb up to her deck
+  (sneak to hold on).
 - **Two places to man.** Right-click her **stern** (the gun platform, or her from astern) to take the **Type 93
   13 mm machine gun**; right-click her **anywhere else** to take the **wheel**, up on the wheelhouse roof, and the
   mines. At the wheel: **W** ahead, **S** astern, **A/D** steer; she moves the way her bow points. Flat out she's
@@ -207,7 +217,9 @@ the blue one a player.*
   Action" in Controls) to **drop one over the stern**: it floats there, and goes off when Godzilla comes near
   (his radiation sets it off), like the film's mine dragged into his mouth.
 - **She rides the waves**: at sea she heaves up and down with the swell and pitches and rolls as it passes under
-  her, rougher in the rain and rougher still in a thunderstorm.
+  her, and every few seconds a bigger wave slaps her side and sets her rocking; rougher in the rain, rougher still
+  in a thunderstorm. With **Physics Mod** installed the swell runs higher, to go with its ocean waves (Physics Mod
+  has no way for other mods to read its waves, so hers are her own, not exactly its).
 - Hit her like a boat to knock her back into her item, mines and all (one hit in creative). Explosions and
   Godzilla smash her to matchwood, throwing the crew in the water.
 
@@ -269,6 +281,8 @@ With [Walkers](https://www.curseforge.com/minecraft/mc-mods/woodwalkers) install
   `/walkers change2ndShape <player> godzillaminusone:godzilla` (then **G** switches to him and back); with
   ReMorphed, **bringing him down** counts as killing him (he never really dies) and unlocks his shape, or use
   `/remorphed addShape <player> godzillaminusone:godzilla`, then pick him from ReMorphed's menu.
+- As him you're always in **third person** (the camera pulled far enough back to show all of him; F5 still turns
+  it round to face you), back to first person when you change back.
 - As him, a small list of his moves and their keys sits in the **top left corner** of the screen:
   - **Z: Tail Whip**, a spin of his whole body, the tail sweeping round twice,
   - **H: Scratch**, a claw swipe (right, then left),
@@ -284,7 +298,8 @@ With [Walkers](https://www.curseforge.com/minecraft/mc-mods/woodwalkers) install
 ### Physics Mod
 
 There's no special support for Physics Mod (it has no public way for other mods to hook in), but the mod does
-its own physics where it matters and leaves the rest to it: the Shinsei Maru rides the swell (see above), and the
+its own physics where it matters and leaves the rest to it: the Shinsei Maru rides the swell, higher with Physics
+Mod installed (see above), and the
 blocks of a building Godzilla goes through or swipes at topple over as falling blocks. A share of them break
 the ordinary way, with their usual block-breaking effect, so Physics Mod, if installed, can shatter those into
 pieces as it does any broken block. Nothing here has been tried in game with Physics Mod itself.
@@ -309,7 +324,7 @@ pieces as it does any broken block. Nothing here has been tried in game with Phy
 - **Gameplay**: `config/godzillaminusone-common.toml`. The add-on's world-ending numbers (2000-block kill
   radius, Wither XXVI) are toned down by default; each option's comment lists the add-on's original value so
   you can restore it. You can also make Godzilla mortal, stop him regenerating, turn off block damage, change
-  the atomic breath's crater and flattening (`craterRadius`, `scorchRadius`, `flattenRadius`, `flattenDownToY`), his first breath's delay
+  the atomic breath's crater, ruins and flattening (`craterRadius`, `scorchRadius`, `ruinRadius`, `flattenRadius`, `flattenDownToY`), his first breath's delay
   (`firstBreathMinSeconds`, `firstBreathMaxSeconds`), which buildings he knocks down and how far
   (`demolishFromHeight`, `demolishDownToHeight`), or stop him knocking them down at all. (The crater, flattening
   and building settings have new names, so a config file from an earlier version picks up the new defaults.)

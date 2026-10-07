@@ -31,7 +31,6 @@ import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
-import net.minecraft.world.entity.MoverType;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.entity.projectile.ProjectileUtil;
 import net.minecraft.world.item.ItemStack;
@@ -68,10 +67,16 @@ import java.util.List;
  *   <li>Sneak and right-click to open her mine hold ({@link #MINE_SLOTS} slots, naval mines only; right-clicking her
  *       with a naval mine in hand loads it too). The helmsman drops one over the stern with the "Vehicle Action" key
  *       (R): it floats there, and goes off when Godzilla comes near.</li>
- *   <li>Her decks are solid ({@link ShinseiMaruPart}s along her length: the foredeck, the wheelhouse roof, the after
- *       deck and the stern platform), and whoever stands on them is carried along as she moves and turns.</li>
+ *   <li>Her decks are solid ({@link ShinseiMaruPart}s over her whole length and beam: the foredeck, the wheelhouse and
+ *       its roof, the side decks beside it, the after deck and the stern platform), and whoever stands on them is
+ *       carried along as she moves and turns. Her own box covers all of her (Minecraft only looks at a multipart
+ *       entity's parts where its own box is), so she does her own collisions with blocks, along her hull; anything
+ *       she moves into (or that finds itself inside her) is pushed out, onto her deck if it's nearly up there.</li>
+ *   <li>Boarding ladders on both sides, just aft of the wheelhouse: walk (or swim) into one to climb it, sneak to
+ *       hold on.</li>
  *   <li>At sea she rides the swell: she heaves up and down with it, and pitches and rolls as it passes under her
- *       (rougher in the rain, and rougher still in a thunderstorm).</li>
+ *       (rougher in the rain, rougher still in a thunderstorm, and higher with Physics Mod installed), and now and
+ *       then a bigger wave slaps her side and sets her rocking.</li>
  *   <li>Hit her like a boat to knock her back into her item (with her mines); explosions and Godzilla wreck her.</li>
  * </ul>
  */
@@ -85,11 +90,18 @@ public class ShinseiMaruEntity extends Entity implements GeoEntity {
     public static final double DRAFT = 0.9;
 
     // Where things are on her (blocks: to starboard, up, forward), as tools/make_props.py builds her.
-    private static final Vec3 HELM = new Vec3(0.0, 4.45, -0.1);
-    private static final Vec3 GUNNER = new Vec3(0.0, 2.35, -4.3);
-    private static final Vec3 GUN_PIVOT = new Vec3(0.0, 3.54, -5.1);
+    private static final Vec3 HELM = new Vec3(0.0, 4.45, -0.12);
+    private static final Vec3 GUNNER = new Vec3(0.0, 2.35, -5.27);
+    private static final Vec3 GUN_PIVOT = new Vec3(0.0, 3.54, -6.25);
     private static final double BARREL = 2.1;
-    private static final double STERN = -7.2;
+    private static final double STERN = -8.8;
+    /** Half her beam, her bow and her transom (blocks from her middle), her deck's height above her keel. */
+    public static final double BEAM = 2.8;
+    private static final double BOW = 8.6;
+    private static final double TRANSOM = -7.7;
+    private static final double DECK = 2.2;
+    /** The boarding ladders, port and starboard: how far forward of her middle. */
+    private static final double LADDER = -3.6;
 
     /** How far the gun swings either side of dead astern, and up and down (degrees). */
     public static final float GUN_ARC = 135.0F;
@@ -107,19 +119,11 @@ public class ShinseiMaruEntity extends Entity implements GeoEntity {
     /** The entity id of whoever took the gun (-1: nobody chose it). */
     private static final EntityDataAccessor<Integer> DATA_GUNNER = SynchedEntityData.defineId(ShinseiMaruEntity.class, EntityDataSerializers.INT);
     /** A click this far astern of her middle (or from there) takes the gun. */
-    private static final double GUN_STATION = -2.8;
+    private static final double GUN_STATION = -4.6;
 
     private final AnimatableInstanceCache cache = GeckoLibUtil.createInstanceCache(this);
-    /** Her hull and decks, bow to stern (forward of her middle, width, deck height above the keel). */
-    private final ShinseiMaruPart[] parts = {
-            new ShinseiMaruPart(this, 5.6, 2.2F, 2.2),     // the bow
-            new ShinseiMaruPart(this, 4.0, 3.4F, 2.2),     // the foredeck
-            new ShinseiMaruPart(this, 2.4, 3.4F, 2.2),
-            new ShinseiMaruPart(this, 0.4, 2.8F, 4.45),    // the wheelhouse (its roof)
-            new ShinseiMaruPart(this, -1.6, 2.8F, 4.45),
-            new ShinseiMaruPart(this, -3.0, 3.4F, 2.2),    // the after deck
-            new ShinseiMaruPart(this, -4.4, 3.2F, 2.35),   // the stern platform
-            new ShinseiMaruPart(this, -5.6, 3.2F, 2.35)};
+    /** Her hull and decks, bow to stern (to starboard, forward of her middle, width, deck height above the keel). */
+    private final ShinseiMaruPart[] parts = makeParts();
     private final SimpleContainer mines = new SimpleContainer(MINE_SLOTS) {
         @Override
         public boolean canPlaceItem(int slot, ItemStack stack) {
@@ -137,12 +141,35 @@ public class ShinseiMaruEntity extends Entity implements GeoEntity {
     private double lerpZ;
     private double lerpYRot;
 
+    private ShinseiMaruPart[] makeParts() {
+        List<ShinseiMaruPart> list = new ArrayList<>();
+        list.add(new ShinseiMaruPart(this, 0.0, 7.0, 2.6F, 2.6));                       // the bow
+        for (double f : new double[] {4.6, 2.4, -3.9}) {                                 // the foredeck, the after deck
+            for (double s : new double[] {-1.4, 1.4}) {
+                list.add(new ShinseiMaruPart(this, s, f, 2.8F, DECK));
+            }
+        }
+        for (double f : new double[] {0.37, -1.83}) {                                    // the wheelhouse, up to its roof
+            for (double s : new double[] {-0.95, 0.95}) {
+                list.add(new ShinseiMaruPart(this, s, f, 2.2F, HELM.y));
+            }
+        }
+        for (double f = 1.1; f > -2.5; f -= 0.7) {                                       // the side decks beside it
+            for (double s : new double[] {-2.45, 2.45}) {
+                list.add(new ShinseiMaruPart(this, s, f, 0.7F, DECK));
+            }
+        }
+        for (double s : new double[] {-1.35, 1.35}) {                                    // the stern platform
+            list.add(new ShinseiMaruPart(this, s, -6.2, 2.7F, GUNNER.y));
+        }
+        return list.toArray(new ShinseiMaruPart[0]);
+    }
+
     public ShinseiMaruEntity(EntityType<? extends ShinseiMaruEntity> type, Level level) {
         super(type, level);
         // (her parts take the ids after hers, here and on every client: see setId)
         setId(getId());
-        this.noCulling = true; // her bow and stern, mast and gun reach well outside her hitbox
-        this.blocksBuilding = true;
+        this.noCulling = true; // her mast and gun reach outside her box
         this.mines.addListener(container -> {
             if (!level().isClientSide) {
                 this.entityData.set(DATA_MINES, countMines());
@@ -402,7 +429,7 @@ public class ShinseiMaruEntity extends Entity implements GeoEntity {
             to = wall.getLocation();
         }
         EntityHitResult hit = ProjectileUtil.getEntityHitResult(level, this, from, to, new AABB(from, to).inflate(1.0),
-                e -> e != this && !hasPassenger(e) && e.isAlive() && e.isPickable() && !e.isSpectator());
+                e -> !e.is(this) && !hasPassenger(e) && e.isAlive() && e.isPickable() && !e.isSpectator());
         if (hit != null) {
             // (from the boat, not by hand: a naval mine it hits goes off rather than being knocked loose)
             hit.getEntity().hurt(ModDamageTypes.source(level, ModDamageTypes.MACHINE_GUN, this, shooter), GUN_DAMAGE);
@@ -461,18 +488,21 @@ public class ShinseiMaruEntity extends Entity implements GeoEntity {
         if (isControlledByLocalInstance()) {
             steer();
             stayAfloat();
-            move(MoverType.SELF, getDeltaMovement());
+            sail();
             if (this.horizontalCollision) {
                 this.speed *= 0.5;
             }
         } else {
             setDeltaMovement(Vec3.ZERO);
         }
-        checkInsideBlocks();
         for (ShinseiMaruPart part : this.parts) {
             part.follow();
         }
         carry(standing, before, getYRot() - yawBefore);
+        for (Entity entity : around()) {
+            pushOut(entity);
+            climbLadder(entity);
+        }
         if (!level().isClientSide) {
             if (getWobble() > 0) {
                 this.entityData.set(DATA_WOBBLE, getWobble() - 1);
@@ -488,21 +518,24 @@ public class ShinseiMaruEntity extends Entity implements GeoEntity {
     }
 
     /**
-     * Who is standing on her decks (not aboard): each side moves its own, the client its player, the server everything
-     * else (players move themselves).
+     * Who is on or around her (not aboard) that this side moves: the client its player, the server everything else
+     * (players move themselves).
      */
+    private List<Entity> around() {
+        List<Entity> list = new ArrayList<>();
+        for (Entity entity : level().getEntities(this, getBoundingBox().inflate(1.0, 1.0, 1.0),
+                e -> !e.isPassenger() && !(e instanceof ShinseiMaruPart) && !e.noPhysics && !e.isSpectator())) {
+            if (level().isClientSide ? entity instanceof Player player && player.isLocalPlayer() : !(entity instanceof Player)) {
+                list.add(entity);
+            }
+        }
+        return list;
+    }
+
+    /** Who is standing on her decks, to be carried along with her. */
     private List<Entity> standingOnDeck() {
         List<Entity> standing = new ArrayList<>();
-        AABB decks = getBoundingBox();
-        for (ShinseiMaruPart part : this.parts) {
-            decks = decks.minmax(part.getBoundingBox());
-        }
-        for (Entity entity : level().getEntities(this, decks.inflate(0.5, 1.0, 0.5),
-                e -> !e.isPassenger() && !(e instanceof ShinseiMaruPart) && !e.noPhysics && !e.isSpectator())) {
-            boolean ours = level().isClientSide ? entity instanceof Player player && player.isLocalPlayer() : !(entity instanceof Player);
-            if (!ours) {
-                continue;
-            }
+        for (Entity entity : around()) {
             AABB feet = entity.getBoundingBox();
             for (ShinseiMaruPart part : this.parts) {
                 AABB deck = part.getBoundingBox();
@@ -533,6 +566,123 @@ public class ShinseiMaruEntity extends Entity implements GeoEntity {
             entity.setYRot(entity.getYRot() + turned);
             entity.setYHeadRot(entity.getYHeadRot() + turned);
         }
+    }
+
+    /**
+     * Anything she has moved into (or that has got inside her) is pushed out of her decks: up onto the deck if its feet
+     * are nearly up there, otherwise out over her side, whichever way is shortest.
+     */
+    private void pushOut(Entity entity) {
+        for (int pass = 0; pass < 2; pass++) {
+            for (ShinseiMaruPart part : this.parts) {
+                AABB deck = part.getBoundingBox();
+                AABB box = entity.getBoundingBox();
+                if (!box.intersects(deck.deflate(0.001))) {
+                    continue;
+                }
+                double up = deck.maxY - box.minY;
+                if (up <= 0.75) {
+                    entity.setPos(entity.getX(), deck.maxY, entity.getZ());
+                    Vec3 v = entity.getDeltaMovement();
+                    entity.setDeltaMovement(v.x, Math.max(0.0, v.y), v.z);
+                    entity.setOnGround(true);
+                    entity.resetFallDistance();
+                    continue;
+                }
+                double east = deck.maxX - box.minX;
+                double west = box.maxX - deck.minX;
+                double south = deck.maxZ - box.minZ;
+                double north = box.maxZ - deck.minZ;
+                double least = Math.min(Math.min(east, west), Math.min(south, north)) + 0.01;
+                if (least - 0.01 == east) {
+                    entity.setPos(entity.getX() + least, entity.getY(), entity.getZ());
+                } else if (least - 0.01 == west) {
+                    entity.setPos(entity.getX() - least, entity.getY(), entity.getZ());
+                } else if (least - 0.01 == south) {
+                    entity.setPos(entity.getX(), entity.getY(), entity.getZ() + least);
+                } else {
+                    entity.setPos(entity.getX(), entity.getY(), entity.getZ() - least);
+                }
+            }
+        }
+    }
+
+    /**
+     * Her boarding ladders: up against one, in the water or on it, you climb it as you would a ladder (walking into it
+     * climbs, sneaking holds on), up to her deck.
+     */
+    private void climbLadder(Entity entity) {
+        if (!(entity instanceof LivingEntity living)) {
+            return;
+        }
+        Vec3 forward = Vec3.directionFromRotation(0.0F, getYRot());
+        double dx = living.getX() - getX();
+        double dz = living.getZ() - getZ();
+        double f = dx * forward.x + dz * forward.z;
+        double s = Math.abs(-dx * forward.z + dz * forward.x);
+        double y = living.getY() - getY();
+        if (Math.abs(f - LADDER) > 0.6 || s < BEAM - 0.4 || s > BEAM + 1.0 || y < -1.5 || y > DECK + 0.5) {
+            return;
+        }
+        living.resetFallDistance();
+        Vec3 v = living.getDeltaMovement();
+        double vy = living.isShiftKeyDown() ? Math.max(v.y, 0.0) : living.horizontalCollision ? 0.2 : Math.max(v.y, -0.15);
+        living.setDeltaMovement(v.x, vy, v.z);
+    }
+
+    /**
+     * Moves her by her momentum, colliding with blocks along her hull (her own box is much bigger than she is): if her
+     * hull would run into something, she stops (and doesn't turn into it); aground, she rests on what's under her keel.
+     */
+    private void sail() {
+        Vec3 v = getDeltaMovement();
+        boolean grounded = solid(getX(), getY() - 0.05, getZ());
+        if (grounded && v.y < 0.0) {
+            v = new Vec3(v.x, 0.0, v.z);
+        }
+        setOnGround(grounded);
+        Vec3 to = position().add(v);
+        this.horizontalCollision = false;
+        // (already stuck fast, say thrown up on a beach, she can work herself free)
+        if ((v.x != 0.0 || v.z != 0.0 || this.deltaRotation != 0.0F) && hullBlocked(to.x, to.y, to.z, getYRot())
+                && !hullBlocked(getX(), getY(), getZ(), getYRot() - this.deltaRotation)) {
+            this.horizontalCollision = true;
+            to = new Vec3(getX(), to.y, getZ());
+            if (this.deltaRotation != 0.0F && hullBlocked(to.x, to.y, to.z, getYRot())) {
+                setYRot(getYRot() - this.deltaRotation);
+                this.deltaRotation = 0.0F;
+            }
+            setDeltaMovement(0.0, v.y, 0.0);
+        }
+        setPos(to.x, to.y, to.z);
+    }
+
+    /** Whether her hull, set down at (x, y, z) heading {@code yaw}, would be in a solid block anywhere along it. */
+    private boolean hullBlocked(double x, double y, double z, float yaw) {
+        Vec3 forward = Vec3.directionFromRotation(0.0F, yaw);
+        for (double f = TRANSOM; f <= BOW + 0.01; f += 1.0) {
+            double half = f > 6.2 ? BEAM - (f - 6.2) / (BOW - 6.2) * 2.0 : f < -7.3 ? 2.6 : BEAM;
+            for (double s : new double[] {-half, 0.0, half}) {
+                double px = x + forward.x * f - forward.z * s;
+                double pz = z + forward.z * f + forward.x * s;
+                for (double dy : new double[] {DRAFT - 0.4, DRAFT + 0.6, DECK}) {
+                    if (solid(px, y + dy, pz)) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    private boolean solid(double x, double y, double z) {
+        BlockPos pos = BlockPos.containing(x, y, z);
+        net.minecraft.world.level.block.state.BlockState state = level().getBlockState(pos);
+        if (state.isAir()) {
+            return false;
+        }
+        var shape = state.getCollisionShape(level(), pos);
+        return !shape.isEmpty() && shape.max(net.minecraft.core.Direction.Axis.Y) > 0.25;  // (lily pads and carpets don't count)
     }
 
     /** The helmsman's throttle (W/S) and wheel (A/D). */
@@ -576,8 +726,39 @@ public class ShinseiMaruEntity extends Entity implements GeoEntity {
      * pitches and rolls her by how it slopes under her bow and stern, port and starboard.
      */
     public double swell(double x, double z, double time) {
-        double height = 0.14 * (1.0 + level().getRainLevel(1.0F) + 1.5 * level().getThunderLevel(1.0F));
-        return height * (Math.sin(time * 0.11 + x * 0.09 + z * 0.03) + 0.6 * Math.sin(time * 0.07 - z * 0.08 + x * 0.02 + 1.3));
+        return seaState() * (Math.sin(time * 0.11 + x * 0.09 + z * 0.03) + 0.6 * Math.sin(time * 0.07 - z * 0.08 + x * 0.02 + 1.3)
+                + 0.3 * Math.sin(time * 0.23 + x * 0.21 - z * 0.17 + 0.7));
+    }
+
+    /**
+     * How high the sea runs: a little higher in the rain and higher still in a thunderstorm. Physics Mod's ocean waves
+     * (when it's installed) run taller than anything vanilla shows, so she rides a bigger swell with it; its waves
+     * themselves can't be read (it has no API), so hers are her own, not exactly its.
+     */
+    private double seaState() {
+        return 0.2 * (1.0 + level().getRainLevel(1.0F) + 1.5 * level().getThunderLevel(1.0F)) * (physicsMod() ? 1.8 : 1.0);
+    }
+
+    @Nullable
+    private static Boolean physicsMod;
+
+    private static boolean physicsMod() {
+        if (physicsMod == null) {
+            net.minecraftforge.fml.ModList mods = net.minecraftforge.fml.ModList.get();
+            physicsMod = mods != null && mods.isLoaded("physicsmod");
+        }
+        return physicsMod;
+    }
+
+    /**
+     * Now and then (every 3 to 4 seconds) a bigger wave slaps her side: a sharp kick of roll that rocks her and dies
+     * away; some waves hit harder than others. -1 to 1.
+     */
+    private double slap(double time) {
+        double waves = time / 70.0 + (getId() % 97) * 0.37;
+        double since = (waves - Math.floor(waves)) * 70.0;
+        double strength = 0.4 + 0.6 * Math.abs(Math.sin(Math.floor(waves) * 12.9898));
+        return strength * Math.exp(-since / 16.0) * Math.sin(since * 0.45);
     }
 
     /** Her pitch (degrees, bow up) and roll (degrees, to starboard) on the swell at a moment, for the renderer. */
@@ -585,13 +766,14 @@ public class ShinseiMaruEntity extends Entity implements GeoEntity {
         if (!isAfloat()) {
             return new float[] {0.0F, 0.0F};
         }
-        Vec3 bow = at(new Vec3(0.0, 0.0, 5.0));
-        Vec3 stern = at(new Vec3(0.0, 0.0, -5.0));
-        Vec3 port = at(new Vec3(-1.8, 0.0, 0.0));
-        Vec3 starboard = at(new Vec3(1.8, 0.0, 0.0));
-        double pitch = Math.atan2(swell(bow.x, bow.z, time) - swell(stern.x, stern.z, time), 10.0);
-        double roll = Math.atan2(swell(port.x, port.z, time) - swell(starboard.x, starboard.z, time), 3.6);
-        return new float[] {(float) Math.toDegrees(pitch) * 2.0F, (float) Math.toDegrees(roll) * 1.5F};
+        Vec3 bow = at(new Vec3(0.0, 0.0, 6.0));
+        Vec3 stern = at(new Vec3(0.0, 0.0, -6.0));
+        Vec3 port = at(new Vec3(-BEAM, 0.0, 0.0));
+        Vec3 starboard = at(new Vec3(BEAM, 0.0, 0.0));
+        double pitch = Math.atan2(swell(bow.x, bow.z, time) - swell(stern.x, stern.z, time), 12.0);
+        double roll = Math.atan2(swell(port.x, port.z, time) - swell(starboard.x, starboard.z, time), 2.0 * BEAM);
+        double slap = slap(time) * seaState() / 0.2;
+        return new float[] {(float) (Math.toDegrees(pitch) * 2.2 + slap * 1.5), (float) (Math.toDegrees(roll) * 2.5 + slap * 6.0)};
     }
 
     /** Whether she's afloat (not aground). */
@@ -646,7 +828,12 @@ public class ShinseiMaruEntity extends Entity implements GeoEntity {
 
     @Override
     public boolean isPickable() {
-        return !isRemoved();
+        return false; // (her box is far bigger than she is: you click and hit her parts)
+    }
+
+    @Override
+    public boolean isPushedByFluid() {
+        return false;
     }
 
     @Override

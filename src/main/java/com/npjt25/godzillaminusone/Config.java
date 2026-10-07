@@ -38,6 +38,7 @@ public final class Config {
     public static final ForgeConfigSpec.IntValue ATOMIC_BLAST_RADIATION_AMPLIFIER;
     public static final ForgeConfigSpec.IntValue ATOMIC_BLAST_CRATER_RADIUS;
     public static final ForgeConfigSpec.IntValue ATOMIC_BLAST_DESTRUCTION_RADIUS;
+    public static final ForgeConfigSpec.IntValue ATOMIC_BLAST_RUIN_RADIUS;
     public static final ForgeConfigSpec.IntValue ATOMIC_FLATTEN_RADIUS;
     public static final ForgeConfigSpec.IntValue ATOMIC_FLATTEN_LEVEL;
     public static final ForgeConfigSpec.IntValue CHARGE_FREEZE_RADIUS;
@@ -140,6 +141,11 @@ public final class Config {
         ATOMIC_BLAST_DESTRUCTION_RADIUS = BUILDER
                 .comment("Around the crater the blast wave flattens trees and buildings and scorches the ground out to this radius.")
                 .defineInRange("scorchRadius", 60, 0, 160);
+        ATOMIC_BLAST_RUIN_RADIUS = BUILDER
+                .comment("Out to this radius, whatever the blast wave leaves standing is left in ruins: trees burnt to bare, charred",
+                        "trunks, windows blown in, holed walls and roofs, cracked stone, dead crops and grass, scattered fires (fewer further",
+                        "out). 0 = off; also needs mobGriefing.")
+                .defineInRange("ruinRadius", 100, 0, 200);
         ATOMIC_FLATTEN_RADIUS = BUILDER
                 .comment("Everything above flattenDownToY within this many blocks of where the atomic breath lands (trees, grass,",
                         "buildings, hills) is erased, leaving the land flat; nothing drops. Chunks loaded later are flattened as they load.",
