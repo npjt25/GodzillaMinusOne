@@ -282,6 +282,26 @@ public class OdoIslandMonsterEntity extends Monster implements GeoEntity {
         startRoar(ModSounds.ODO_SPOTTED.get()); // caught in the light: once, as he turns on it
     }
 
+    /**
+     * For the game tests' logs: what he's doing (running goals, where his move control is taking him, whether he's
+     * walking into something or on the ground, his motion, how much of his box is inside blocks).
+     */
+    public String debugState() {
+        StringBuilder goals = new StringBuilder();
+        this.goalSelector.getRunningGoals().forEach(g -> goals.append(g.getGoal().getClass().getSimpleName()).append(' '));
+        int inside = 0;
+        for (BlockPos pos : BlockPos.betweenClosed(BlockPos.containing(getBoundingBox().minX, getBoundingBox().minY + 0.01, getBoundingBox().minZ),
+                BlockPos.containing(getBoundingBox().maxX, getBoundingBox().maxY, getBoundingBox().maxZ))) {
+            if (!level().getBlockState(pos).getCollisionShape(level(), pos).isEmpty()) {
+                inside++;
+            }
+        }
+        return String.format("goals [%s], move %s to (%.1f, %.1f, %.1f), collision h %b v %b, on ground %b, motion (%.2f, %.2f, %.2f), roar %d, blocks in his box %d",
+                goals.toString().trim(), getMoveControl().hasWanted() ? "wanted" : "idle", getMoveControl().getWantedX(),
+                getMoveControl().getWantedY(), getMoveControl().getWantedZ(), this.horizontalCollision, this.verticalCollision, onGround(),
+                getDeltaMovement().x, getDeltaMovement().y, getDeltaMovement().z, this.roarTicks, inside);
+    }
+
     /** For the game tests: for how many ticks he's made no headway towards the light he's after. */
     public int getLightStuckTicks() {
         return this.lightStuckTicks;

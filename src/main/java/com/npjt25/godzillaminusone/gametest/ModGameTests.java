@@ -832,6 +832,7 @@ public final class ModGameTests {
                         odo.getLightStuckTicks(), odo.getTarget() == null ? "none" : odo.getTarget().getType().toShortString(),
                         light.isRemoved() ? "smashed" : "standing", String.format("%.1f", light.getY() - origin.getY()),
                         countBlocks(helper, Blocks.BRICKS, 4, floor + 1, 27, 4, floor + 8, 27));
+                GodzillaMinusOne.LOGGER.info("odo tower {} tick {}: {}", run, helper.getTick(), odo.debugState());
             }
         });
         helper.succeedWhen(() -> {
