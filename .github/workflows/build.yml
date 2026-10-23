@@ -34,3 +34,85 @@ jobs:
           path: build/libs/*.jar
           if-no-files-found: error
         if: always()
+
+  # The real game, on a virtual display (Xvfb, Mesa's software OpenGL, OpenAL's null output): the in-game checks and
+  # screenshots of client/harness/ShotsHarness. Screenshots come back as base64 lines ("GMO-IMG") in this job's log.
+  client:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Virtual display
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq xvfb libgl1-mesa-dri libglx-mesa0 mesa-utils libxrandr2 libxinerama1 libxcursor1 libxi6 libxxf86vm1 >/dev/null
+
+      - name: Optional mods' real jars (Physics Mod, Walkers, ReMorphed)
+        shell: bash
+        continue-on-error: true
+        run: |
+          mkdir -p optional && cd optional
+          for slug in physicsmod woodwalkers remorphed craftedcore; do
+            url=$(curl -sS "https://api.modrinth.com/v2/project/$slug/version?loaders=%5B%22forge%22%5D&game_versions=%5B%221.20.1%22%5D" \
+              | python3 -c "import json,sys; v=json.load(sys.stdin); print(v[0]['files'][0]['url'] if v else '')")
+            echo "OPTIONAL $slug latest forge 1.20.1 file: $url"
+            [ -n "$url" ] && curl -sSL -o "$slug.jar" "$url"
+          done
+          ls -la
+          for jar in *.jar; do
+            echo "OPTIONAL ===== $jar"
+            unzip -p "$jar" META-INF/mods.toml 2>/dev/null | grep -E '^\s*(modId|version|displayName)' | sed 's/^/OPTIONAL   /'
+          done
+          if [ -f physicsmod.jar ]; then
+            echo "OPTIONAL physicsmod classes: $(unzip -l physicsmod.jar | grep -c '\.class')"
+            unzip -l physicsmod.jar | grep -iE 'wave|ocean|water|api' | head -40 | sed 's/^/OPTIONAL   /'
+            mkdir -p pm && (cd pm && unzip -q ../physicsmod.jar)
+            echo "OPTIONAL physicsmod class files mentioning wave/ocean:"
+            grep -rlaiE 'waveheight|getwave|oceanphysics|wave_height' pm --include=*.class | head -20 | sed 's/^/OPTIONAL   /'
+            for c in $(grep -rlaiE 'waveheight|getwave|oceanphysics' pm --include=*.class | head -8); do
+              javap -p -cp pm "$(echo ${c#pm/} | sed 's/\.class$//; s#/#.#g')" 2>/dev/null | grep -iE 'public|static' | head -30 | sed 's/^/OPTIONAL     /'
+            done
+          fi
+          if [ -f woodwalkers.jar ]; then
+            mkdir -p ww && (cd ww && unzip -q ../woodwalkers.jar)
+            javap -cp ww tocraft.walkers.api.PlayerShape 2>&1 | head -20 | sed 's/^/OPTIONAL   /'
+            javap -cp ww tocraft.walkers.api.variant.ShapeType 2>&1 | grep -E 'from|class' | head -10 | sed 's/^/OPTIONAL   /'
+          fi
+          if [ -f remorphed.jar ]; then
+            mkdir -p rm && (cd rm && unzip -q ../remorphed.jar)
+            javap -cp rm:ww tocraft.remorphed.impl.PlayerMorph 2>&1 | head -20 | sed 's/^/OPTIONAL   /'
+          fi
+
+      - name: In-game checks and screenshots
+        shell: bash
+        env:
+          LIBGL_ALWAYS_SOFTWARE: '1'
+          ALSOFT_DRIVERS: 'null'
+        run: |
+          timeout 45m xvfb-run -a -s "-screen 0 1280x720x24" ./gradlew runClient -Pshots --no-daemon 2>&1 | tee client.log | grep -v "GMO-IMG" | tail -n 400 || true
+          echo "===== checks"
+          grep -E "GMO-CHECK|GMO-CHECKS|GMO-LOG" client.log || true
+          grep -q "GMO-CHECKS" client.log || { echo "the harness never finished"; exit 1; }
+          if grep -q "GMO-CHECK FAIL" client.log; then exit 1; fi
+
+      - name: Screenshots
+        if: always()
+        shell: bash
+        run: grep -o "GMO-IMG .*" client.log || true
+
+      - name: Upload screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: in-game-screenshots
+          path: |
+            run/screenshots/*.png
+            run/gmo-checks.txt
+            client.log
+          if-no-files-found: warn

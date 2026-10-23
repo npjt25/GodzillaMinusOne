@@ -9,5 +9,10 @@
   "item": "godzillaminusone:naval_mine_spawn_egg",
   "chance": 0.25,
   "min": 1,
-  "max": 2
+  "max": 3,
+  "weights": [
+    6,
+    3,
+    1
+  ]
 }

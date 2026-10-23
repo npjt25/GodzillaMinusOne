@@ -51,6 +51,12 @@ public final class ShinseiMaruSounds {
         }
     }
 
+    /** Whether her motor's loop is playing (for the in-game checks). */
+    public static boolean isPlayingFor(ShinseiMaruEntity boat) {
+        Motor motor = MOTORS.get(boat.getId());
+        return motor != null && !motor.isStopped();
+    }
+
     /** How fast she's going (blocks a tick, over the ground), as this client sees her move. */
     static double speed(ShinseiMaruEntity boat) {
         double dx = boat.getX() - boat.xo;

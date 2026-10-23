@@ -33,6 +33,7 @@ import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.MobSpawnType;
 import net.minecraft.world.entity.animal.Pig;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.player.Player;
@@ -263,34 +264,57 @@ public final class ModGameTests {
 
     /**
      * Naval mines turn up in end city, nether fortress and ancient city chests, on top of their usual loot (added by a
-     * global loot modifier, nothing replaced).
+     * global loot modifier, nothing replaced): 1 to 3 of them, three the rarest (weights 6:3:1).
      */
     @GameTest(template = FLOOR, batch = "gmo_loot", timeoutTicks = 20)
     public static void navalMinesTurnUpInEndCityFortressAndAncientCityChests(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
         LootParams params = new LootParams.Builder(level).withParameter(LootContextParams.ORIGIN, helper.absoluteVec(new Vec3(4, 4, 4)))
                 .create(LootContextParamSets.CHEST);
+        int[] sizes = new int[4];
         for (ResourceLocation id : new ResourceLocation[]{BuiltInLootTables.END_CITY_TREASURE, BuiltInLootTables.NETHER_BRIDGE,
                 BuiltInLootTables.ANCIENT_CITY}) {
             LootTable table = level.getServer().getLootData().getLootTable(id);
-            int mines = 0;
+            int chests = 1000;
+            int withMines = 0;
             int others = 0;
-            for (int i = 0; i < 300; i++) {
+            for (int i = 0; i < chests; i++) {
+                int mines = 0;
                 for (ItemStack stack : table.getRandomItems(params)) {
                     if (stack.is(ModItems.NAVAL_MINE_SPAWN_EGG.get())) {
-                        mines++;
+                        mines += stack.getCount();
                     } else {
                         others++;
                     }
                 }
+                if (mines > 0) {
+                    withMines++;
+                    helper.assertTrue(mines <= 3, id + ": " + mines + " mines in one chest");
+                    sizes[mines]++;
+                }
             }
-            helper.assertTrue(mines > 0, id + " should sometimes hold naval mines");
-            helper.assertTrue(mines < 300, id + ": not every chest should, " + mines + " in 300");
-            helper.assertTrue(others > mines, id + " should still hold its usual loot");
+            helper.assertTrue(withMines > chests / 20 && withMines < chests / 2, id + ": mines in " + withMines + " of " + chests + " chests");
+            helper.assertTrue(others > chests, id + " should still hold its usual loot");
         }
+        helper.assertTrue(sizes[1] > sizes[2] && sizes[2] > sizes[3] && sizes[3] > 0,
+                "1 mine most often, 3 the rarest: " + sizes[1] + " / " + sizes[2] + " / " + sizes[3]);
         ItemStack mine = new ItemStack(ModItems.NAVAL_MINE_SPAWN_EGG.get());
         helper.assertTrue(level.getRecipeManager().getRecipes().stream().anyMatch(r -> ItemStack.isSameItem(r.getResultItem(level.registryAccess()), mine)),
                 "the naval mine's recipe should still be there");
+        helper.succeed();
+    }
+
+    /**
+     * A freshly spawned Odo Island Monster's spawn cry is all that's heard: his growl waits its full interval (vanilla
+     * starts it at zero, which made it come within a couple of seconds), and he doesn't roar over the cry.
+     */
+    @GameTest(template = FLOOR, batch = "gmo_odo_spawn", timeoutTicks = 20)
+    public static void theOdoMonstersSpawnCryIsHeardAlone(GameTestHelper helper) {
+        OdoIslandMonsterEntity odo = spawnOdo(helper, floorY(helper), 6);
+        odo.finalizeSpawn(helper.getLevel(), helper.getLevel().getCurrentDifficultyAt(odo.blockPosition()), MobSpawnType.SPAWN_EGG, null, null);
+        helper.assertTrue(odo.getAmbientSoundTime() <= -odo.getAmbientSoundInterval() + 1, "his growl should wait, timer " + odo.getAmbientSoundTime());
+        helper.assertTrue(odo.getSpawnCryTicks() > 60, "he shouldn't roar over his spawn cry");
+        remove(odo);
         helper.succeed();
     }
 

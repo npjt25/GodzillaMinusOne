@@ -93,21 +93,21 @@ public class ShinseiMaruEntity extends Entity implements GeoEntity {
     public static final double DRAFT = 0.9;
 
     // Where things are on her (blocks: to starboard, up, forward), as tools/make_props.py builds her.
-    private static final Vec3 HELM = new Vec3(0.0, 4.45, -0.12);
-    private static final Vec3 GUNNER = new Vec3(0.0, 2.35, -5.27);
+    public static final Vec3 HELM = new Vec3(0.0, 4.45, -0.12);
+    public static final Vec3 GUNNER = new Vec3(0.0, 2.35, -5.27);
     private static final Vec3 GUN_PIVOT = new Vec3(0.0, 3.54, -6.25);
     private static final double BARREL = 2.1;
     private static final double STERN = -8.8;
     /** Half her beam, her bow and her transom (blocks from her middle), her deck's height above her keel. */
     public static final double BEAM = 2.8;
-    private static final double BOW = 8.6;
-    private static final double TRANSOM = -7.7;
-    private static final double DECK = 2.2;
+    public static final double BOW = 8.6;
+    public static final double TRANSOM = -7.7;
+    public static final double DECK = 2.2;
     /** The boarding ladders, port and starboard: how far forward of her middle. */
-    private static final double LADDER = -3.6;
+    public static final double LADDER = -3.6;
     /** The ladder up the back of the wheelhouse to its roof: how far to starboard (it's to port of the door). */
-    private static final double ROOF_LADDER = -1.2;
-    private static final double WHEELHOUSE_AFT = -2.94;
+    public static final double ROOF_LADDER = -1.2;
+    public static final double WHEELHOUSE_AFT = -2.94;
 
     /** How far the gun swings either side of dead astern, and up and down (degrees). */
     public static final float GUN_ARC = 135.0F;
@@ -138,6 +138,9 @@ public class ShinseiMaruEntity extends Entity implements GeoEntity {
     };
     private double speed;
     private float deltaRotation;
+    // with nobody at the wheel: a throttle and wheel set by the game tests and the in-game checks (0, 0: none)
+    private float autoThrottle;
+    private float autoTurn;
     private int lastShot = -GUN_COOLDOWN;
 
     // (smooth movement for everyone but the helmsman, as a boat does it)
@@ -215,6 +218,19 @@ public class ShinseiMaruEntity extends Entity implements GeoEntity {
     @Override
     public ShinseiMaruPart[] getParts() {
         return this.parts;
+    }
+
+    /**
+     * For the game tests and the in-game checks (server side): steers her with nobody at the wheel, as a helmsman's
+     * keys would (throttle 1 ahead, -1 astern; turn 1 to port, -1 to starboard); 0, 0 stops her where she is.
+     */
+    public void autopilot(float throttle, float turn) {
+        this.autoThrottle = Mth.clamp(throttle, -1.0F, 1.0F);
+        this.autoTurn = Mth.clamp(turn, -1.0F, 1.0F);
+        if (throttle == 0.0F && turn == 0.0F) {
+            this.speed = 0.0;
+            setDeltaMovement(0.0, getDeltaMovement().y, 0.0);
+        }
     }
 
     /** Puts her deck tiles where they belong on her as she now lies (each tick does this; the game tests too). */
@@ -712,8 +728,8 @@ public class ShinseiMaruEntity extends Entity implements GeoEntity {
     /** The helmsman's throttle (W/S) and wheel (A/D). */
     private void steer() {
         LivingEntity helmsman = getControllingPassenger();
-        float forward = helmsman != null ? helmsman.zza : 0.0F;
-        float turn = helmsman != null ? helmsman.xxa : 0.0F;
+        float forward = helmsman != null ? helmsman.zza : this.autoThrottle;
+        float turn = helmsman != null ? helmsman.xxa : this.autoTurn;
         double wanted = forward > 0.0F ? MAX_SPEED : forward < 0.0F ? -REVERSE_SPEED : 0.0;
         this.speed = forward != 0.0F ? approach(this.speed, wanted, ACCELERATION) : this.speed * 0.985;
         // the faster she goes, the better she answers the helm

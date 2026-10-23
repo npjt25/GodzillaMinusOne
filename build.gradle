@@ -37,6 +37,14 @@ minecraft {
         }
 
         client {
+            // ./gradlew runClient -Pshots: the in-game checks and screenshots of client/harness/ShotsHarness (CI's
+            // "client" job, on a virtual display); without -Pshots the client starts as usual.
+            if (project.hasProperty('shots')) {
+                property 'godzillaminusone.shots', 'true'
+                property 'forge.logging.console.level', 'info'
+                property 'forge.logging.markers', ''
+                args '--width', '1280', '--height', '720'
+            }
         }
 
         server {

@@ -488,24 +488,28 @@ POSES = {
         "bone11": [49.3, 79.3, 0], "bone13": [-29.9, 70.6, 0], "bone14": [-11.1, 53.3, 0], "bone16": [12.2, 22.4, 0],
         "bone17": [36.4, 5.3, 0], "bone18": [47.6, 0.7, 0],
     },
-    # Almost square on to you, leaning forward, the shoulders hunched up and forward (the arms' pivots raised 4 and
-    # moved 3 forward) so that the head, lowered in front of them, sits between them; snout a little down, face
-    # towards you, jaw slightly open in a snarl. His right arm (on your left) is bent, its claw forward at the bottom
-    # of his chest, fingers loosely curled; his left (on your right) hangs lower and further out, the elbow slightly
-    # bent, the claw open and angled down. A heavy advancing stance: left foot forward, knees bent; the tail trails
-    # behind him. The arms were solved (scratchpad lab, solve_limb) from elbow, wrist and finger targets in his
-    # chest's frame: right (19,59,-10) (15,56,-19.5) (14,54.5,-22), left (-21,60,-10) (-27,51.5,-13) (-29,49,-14.5).
-    # No glow.
+    # Almost square on to you, the upper body leaning well forward (Body, Metalbody, Chest pitched 9, 11, 13 degrees),
+    # the neck bent down (Neck 42, neck2 16) so that the head hangs low in front of the shoulders, between their high
+    # armour pads, then tipped back up (Head -52) so the snout points a little down and the face and eyes look at a
+    # camera below his chest; jaw a little open (6) in a snarl. Joint rotations only, added to the model's rest
+    # rotations (nothing moved, no proportions changed; the root only goes down so his feet stay on the ground). His
+    # right arm (on your left: in GeckoLib's space his right is +x and he faces -z) bends out at the elbow and brings
+    # its claw forward to the bottom of his chest, fingers curled; his left (on your right) hangs lower and further
+    # out, the elbow a little bent, the claw open and angled down. His left foot is a step forward, knees bent; the
+    # tail trails behind. The arms were solved (solve_limb, a small optimiser over each arm's two joints) from where
+    # its elbow, wrist and knuckles should be in his chest's frame (x his right, y up, z back), all within the arm's
+    # reach: right (21,56,-13) (15.5,54,-21.5) (14.5,52,-24), left (-21.5,56.5,-10) (-27.5,47.5,-12.5)
+    # (-28.6,45.2,-13.2). No glow.
     "pose_hunched_snarl": {
-        "Root": {"rotation": [0, 0, 0], "position": [0, -2.87, 0]},
-        "Leg2": [-16, 0, 0], "Leg_bone2": [18, 0, 0], "Foot2": [-2, 0, 0],
-        "Leg": [8, 0, 3], "Leg_bone": [14, 0, 0], "Foot": [-20, 0, -3],
-        "Body": [6, 0, 0], "Metalbody": [8, 0, 0], "Chest": [10, 0, 0],
-        "Neck": [40, 0, 0], "neck2": [18, 0, 0], "Head": [-58, 0, 0], "Jew": [7, 0, 0],
-        "Right_arm": {"rotation": [-8.7, -4.3, 29.1], "position": [0, 4, -3]}, "bone": [-53.1, -35.9, -27.4],
-        "bone2": [10, 0, 0], "Finger": [35, 0, 0],
-        "Left_arm": {"rotation": [2.2, 18.3, -42.3], "position": [0, 4, -3]}, "bone4": [-4.5, 14.0, 9.6],
-        "bone5": [25, 0, 0], "Finger2": [-10, 0, 0],
+        "Root": {"rotation": [0, 0, 0], "position": [0, -2.857, 0]},
+        "Leg2": [-14, 0, 0], "Leg_bone2": [16, 0, 0], "Foot2": [-2, 0, 0],
+        "Leg": [6, 0, 3], "Leg_bone": [12, 0, 0], "Foot": [-18, 0, -3],
+        "Body": [9, 0, 0], "Metalbody": [11, 0, 0], "Chest": [13, 0, 0],
+        "Neck": [42, 0, 0], "neck2": [16, 0, 0], "Head": [-52, 0, 0], "Jew": [6, 0, 0],
+        "Right_arm": [-17.9, -3.8, 27.4], "bone": [-37.8, -29.2, -24.0],
+        "bone2": [25, -10, 0], "Finger": [60, 0, 0], "bone3": [35, 0, 0],
+        "Left_arm": [-2.7, 8.8, -29.9], "bone4": [20.7, 3.2, 8.6],
+        "bone5": [-15, 0, 0], "Finger2": [-12, 0, 0], "bone6": [-10, 0, 0],
         "bone11": [-6, 4, 0], "bone13": [2, 8, 0], "bone14": [6, 10, 0], "bone16": [8, 8, 0], "bone17": [6, 4, 0],
         "bone18": [2, -4, 0],
     },

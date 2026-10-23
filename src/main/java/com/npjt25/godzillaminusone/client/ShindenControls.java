@@ -7,15 +7,20 @@ import com.npjt25.godzillaminusone.GodzillaMinusOne;
 import com.npjt25.godzillaminusone.entity.ShindenEntity;
 import com.npjt25.godzillaminusone.network.ModNetwork;
 import com.npjt25.godzillaminusone.network.ShindenFirePacket;
+import net.minecraft.client.Camera;
+import net.minecraft.client.CameraType;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.InputEvent;
 import net.minecraftforge.client.event.RegisterKeyMappingsEvent;
 import net.minecraftforge.client.event.RenderLivingEvent;
+import net.minecraftforge.client.event.ViewportEvent;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.eventbus.api.EventPriority;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
@@ -27,7 +32,9 @@ import org.lwjgl.glfw.GLFW;
  * plane sets the rate of fire), and the pilot's model leans and pitches with the plane so they stay sat in the
  * cockpit. Holding Free Look (Left Control by default, in Controls, Godzilla Minus One; it only counts while flying a
  * Shinden) lets the pilot look around while the plane flies on as it was heading; let go, and the view swings smoothly
- * back to the nose before the plane answers to the mouse again, so it never jerks round.
+ * back to the nose before the plane answers to the mouse again, so it never jerks round. Piloting it, you see it from
+ * behind (third person, forced; the camera pulled back far enough for its 13-block wingspan), back to first person
+ * when you get out.
  */
 @Mod.EventBusSubscriber(modid = GodzillaMinusOne.MODID, bus = Mod.EventBusSubscriber.Bus.FORGE, value = Dist.CLIENT)
 public final class ShindenControls {
@@ -40,6 +47,10 @@ public final class ShindenControls {
     private static final float EASE_BACK = 0.35F;
     /** The plane we're free-looking from (to hand its steering back if we leave it). */
     private static ShindenEntity freeLooking;
+    /** Piloting, the camera looks at the middle of the plane from this far away: all of it in the picture. */
+    static final double CAMERA_DISTANCE = 11.0;
+    /** Whether we put the camera into third person (to put it back in first person when the pilot gets out). */
+    private static boolean forcedThirdPerson;
 
     @Mod.EventBusSubscriber(modid = GodzillaMinusOne.MODID, bus = Mod.EventBusSubscriber.Bus.MOD, value = Dist.CLIENT)
     public static final class Keys {
@@ -74,6 +85,7 @@ public final class ShindenControls {
             requestCooldown--;
         }
         freeLook(mc);
+        thirdPerson(mc);
         if (mc.player == null || mc.screen != null || !mc.options.keyUse.isDown()
                 || !(mc.player.getVehicle() instanceof ShindenEntity plane) || plane.getControllingPassenger() != mc.player) {
             return;
@@ -82,6 +94,29 @@ public final class ShindenControls {
             requestCooldown = REQUEST_INTERVAL;
             ModNetwork.CHANNEL.sendToServer(new ShindenFirePacket(plane.getId()));
         }
+    }
+
+    /** Piloting, the camera is behind the plane (third person); out of it, back to first person if we moved it. */
+    private static void thirdPerson(Minecraft mc) {
+        boolean piloting = mc.player != null && mc.player.getVehicle() instanceof ShindenEntity plane && plane.getControllingPassenger() == mc.player;
+        if (piloting && mc.options.getCameraType().isFirstPerson()) {
+            mc.options.setCameraType(CameraType.THIRD_PERSON_BACK);
+            forcedThirdPerson = true;
+        } else if (!piloting && forcedThirdPerson) {
+            forcedThirdPerson = false;
+            mc.options.setCameraType(CameraType.FIRST_PERSON);
+        }
+    }
+
+    /** Piloting, in third person: the camera pulled back to frame the whole plane (not Minecraft's 4 blocks, inside it). */
+    @SubscribeEvent
+    public static void onCameraSetup(ViewportEvent.ComputeCameraAngles event) {
+        Camera camera = event.getCamera();
+        if (!camera.isDetached() || !(camera.getEntity() instanceof Player player) || !(player.getVehicle() instanceof ShindenEntity plane)) {
+            return;
+        }
+        Vec3 middle = plane.getPosition((float) event.getPartialTick()).add(0.0, 2.0, 0.0);
+        CameraPlacement.pullBack(camera, plane, middle, CAMERA_DISTANCE);
     }
 
     /** Free Look: the plane keeps the heading it had when the key went down; the mouse only turns the pilot's view. */

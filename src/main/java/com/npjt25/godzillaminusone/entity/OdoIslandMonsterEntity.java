@@ -145,6 +145,9 @@ public class OdoIslandMonsterEntity extends Monster implements GeoEntity {
     private int attackCooldown;
     private int roarTicks;
     private int roarCooldown;
+    /** After spawning: his spawn cry (odo.spawn, 4 s) is still going, so he doesn't roar over it. */
+    private int spawnCryTicks;
+    private static final int SPAWN_CRY_TICKS = 80;
     /** The sound the roar under way makes (odo.roar, or odo.spotted when a searchlight caught him). */
     @Nullable
     private SoundEvent roarSound;
@@ -422,7 +425,7 @@ public class OdoIslandMonsterEntity extends Monster implements GeoEntity {
         boolean wasCalm = this.rageTicks <= 0;
         this.rageTicks = Math.max(this.rageTicks, ticks);
         setState(STATE_ANGRY);
-        if (wasCalm && this.roarCooldown <= 0) {
+        if (wasCalm && this.roarCooldown <= 0 && this.spawnCryTicks <= 0) {
             startRoar(ModSounds.ODO_ROAR.get());
         }
     }
@@ -476,6 +479,9 @@ public class OdoIslandMonsterEntity extends Monster implements GeoEntity {
         }
         if (this.attackCooldown > 0) {
             this.attackCooldown--;
+        }
+        if (this.spawnCryTicks > 0) {
+            this.spawnCryTicks--;
         }
         if (this.roarTicks > 0) {
             this.roarTicks--;
@@ -765,12 +771,28 @@ public class OdoIslandMonsterEntity extends Monster implements GeoEntity {
 
     // ------------------------------------------------------------------ sounds & saving
 
-    /** Spawned (spawn egg, /summon, a spawner): his arrival cry, heard ~64 blocks around, once. */
+    /**
+     * Spawned (spawn egg, /summon, a spawner): his arrival cry (odo.spawn), heard ~64 blocks around, once, and nothing
+     * else over it: his growl (vanilla starts a new mob's ambient sound timer at zero, so it used to come within a couple
+     * of seconds, sounding like his spawn noise) waits its full interval, and he doesn't roar while the cry lasts.
+     */
     @Override
     public SpawnGroupData finalizeSpawn(ServerLevelAccessor level, DifficultyInstance difficulty, MobSpawnType reason,
                                         @Nullable SpawnGroupData data, @Nullable CompoundTag tag) {
         level.getLevel().playSound(null, getX(), getY() + 4.0, getZ(), ModSounds.ODO_SPAWN.get(), SoundSource.HOSTILE, 4.0F, 1.0F);
+        this.ambientSoundTime = -getAmbientSoundInterval();
+        this.spawnCryTicks = SPAWN_CRY_TICKS;
         return super.finalizeSpawn(level, difficulty, reason, data, tag);
+    }
+
+    /** For the game tests: ticks of his spawn cry still to go (no roaring meanwhile). */
+    public int getSpawnCryTicks() {
+        return this.spawnCryTicks;
+    }
+
+    /** For the game tests: ticks before his growl can come (negative: it can't yet). */
+    public int getAmbientSoundTime() {
+        return this.ambientSoundTime;
     }
 
     @Nullable

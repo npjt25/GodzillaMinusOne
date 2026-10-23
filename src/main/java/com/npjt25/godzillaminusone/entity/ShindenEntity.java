@@ -479,14 +479,31 @@ public class ShindenEntity extends Mob implements GeoEntity {
 
     @Override
     public void registerControllers(AnimatableManager.ControllerRegistrar controllers) {
+        // (the propeller turns, and the engine is heard, only while it flies: parked with its pilot aboard it's silent)
         controllers.add(new AnimationController<>(this, "flight", 5,
-                state -> isVehicle() ? state.setAndContinue(FLY) : PlayState.STOP)
+                state -> isEngineRunning() ? state.setAndContinue(FLY) : PlayState.STOP)
                 .setSoundKeyframeHandler(this::onSoundKeyframe));
         controllers.add(new AnimationController<>(this, "guns", 0, state -> PlayState.STOP)
                 .triggerableAnim("fire", FIRE)
                 .setSoundKeyframeHandler(this::onSoundKeyframe)
                 .setParticleKeyframeHandler(this::onParticleKeyframe));
     }
+
+    /**
+     * Whether its engine is running (client side, for the propeller and the engine's sound): with a pilot aboard, in
+     * the air, or rolling along the ground under its own power (taking off, landing); not parked.
+     */
+    public boolean isEngineRunning() {
+        if (!isVehicle()) {
+            return false;
+        }
+        double dx = getX() - this.xo;
+        double dz = getZ() - this.zo;
+        return !onGround() || dx * dx + dz * dz > ENGINE_GROUND_SPEED * ENGINE_GROUND_SPEED;
+    }
+
+    /** On the ground, it has to be rolling at least this fast (blocks a tick) for its engine to be heard. */
+    private static final double ENGINE_GROUND_SPEED = 0.1;
 
     private void onSoundKeyframe(SoundKeyframeEvent<ShindenEntity> event) {
         String name = event.getKeyframeData().getSound();
