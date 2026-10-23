@@ -27,7 +27,7 @@ Film-accurate "Ginza blast" sequence: flash, fireball, dust ring/shockwave, risi
 - Sounds: roar, searchlight-spotted shriek, spawn cry (alone: no vanilla ambient growl or roar over it), bite, nuked cry, distant roar (100+ blocks). Vanilla-style spawn egg. Never gets stuck going for a light (tears through obstacles; gives up after 30 s and hunts the operator).
 
 ## Searchlight
-WWII searchlight, mountable. Rider aims it by looking; **R** toggles the lamp. Unmanned it **sweeps automatically like a clock** (doesn't anger Odo). Beam is slightly blocky (stepped square sections + soft core) with a block-by-block lit pool; drawn after water/ice so it no longer x-rays through them.
+WWII searchlight, mountable. Rider aims it by looking; **R** toggles the lamp. Unmanned it **sweeps automatically like a clock** (doesn't anger Odo). Beam is a soft glow round a core, each stretch facing the camera and fading when seen end-on (no glare in the middle of the operator's view), with a block-by-block lit pool (on the surface over water); drawn after water/ice so it doesn't x-ray through them. Mobs anywhere in a lit beam (inside the cone, short of where it lands, in sight of the lens) are drawn lit, client side, via a mixin on EntityRenderDispatcher.getPackedLightCoords.
 
 ## Shinsei Maru (boat)
 - The film's run-down minesweeper, **16.3 × 5.6 blocks**, heavily weathered (rust streaks, flaking paint, tyre fenders, nets, rigging).
@@ -45,10 +45,11 @@ WWII searchlight, mountable. Rider aims it by looking; **R** toggles the lamp. U
 - Unlock via Walkers (unlock key / `/walkers change2ndShape`) or ReMorphed (defeat him or `/remorphed addShape`).
 - Forced third-person camera pulled back to frame his whole body.
 - Moves with a small top-left HUD: **Z** Tail Whip, **H** Scratch, **J** Bite, **K** Roar (weakness/slowness in 48 blocks), **B** Atomic Breath (full charge + nuclear blast, 3-min recharge; head follows your look).
+- The five keys are ordinary key bindings (Options > Controls > Key Binds > Godzilla Minus One; saved in options.txt; the HUD shows the bound keys), active only while you're Godzilla (`ModKeyContexts.GODZILLA_SHAPE`), whether Walkers or ReMorphed made you him.
 - Walking breaks through buildings and leaves footprints (`playable` config section). J is a real bite. Rooted from breath charge to the end of the post-beam roar; any interruption frees you.
 
 ## Playing as the Odo Island Monster (optional)
-- Hold Left Ctrl (rebindable, only active as Odo) to run at 6 blocks/s; left click bites.
+- Hold Left Ctrl (rebindable, only active as Odo) to run at 12 blocks/s (`playerOdoRunBlocksPerSecond`); left click bites.
 - Note: Walkers' ability key is also R (conflicts with the mod's "Vehicle Action"). Shinden: hold Left Ctrl for free look.
 - Checked in the released game with Walkers 5.8.13, ReMorphed 4.2, CraftedCore 5.8.2 (mod ids walkers, remorphed, craftedcore): Godzilla's J bite, rooted through B's charge and roar then free, breaking through a building, changing back; the Odo's run (6.00 blocks/s measured) and left-click bite.
 

@@ -335,11 +335,7 @@ final class Scenes {
      * the beam turned away, and the lamp switched off, each putting the lit one back in the dark.
      */
     private static void searchlightOperator() {
-        commands("time set 18000",
-                "fill 194 -60 -231 206 -53 -231 minecraft:stone",
-                "summon minecraft:zombie 200.5 -60 -211.5 {NoAI:1b,Silent:1b,PersistenceRequired:1b,Rotation:[0f,0f]}",
-                "summon minecraft:zombie 206.5 -60 -211.5 {NoAI:1b,Silent:1b,PersistenceRequired:1b,Rotation:[0f,0f]}",
-                "summon minecraft:zombie 200.5 -60 -235.5 {NoAI:1b,Silent:1b,PersistenceRequired:1b,Rotation:[0f,0f]}");
+        commands("time set 18000");
         once("searchlight operator: no clouds", () -> mc().options.cloudStatus().set(CloudStatus.OFF));
         once("searchlight operator: the game's camera", () -> view(null, null));
         server("searchlight operator: at it", level -> {
@@ -354,6 +350,16 @@ final class Scenes {
             player.teleportTo(level, OPERATED.x - 1.5, OPERATED.y, OPERATED.z, 180.0F, 2.0F);
             player.startRiding(light, true);
         });
+        waitTicks(40);
+        // (only now: a fill where no player is, in chunks that aren't loaded, does nothing)
+        commands("fill 194 -60 -231 206 -53 -231 minecraft:stone",
+                "summon minecraft:zombie 200.5 -60 -211.5 {NoAI:1b,Silent:1b,PersistenceRequired:1b,Rotation:[0f,0f]}",
+                "summon minecraft:zombie 206.5 -60 -211.5 {NoAI:1b,Silent:1b,PersistenceRequired:1b,Rotation:[0f,0f]}",
+                "summon minecraft:zombie 200.5 -60 -235.5 {NoAI:1b,Silent:1b,PersistenceRequired:1b,Rotation:[0f,0f]}");
+        waitTicks(5);
+        check("searchlight operator: the wall is up", () -> mc().level != null
+                && mc().level.getBlockState(BlockPos.containing(OPERATED.x, -57.0, -231.0)).is(net.minecraft.world.level.block.Blocks.STONE)
+                ? null : "no wall");
         once("searchlight operator: first person", () -> {
             mc().options.setCameraType(CameraType.FIRST_PERSON);
             mc().options.fov().set(70);

@@ -318,13 +318,22 @@ final class ShapeScenes {
         mc().options.save();
     }
 
-    /** Whether options.txt has {@code mapping} bound to {@code key} (null), or what's wrong. */
+    /**
+     * Whether options.txt has {@code mapping} bound to {@code key} (null), or what's wrong: its line is
+     * {@code key_<name>:<key>}, with Forge's {@code :<modifier>} after it (NONE: no Ctrl, Shift or Alt).
+     */
     @Nullable
     private static String saved(KeyMapping mapping, String key) {
-        String line = "key_" + mapping.getName() + ":" + key;
+        String prefix = "key_" + mapping.getName() + ":";
         try {
-            return Files.readAllLines(new File(mc().gameDirectory, "options.txt").toPath(), StandardCharsets.UTF_8).contains(line) ? null
-                    : "no \"" + line + "\" in options.txt";
+            for (String line : Files.readAllLines(new File(mc().gameDirectory, "options.txt").toPath(), StandardCharsets.UTF_8)) {
+                if (line.startsWith(prefix)) {
+                    log("shapes: options.txt: " + line);
+                    String value = line.substring(prefix.length());
+                    return value.equals(key) || value.equals(key + ":NONE") ? null : "saved as " + value;
+                }
+            }
+            return "no " + prefix + " line in options.txt";
         } catch (IOException e) {
             return "options.txt: " + e;
         }

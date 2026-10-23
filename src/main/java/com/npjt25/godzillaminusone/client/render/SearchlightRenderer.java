@@ -166,8 +166,8 @@ public class SearchlightRenderer extends GeoEntityRenderer<SearchlightEntity> {
     private static final double NEAR = 2.0;
 
     /**
-     * How much of a stretch of the beam shows, seen from {@code toEye} away: all of it seen side on (or nearly), none of
-     * it seen end-on (within about 3 degrees of its line), nor right by the camera.
+     * How much of a stretch of the beam shows, seen from {@code toEye} away: all of it seen more than about 15 degrees
+     * off its line, none of it seen end-on (within about 3 degrees), nor right by the camera.
      */
     private static double sideOn(Vec3 dir, Vec3 toEye) {
         double distance = toEye.length();
@@ -175,7 +175,7 @@ public class SearchlightRenderer extends GeoEntityRenderer<SearchlightEntity> {
             return 0.0;
         }
         double sine = dir.cross(toEye).length() / distance;
-        double side = Mth.clamp((sine - 0.05) / 0.3, 0.0, 1.0);
+        double side = Mth.clamp((sine - 0.05) / 0.2, 0.0, 1.0);
         double near = Mth.clamp((distance - 0.5) / (NEAR - 0.5), 0.0, 1.0);
         return side * side * (3.0 - 2.0 * side) * near;
     }

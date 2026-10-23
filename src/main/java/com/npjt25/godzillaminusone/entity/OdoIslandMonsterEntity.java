@@ -35,6 +35,7 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.DifficultyInstance;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.ServerLevelAccessor;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.phys.AABB;
@@ -290,10 +291,14 @@ public class OdoIslandMonsterEntity extends Monster implements GeoEntity {
         StringBuilder goals = new StringBuilder();
         this.goalSelector.getRunningGoals().forEach(g -> goals.append(g.getGoal().getClass().getSimpleName()).append(' '));
         int inside = 0;
+        StringBuilder which = new StringBuilder();
         for (BlockPos pos : BlockPos.betweenClosed(BlockPos.containing(getBoundingBox().minX, getBoundingBox().minY + 0.01, getBoundingBox().minZ),
                 BlockPos.containing(getBoundingBox().maxX, getBoundingBox().maxY, getBoundingBox().maxZ))) {
-            if (!level().getBlockState(pos).getCollisionShape(level(), pos).isEmpty()) {
-                inside++;
+            BlockState state = level().getBlockState(pos);
+            if (!state.getCollisionShape(level(), pos).isEmpty()) {
+                if (inside++ < 4) {
+                    which.append(' ').append(BuiltInRegistries.BLOCK.getKey(state.getBlock()).getPath()).append('@').append(pos.toShortString());
+                }
             }
         }
         StringBuilder solid = new StringBuilder();
@@ -301,10 +306,10 @@ public class OdoIslandMonsterEntity extends Monster implements GeoEntity {
             solid.append(entity.getType().toShortString()).append(' ');
         }
         return String.format("goals [%s], move %s to (%.1f, %.1f, %.1f), collision h %b v %b, on ground %b, motion (%.2f, %.2f, %.2f), roar %d, "
-                        + "blocks in his box %d, solid entities against him [%s], attack cooldown %d, pending hit %d",
+                        + "blocks in his box %d%s, solid entities against him [%s], attack cooldown %d, pending hit %d",
                 goals.toString().trim(), getMoveControl().hasWanted() ? "wanted" : "idle", getMoveControl().getWantedX(),
                 getMoveControl().getWantedY(), getMoveControl().getWantedZ(), this.horizontalCollision, this.verticalCollision, onGround(),
-                getDeltaMovement().x, getDeltaMovement().y, getDeltaMovement().z, this.roarTicks, inside, solid.toString().trim(),
+                getDeltaMovement().x, getDeltaMovement().y, getDeltaMovement().z, this.roarTicks, inside, which, solid.toString().trim(),
                 this.attackCooldown, this.pendingHitTicks);
     }
 

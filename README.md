@@ -143,8 +143,10 @@ the blue one a player.*
   his reach, he forgets everything else and goes after her, for her helmsman first, then her gunner, and keeps
   after her even with nobody aboard. One bite or swipe wrecks her.
 - **Only naval mines hurt him** (as in the add-on), each taking about 10% of his health and stunning him.
-  At zero health he collapses (5 seconds), lies defeated for **15 seconds** (`downedSeconds`, counted from the end of
-  his collapse), then regenerates and rises again.
+  At zero health he collapses (5 seconds), lies defeated for **15 seconds**, then regenerates and rises again. The
+  resting time is `downedSeconds` (seconds, 0 to 3600, default 15) in the `godzilla` section of
+  `config/godzillaminusone-common.toml`: counted from the end of his collapse, which, like his getting up, plays as
+  always. The server keeps the time (in single player, the world on your computer), so on a server only its file counts.
 - **The one exception: his burnt face.** While his mouth is still raw from his atomic breath (the 40 seconds it
   takes to heal), a Shinden flown **straight into his face** at full speed takes **all his health**: he collapses as
   when the mines bring him down. Only his face counts (not his chest, tail or legs), and not once it has healed.
@@ -156,9 +158,10 @@ the blue one a player.*
   and back while you fly).
   **W** accelerates, **S** brakes, the mouse steers: look up to climb, down to dive.
   The plane noses up as it climbs and down as it dives, stays level in level flight, and banks into turns.
-- **Hold Left Control to look around** (Free Look, rebindable): the plane flies on the way it was heading while you
-  look; let go and your view swings smoothly back to the nose before the mouse steers again (no sudden turn). The
-  cannons fire along the nose.
+- **Hold Left Control to look around** ("Shinden Free Look" in Options, Controls, Key Binds, Godzilla Minus One, to
+  rebind): the plane flies on the way it was heading while you look; let go and your view swings smoothly back to the
+  nose before the mouse steers again (no snap, no sudden turn). It only counts while you're flying a Shinden, so the
+  same key still sprints everywhere else. The cannons fire along the nose.
 - **Its engine is silent while it sits still on the ground**, even with you in it; you hear it once it's rolling or
   in the air.
 - You stay in the cockpit however it pitches and banks. **Hold right-click to fire the plane's cannons**
@@ -180,11 +183,19 @@ the blue one a player.*
 - Hitting it by hand (or with a tool) doesn't hurt it: it rocks with a clank, and **four hits knock it loose**
   into its item so you can pick it back up (one hit in creative).
 - Anything else that damages it sets it off: arrows, explosions, fire, Godzilla's footsteps, his radiation.
-- **Found in chests**: end city treasure (25% of chests), nether fortress (15%) and ancient city (20%), on top of
-  their usual loot (a global loot modifier: nothing is taken out). A chest that has them holds **1 to 3**, 3 the
-  rarest: 1 six times in ten, 2 three times, 3 once (so a 3 is in 2.5% of end city chests, 1.5% of fortress chests
-  and 2% of ancient city chests). The chances and the 6:3:1 weights are in
-  `data/godzillaminusone/loot_modifiers/*.json` (a datapack can override them). It can still be crafted.
+- **Found in chests**, as the same naval mine item the recipe makes (`godzillaminusone:naval_mine_spawn_egg`,
+  "Spawn Naval Mine": use it to put a mine down), on top of the chests' usual loot (a global loot modifier: nothing
+  is taken out):
+
+  | Chest | Chance a chest has them | How many |
+  | --- | --- | --- |
+  | End city treasure | 25% | 1 to 3 |
+  | Nether fortress | 15% | 1 to 3 |
+  | Ancient city | 20% | 1 to 3 |
+
+  1 six times in ten, 2 three times, 3 once (so a 3 is in 2.5% of end city chests, 1.5% of fortress chests and 2% of
+  ancient city chests). The chances and the 6:3:1 weights are in `data/godzillaminusone/loot_modifiers/*.json` (a
+  datapack can override them). It can still be crafted.
 - **Remote Detonator** (a lightning rod on top as the antenna / iron ingot, redstone, iron ingot / iron ingot,
   stone button, iron ingot): point it at a naval mine up to 160 blocks away and right-click, and it goes off.
   Blast radius 30: stand well back.
@@ -226,13 +237,22 @@ the blue one a player.*
 - Crafted from iron ingots, glass, a redstone lamp and iron blocks (iron ingot, glass, iron ingot / iron
   ingot, redstone lamp, iron ingot / three iron blocks). Right-click the ground to set it up facing the way
   you look.
-- The beam is a slightly blocky shaft of light: square sections that widen in half-block steps and fade with
-  distance, round a soft bright core, with a pool of light picked out block by block where it lands. It's drawn
-  after water and ice and never hides them: looking at it over the sea or through ice you no longer see straight
-  through to what's under the water. It ends at the surface of water.
+- The beam is a shaft of light: a soft glow as wide as the cone round a brighter core, fading with distance, with a
+  pool of light picked out block by block where it lands. Each stretch of it is drawn facing you; seen down its
+  length (as its operator does, or from behind them) the far part fades out, so it doesn't pile up into a glare in
+  the middle of the view, and it fades where it passes right by the camera. It's drawn after water and ice and never
+  hides them: looking at it over the sea or through ice you don't see straight through to what's under the water.
+  It ends at the surface of water, and lights up the surface there.
+- **Mobs in the beam are lit up** where it reaches them, anywhere along it (not just where it lands): inside the cone,
+  short of where it lands and with nothing solid between them and the lens, they're drawn as lit by a bright light
+  (brightest near the lamp and on the beam's axis), never darker than the world has them. No glowing outline: they
+  just stand in the light. Behind a wall, beside the beam or past where it lands they stay as dark as the night; move
+  the beam off them or switch the lamp off and they go dark again within a few ticks. (Every player's game works this
+  out from the searchlights it sees, so everyone sees the same.)
 - **Left alone it sweeps round on its own**, like the hand of a clock, a full turn every 40 seconds, at the tilt it
   was left at, throwing a white beam.
-- Right-click it to sit at it: the lamp turns and tilts with where you look. The beam reaches 160 blocks. Press
+- Right-click it to sit at it: the lamp turns and tilts with where you look (the beam keeps up with your view
+  exactly, in first or third person). The beam reaches 160 blocks. Press
   **R** ("Vehicle Action" in Controls) to switch the lamp **off**, and again to switch it on; it stays as you left
   it. It widens as it goes and lights up **a wide pool** where it lands: a bright
   spot 10 to 25 blocks across (wider the further it reaches) on whatever it hits, lit by a ring of light
@@ -362,7 +382,12 @@ With [Walkers](https://www.curseforge.com/minecraft/mc-mods/woodwalkers) install
     `mobGriefing`), then a **3 minute** recharge, counted down beside it (change it in the config: it's his
     breath interval). You stand rooted from the start of the charge until the roar after the beam is over, then
     you're free to move again.
-  All five are in Controls under Godzilla Minus One, to rebind.
+  These are the defaults. All five are ordinary key bindings: change them in **Options, Controls, Key Binds,
+  Godzilla Minus One** ("Godzilla: Tail Whip", "Godzilla: Scratch", "Godzilla: Bite", "Godzilla: Roar",
+  "Godzilla: Atomic Breath"). They're saved with the rest of your controls (`options.txt`), there's no other key
+  setting anywhere, and the list on screen shows whatever they're bound to. They only count while you're playing as
+  Godzilla (whether Walkers or ReMorphed made you him), so as yourself those keys are free for anything else; and
+  Controls marks one red if it shares a key with one of the game's own.
 - Moves are seen by everyone near you (multiplayer). Whatever interrupts you (changing back, dying, respawning,
   changing dimension, logging out) frees you: you're never left rooted.
 - Walkers' own keys are G, U, V and R (its shape's ability). **R is also this mod's "Vehicle Action"** (the Shinsei
@@ -372,9 +397,11 @@ With [Walkers](https://www.curseforge.com/minecraft/mc-mods/woodwalkers) install
 
 Take his shape as you would Godzilla's (`godzillaminusone:odo_island_monster`):
 
-- **Hold Left Control to run** ("Odo Island Monster: Run", rebindable): **6 blocks a second** on level ground
-  (`playerOdoRunSpeed`); his shape runs. The key only counts while you're him (and not riding anything), so it
-  never clashes with the Shinden's Free Look on the same key.
+- **Hold Left Control to run** ("Odo Island Monster: Run", rebindable): **12 blocks a second** on level ground
+  (`playerOdoRunBlocksPerSecond`); his shape runs. Only the player playing as him runs faster: the speed-up is one
+  modifier on your speed, made whatever it takes to cover 12 blocks a second (sprinting included), and it comes off
+  when you let go of the key, change back, die or log out. The key only counts while you're him (and not riding
+  anything), so it never clashes with the Shinden's Free Look on the same key.
 - **Left click bites** (his bite animation, seen by everyone; the jaws close 0.75 s in, `playerOdoBiteDamage`) instead
   of a punch.
 - In third person (F5) the camera stands far enough back to show all of him (Minecraft's own is inside his back).
@@ -445,16 +472,17 @@ mod's part:
 
   | Setting | Section | Default | What it does |
   | --- | --- | --- | --- |
-  | `downedSeconds` | `godzilla` | 15 | Seconds he lies defeated, counted from the end of his 5 s collapse, before he regenerates and gets up. |
+  | `downedSeconds` | `godzilla` | 15 | Resting time: seconds (0 to 3600) he lies defeated, counted from the end of his 5 s collapse, before he regenerates and gets up. Kept by the server. |
   | `demolishFromHeight` | `godzilla` | -1 (23) | How tall a building must be for him to demolish it; -1 = half his real height. |
   | `demolishDownToHeight` | `godzilla` | -1 (11) | How tall he leaves it; -1 = a quarter of his real height. |
   | `demolitionIntervalSeconds` | `godzilla` | 20 | Seconds between buildings he picks to demolish. |
   | `minTargetDistance` | `atomic_breath` | 75 | He only starts an atomic breath at a target at least this far away. |
   | `playerGodzillaBreaksBlocks` | `playable` | true | Playing as Godzilla: walking and his blows break what's built. |
   | `playerGodzillaFootprints` | `playable` | true | Playing as Godzilla: strides crush footprints. |
-  | `playerOdoRunSpeed` | `playable` | 6.0 | Playing as the Odo: running speed, blocks a second. |
+  | `playerOdoRunBlocksPerSecond` | `playable` | 12.0 | Playing as the Odo: running speed, blocks a second on level ground (1 to 20). |
   | `playerOdoBiteDamage` | `playable` | 30 | Playing as the Odo: bite damage. | (The crater, flattening
-  and building settings have new names, so a config file from an earlier version picks up the new defaults.)
+  and building settings have new names, so a config file from an earlier version picks up the new defaults; so does
+  the Odo's run speed, `playerOdoRunSpeed` (6) before.)
 
 ## Building
 

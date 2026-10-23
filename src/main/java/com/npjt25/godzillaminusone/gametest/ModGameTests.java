@@ -925,7 +925,8 @@ public final class ModGameTests {
         helper.assertTrue(odo.getHuntedLight() == light, "caught in its beam he should go for the searchlight");
         BlockPos origin = helper.absolutePos(BlockPos.ZERO);
         helper.onEachTick(() -> {
-            if (helper.getTick() % 100 == 0 || light.isRemoved() && !odoTowerDone(run)) {
+            // (every 20 ticks at first: twice now something filled his box while he stood roaring, and he was stuck)
+            if (helper.getTick() % 100 == 0 || helper.getTick() < 200 && helper.getTick() % 20 == 0 || light.isRemoved() && !odoTowerDone(run)) {
                 BlockPos at = BlockPos.containing(odo.position()).subtract(origin);
                 GodzillaMinusOne.LOGGER.info("odo tower {} tick {}: odo at {} (yaw {}), hunting the light {}, stuck {}, target {}, light {} at y {}, tower {} blocks",
                         run, helper.getTick(), at.toShortString(), Math.round(odo.getYRot()), odo.getHuntedLight() != null,
