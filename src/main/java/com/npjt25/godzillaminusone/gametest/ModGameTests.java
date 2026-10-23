@@ -781,7 +781,7 @@ public final class ModGameTests {
         odoTower(helper, "from far right", 11.0);
     }
 
-    private static void odoTower(GameTestHelper helper, String run, double x) {
+    private static void odoTower(GameTestHelper helper, String run, double startX) {
         int floor = floorY(helper);
         // room to move: he's 9 wide and 14 tall, and the rock round the test's pocket is ground he doesn't break
         for (int x = -7; x <= 15; x++) {
@@ -816,10 +816,10 @@ public final class ModGameTests {
                 }
             }
         }
-        OdoIslandMonsterEntity odo = spawnOdo(helper, floor, x, 4);
+        OdoIslandMonsterEntity odo = spawnOdo(helper, floor, startX, 4);
         SearchlightEntity light = helper.spawn(ModEntities.SEARCHLIGHT.get(), new Vec3(4.5, floor + 9, 27.5));
         // (behind him, clear of him: one inside his box shoved him aside, a different way every time)
-        Pig operator = helper.spawn(EntityType.PIG, new Vec3(x, floor + 1, -3.0));
+        Pig operator = helper.spawn(EntityType.PIG, new Vec3(startX, floor + 1, -3.0));
         operator.setNoAi(true);
         odo.spottedBy(light, operator);
         helper.assertTrue(odo.getHuntedLight() == light, "caught in its beam he should go for the searchlight");
