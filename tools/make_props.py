@@ -143,9 +143,13 @@ def weathered(region, amount, rng):
     return out * (1 - grime) + GRIME * grime
 
 
-def write(name, bones, size, palette, glow_kinds=None, seed=1, texels=TEXELS, planks=None, bounds=4, weather=None):
+def write(name, bones, size, palette, glow_kinds=None, seed=1, texels=TEXELS, planks=None, bounds=4, weather=None, styles=None):
+    """styles (kind -> how it's painted, see paint_boat) paints the texture face by face instead of with paint()."""
     pack(bones, size)
-    img, glow = paint(bones, size, palette, glow_kinds or {}, seed, texels, planks, weather)
+    if styles is not None:
+        img, glow = paint_boat(bones, size, palette, seed, texels, styles), None
+    else:
+        img, glow = paint(bones, size, palette, glow_kinds or {}, seed, texels, planks, weather)
     tex = os.path.join(ASSETS, "textures", "entity")
     Image.fromarray(img.astype(np.uint8), "RGBA").save(os.path.join(tex, name + ".png"))
     if glow_kinds:
@@ -173,6 +177,233 @@ def write(name, bones, size, palette, glow_kinds=None, seed=1, texels=TEXELS, pl
         json.dump(geo, f, indent=1)
         f.write("\n")
     print("wrote", name, sum(len(b["cubes"]) for b in bones.values()), "cubes")
+
+
+# ---------------------------------------------------------------- the Shinsei Maru's weathered paint
+
+RUST_DARK2 = np.array([70.0, 36.0, 22.0])
+RUST_MID = np.array([122.0, 62.0, 32.0])
+RUST_LIGHT = np.array([160.0, 92.0, 50.0])
+BARE = np.array([104.0, 102.0, 98.0])
+ALGAE = np.array([58.0, 66.0, 40.0])
+
+
+def smooth_noise(h, w, cell, rng, octaves=2):
+    """Value noise in [0, 1]: random values on a coarse grid, bilinearly blended, a finer octave on top."""
+    out = np.zeros((h, w))
+    amp, total = 1.0, 0.0
+    for o in range(octaves):
+        c = max(1.0, cell / (2 ** o))
+        gh, gw = int(h / c) + 2, int(w / c) + 2
+        grid = rng.random((gh, gw))
+        ys, xs = np.arange(h) / c, np.arange(w) / c
+        y0, x0 = np.floor(ys).astype(int), np.floor(xs).astype(int)
+        fy, fx = (ys - y0)[:, None], (xs - x0)[None, :]
+        fy, fx = fy * fy * (3 - 2 * fy), fx * fx * (3 - 2 * fx)
+        a = grid[y0][:, x0]
+        b = grid[y0][:, x0 + 1]
+        cc = grid[y0 + 1][:, x0]
+        d = grid[y0 + 1][:, x0 + 1]
+        out += amp * ((a * (1 - fx) + b * fx) * (1 - fy) + (cc * (1 - fx) + d * fx) * fy)
+        total += amp
+        amp *= 0.5
+    return out / total
+
+
+def faces(sx, sy, sz):
+    """The faces of a box's UV net (Bedrock box UV, in texels): (name, x, y, width, height). Sides run top to bottom."""
+    return [("top", sz, 0, sx, sz), ("bottom", sz + sx, 0, sx, sz),
+            ("side", 0, sz, sz, sy), ("side", sz, sz, sx, sy), ("side", sz + sx, sz, sz, sy), ("side", 2 * sz + sx, sz, sx, sy)]
+
+
+def rusty_side(face, base, amount, t, rng, primer=True, algae=0.0):
+    """A painted side, weathered: grime darkening towards the bottom, rust running down from the top edge in streaks
+    (darker, browner as they go), rust blooms with dark cores, flakes of paint gone to the primer (or bare metal) with
+    a dark rim, and the edges worn pale."""
+    h, w = face.shape[:2]
+    if h == 0 or w == 0:
+        return face
+    out = face.copy()
+    down = (np.arange(h) / max(1, h - 1))[:, None]
+    if min(h, w) <= 2 * t:
+        # a thin rail or rung: just rusty, here and there (flakes and worn edges would stripe it)
+        n = smooth_noise(h, w, 2.0 * t, rng)
+        m = (np.clip((n - (1.0 - 0.45 * amount)) / 0.2, 0, 1) * 0.8)[..., None]
+        return out * (1 - m) + RUST_MID * m
+    out *= (1.0 - 0.22 * amount * down ** 1.5)[..., None]
+    # streaks: from points along the top, running down, wavering, fading; a few long ones, more short ones
+    for _ in range(int(w * 0.09 * amount * t) + (1 if rng.random() < amount else 0)):
+        x = rng.integers(0, w)
+        length = int(h * rng.uniform(0.25, 1.0))
+        width = rng.integers(1, max(2, t + 1))
+        strength = rng.uniform(0.35, 0.8) * amount
+        for k in range(length):
+            xx = int(np.clip(x + round(np.sin(k * 0.35 + x) * 0.7), 0, w - 1))
+            f = (1.0 - k / max(1, length)) ** 0.8 * strength
+            col = RUST_MID * (1 - k / max(1, length)) + RUST_DARK2 * (k / max(1, length))
+            out[k, xx:xx + width] = out[k, xx:xx + width] * (1 - f) + col * f
+    # rust blooms: noise above a threshold, dark at the heart, orange round it
+    n = smooth_noise(h, w, 4.0 * t, rng)
+    bloom = np.clip((n - (1.0 - 0.34 * amount)) / 0.12, 0, 1)
+    heart = np.clip((n - (1.0 - 0.14 * amount)) / 0.06, 0, 1)
+    rust_col = RUST_LIGHT * (1 - heart[..., None]) + RUST_DARK2 * heart[..., None]
+    out = out * (1 - 0.85 * bloom[..., None]) + rust_col * (0.85 * bloom[..., None])
+    # flakes: patches where the paint has gone, to the red primer or bare metal, rimmed dark
+    f = smooth_noise(h, w, 3.0 * t, rng)
+    flake = f > 1.0 - 0.1 * amount
+    rim = np.zeros_like(flake)
+    rim[1:, :] |= flake[:-1, :] & ~flake[1:, :]
+    rim[:, 1:] |= flake[:, :-1] & ~flake[:, 1:]
+    under = PRIMER if primer else BARE
+    out[flake] = under * (0.85 + 0.25 * rng.random((int(flake.sum()), 1)))
+    out[rim] *= 0.7
+    # worn edges: the paint rubbed pale along the face's edges, here and there
+    edge = np.zeros((h, w), bool)
+    edge[0, :] = edge[-1, :] = True
+    edge[:, 0] = edge[:, -1] = True
+    worn = edge & (rng.random((h, w)) < 0.45 * amount)
+    out[worn] = out[worn] * 0.6 + np.array([150.0, 146.0, 136.0]) * 0.4
+    if algae > 0:
+        band = (np.clip((down - 0.6) / 0.4, 0, 1) * algae * (0.6 + 0.4 * smooth_noise(h, w, 2.0 * t, rng)))[..., None]
+        out = out * (1 - band) + ALGAE * band
+    return out
+
+
+def planked(face, base, t, rng, along_rows, stain=0.0):
+    """Planks (3 model pixels wide) laid along the face's rows or columns: each its own shade, dark seams, wood grain
+    running along it, a nail at each end of each length; oil and water stains on top."""
+    h, w = face.shape[:2]
+    if h == 0 or w == 0:
+        return face
+    step = 3 * t
+    across = np.arange(h) if along_rows else np.arange(w)
+    plank = across // step
+    tint = 0.82 + 0.3 * rng.random(int(plank.max()) + 2)
+    seam = (across % step == 0)
+    grain_dir = (h, w)
+    g = smooth_noise(h, w, 1.0, rng, octaves=1)
+    # grain: noise stretched along the planks
+    stretch = smooth_noise(*(grain_dir), 6.0 * t, rng)
+    if along_rows:
+        grain = 0.9 + 0.2 * (0.6 * stretch + 0.4 * np.repeat(g[:, :1], w, axis=1))
+        shade = (tint[plank] * np.where(seam, 0.55, 1.0))[:, None]
+    else:
+        grain = 0.9 + 0.2 * (0.6 * stretch + 0.4 * np.repeat(g[:1, :], h, axis=0))
+        shade = (tint[plank] * np.where(seam, 0.55, 1.0))[None, :]
+    out = face * (shade * grain)[..., None]
+    # plank ends with nails every ~16 model pixels along
+    length = w if along_rows else h
+    for p in range(int(plank.max()) + 1):
+        offset = rng.integers(0, 16 * t)
+        for end in range(offset, length, 16 * t):
+            mid = p * step + step // 2
+            if along_rows and mid < h:
+                out[min(h - 1, p * step):min(h, (p + 1) * step), end:end + 1] *= 0.7
+                out[mid, min(w - 1, end + t)] *= 0.45
+            elif not along_rows and mid < w:
+                out[end:end + 1, min(w - 1, p * step):min(w, (p + 1) * step)] *= 0.7
+                out[min(h - 1, end + t), mid] *= 0.45
+    if stain > 0:
+        st = smooth_noise(h, w, 5.0 * t, rng)
+        m = np.clip((st - (1.0 - 0.3 * stain)) / 0.15, 0, 1)[..., None]
+        out = out * (1 - 0.45 * m)
+    return out
+
+
+def net_pattern(face, t, rng):
+    """Netting: a mesh of knotted twine, dark gaps between."""
+    h, w = face.shape[:2]
+    out = face * 0.55
+    yy, xx = np.mgrid[0:h, 0:w]
+    mesh = ((xx + yy) % (2 * t) == 0) | ((xx - yy) % (2 * t) == 0)
+    out[mesh] = face[mesh] * 1.15
+    knots = ((xx + yy) % (2 * t) == 0) & ((xx - yy) % (2 * t) == 0)
+    out[knots] = face[knots] * 1.35
+    return out
+
+
+def rope_pattern(face, t, rng):
+    """Twisted rope: diagonal strands."""
+    h, w = face.shape[:2]
+    yy, xx = np.mgrid[0:h, 0:w]
+    band = ((xx + yy) // max(1, t)) % 3
+    return face * np.choose(band, [0.8, 1.05, 1.2])[..., None]
+
+
+def tyre_pattern(face, t, rng):
+    """An old tyre: worn rubber, tread grooves, scuffed paler."""
+    h, w = face.shape[:2]
+    yy, xx = np.mgrid[0:h, 0:w]
+    tread = np.where((xx // max(1, t)) % 3 == 0, 0.7, 1.0)
+    scuff = 1.0 + 0.5 * (smooth_noise(h, w, 3.0 * t, rng) > 0.72)
+    return face * (tread * scuff)[..., None]
+
+
+def window_pattern(face, t, rng):
+    """Old glass: dark, a pale sky reflection across the top, a diagonal glint, grime in the bottom corners."""
+    h, w = face.shape[:2]
+    yy, xx = np.mgrid[0:h, 0:w]
+    out = face.copy()
+    sky = np.clip(1.0 - yy / max(1, h * 0.6), 0, 1)[..., None]
+    out = out * (1 - 0.35 * sky) + np.array([120.0, 136.0, 150.0]) * 0.35 * sky
+    glint = (np.abs((xx - yy) - w // 3) < max(1, t // 2)) & (yy < h // 2)
+    out[glint] = out[glint] * 0.75 + 40
+    grime = np.clip(yy / max(1, h - 1) - 0.6, 0, 1)[..., None] * 1.6
+    return out * (1 - 0.5 * grime) + np.array([70.0, 62.0, 50.0]) * 0.5 * grime
+
+
+def paint_boat(bones, size, palette, seed, texels, styles):
+    """The Shinsei Maru's texture: each cube's faces painted for what they are (styles: kind -> how)."""
+    rng = np.random.default_rng(seed)
+    n = size * texels
+    img = np.zeros((n, n, 4))
+    t = texels
+    for bone in bones.values():
+        for c in bone["cubes"]:
+            u, v = c["uv"]
+            sx, sy, sz = (max(1, math.ceil(q)) * t for q in c["size"])
+            kind = c["kind"]
+            base = np.array(palette[kind], float)
+            style = styles.get(kind, {})
+            for name, fx, fy, fw, fh in faces(sx, sy, sz):
+                if fw == 0 or fh == 0:
+                    continue
+                face = np.empty((fh, fw, 3))
+                face[:] = base
+                # paint is never one flat colour: a slow mottle and a fine grain
+                face *= (0.9 + 0.2 * smooth_noise(fh, fw, 6.0 * t, rng))[..., None]
+                face *= (0.95 + 0.1 * rng.random((fh, fw)))[..., None]
+                how = style.get("how", "plain")
+                amount = style.get("weather", 0.0)
+                if how == "painted":
+                    if name == "side":
+                        face = rusty_side(face, base, amount, t, rng, primer=style.get("primer", True), algae=style.get("algae", 0.0))
+                    elif name == "top":
+                        face = rusty_side(face, base, amount * 0.6, t, rng, primer=style.get("primer", True))
+                    else:
+                        face *= 0.75
+                elif how == "planks":
+                    along_rows = style.get("rows", True) if name == "side" else style.get("top_rows", False)
+                    face = planked(face, base, t, rng, along_rows, stain=style.get("stain", 0.0) if name == "top" else 0.0)
+                    if amount and name == "side":
+                        face = rusty_side(face, base, amount * 0.5, t, rng, primer=False)
+                        grime = style.get("grime", 0.0)
+                        if grime:
+                            down = (np.arange(fh) / max(1, fh - 1))[:, None]
+                            dirt = (grime * (0.4 + 0.6 * down) * smooth_noise(fh, fw, 3.0 * t, rng))[..., None]
+                            face = face * (1 - dirt) + np.array([60.0, 54.0, 44.0]) * dirt
+                elif how == "net":
+                    face = net_pattern(face, t, rng)
+                elif how == "rope":
+                    face = rope_pattern(face, t, rng)
+                elif how == "tyre":
+                    face = tyre_pattern(face, t, rng)
+                elif how == "window":
+                    face = window_pattern(face, t, rng) if name == "side" else face * 0.8
+                y0, x0 = v * t + fy, u * t + fx
+                img[y0:y0 + fh, x0:x0 + fw, :3] = np.clip(face, 0, 255)
+                img[y0:y0 + fh, x0:x0 + fw, 3] = 255
+    return img
 
 
 def searchlight():
@@ -441,17 +672,27 @@ def shinsei_maru():
     bones["gun"] = gun
     bones["gun_barrel"] = barrel
     palette = {"bottom": (96, 44, 34), "hull": (52, 46, 42), "boottop": (122, 52, 34), "rail": (88, 66, 48),
-               "deck": (104, 88, 66), "stain": (70, 58, 44), "cabin": (128, 124, 112), "window": (26, 34, 40),
+               "deck": (104, 88, 66), "stain": (70, 58, 44), "cabin": (112, 108, 96), "window": (26, 34, 40),
                "broken": (12, 14, 16), "grime": (74, 66, 54), "roof": (66, 62, 58), "wood": (88, 66, 44),
                "crate": (128, 102, 70), "rope": (146, 128, 92), "metal": (60, 60, 58), "rust": (116, 62, 34),
-               "streak": (110, 56, 30), "flake": (150, 146, 132), "patch": (72, 56, 40), "tyre": (26, 26, 26),
+               "streak": (110, 56, 30), "flake": (128, 66, 46), "patch": (72, 56, 40), "tyre": (26, 26, 26),
                "net": (66, 74, 52), "buoy": (196, 92, 48), "brass": (150, 122, 62), "soot": (24, 22, 20),
                "dark": (16, 14, 12), "drum": (74, 70, 46), "lamp": (214, 204, 168), "mine": (46, 48, 46),
                "gun": (40, 42, 40), "drab": (78, 84, 56)}
-    write("shinsei_maru", bones, 1024, palette, seed=7, texels=1, bounds=20,
-          planks={"hull": "h", "bottom": "h", "cabin": "v", "deck": "v", "crate": "h", "patch": "h", "wood": "v"},
-          weather={"hull": 1.0, "bottom": 0.8, "cabin": 0.9, "roof": 1.0, "metal": 1.0, "deck": 0.7, "rail": 0.7,
-                   "drum": 1.0, "crate": 0.4, "boottop": 0.6, "wood": 0.5})
+    # painted face by face (paint_boat), two texels to each of the model's pixels (a 2048 sheet for its 1024 UV space)
+    styles = {
+        "hull": {"how": "painted", "weather": 1.0}, "bottom": {"how": "painted", "weather": 0.9, "algae": 0.9},
+        "boottop": {"how": "painted", "weather": 0.7, "algae": 0.5}, "roof": {"how": "painted", "weather": 1.0, "primer": False},
+        "rail": {"how": "painted", "weather": 0.75}, "metal": {"how": "painted", "weather": 1.0, "primer": False},
+        "drum": {"how": "painted", "weather": 1.0}, "gun": {"how": "painted", "weather": 0.3, "primer": False},
+        "mine": {"how": "painted", "weather": 0.8, "primer": False}, "buoy": {"how": "painted", "weather": 0.5, "primer": False},
+        "drab": {"how": "painted", "weather": 0.4, "primer": False}, "brass": {"how": "painted", "weather": 0.3, "primer": False},
+        "cabin": {"how": "planks", "rows": False, "weather": 1.0, "grime": 0.35}, "deck": {"how": "planks", "rows": True, "top_rows": False, "stain": 0.8},
+        "wood": {"how": "planks", "rows": False, "weather": 0.3}, "crate": {"how": "planks", "rows": True, "top_rows": True, "weather": 0.3},
+        "patch": {"how": "planks", "rows": True},
+        "rope": {"how": "rope"}, "net": {"how": "net"}, "tyre": {"how": "tyre"}, "window": {"how": "window"}, "broken": {"how": "window"},
+    }
+    write("shinsei_maru", bones, 1024, palette, seed=7, texels=2, bounds=20, styles=styles)
 
 
 def main():
