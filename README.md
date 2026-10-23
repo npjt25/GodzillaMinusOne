@@ -409,11 +409,18 @@ Take his shape as you would Godzilla's (`godzillaminusone:odo_island_monster`):
 **Checked in the released game** (CI's `client-release` run: Minecraft 1.20.1, Forge 47.3.0, this mod's built jar with
 **Walkers 5.8.13, ReMorphed 4.2 and CraftedCore 5.8.2**, the same versions as the jars supplied with this request; mod
 ids `walkers`, `remorphed`, `craftedcore`): taking Godzilla's shape through Walkers' API, the server and the client both
-have him; the camera pulls back to show all of him; **J** bites (a pig in his jaws' way is hurt); **B** roots him from
-the charge to the end of the roar after the beam (he can't walk meanwhile), then he's free and walks again; walking, he
-breaks through a building in his way; changing back frees him. As the Odo: Left Control (sent as the keyboard sends it)
-runs, and a left click bites. What wasn't checked: two players (what one sees of the other's moves), and ReMorphed's
-menu and unlock by defeating him.
+have him; the camera pulls back to show all of him; **J** bites (a pig in his jaws' way is hurt), and **Z**, **H** and
+**K** each make their own move (the server sees a tail whip, a scratch, a roar); his Roar rebound from K to N as
+Controls does it: N roars, K does nothing, the list on screen shows N, and the binding is saved in `options.txt` (then
+put back on K); **B** roots him from the charge to the end of the roar after the beam (he can't walk meanwhile), then
+he's free and walks again; walking, he breaks through a building in his way; changing back frees him, and his keys stop
+counting. As the Odo, taken through **ReMorphed** (the request its morph menu sends): Left Control (sent as the
+keyboard sends it) runs at **12.00 blocks a second** in each of three stretches of 20 ticks, measured by the distance
+he covers (walking: 4.32), with one speed-up on him and no more; letting go takes it off; a left click bites; changed
+back, his speed attribute is the player's own again (0.1, both sides) and he walks 4.32 blocks a second. What wasn't
+checked: two players (what one sees of the other's moves), ReMorphed's menu screen itself and unlocking by defeating
+him, and a key held with Shift or Ctrl down (the test presses keys as the keyboard sends them, but can't hold real
+modifier keys).
 
 ### Physics Mod
 
@@ -497,7 +504,10 @@ The jar ends up in `build/libs/`. GitHub Actions builds it on every push (see th
 A second job starts the real game client on a virtual display (`xvfb-run ./gradlew runClient -Pshots`, software
 OpenGL, no sound device) and plays a script of scenes in a fresh flat creative world
 (`client/harness/Scenes.java`): the statue from the poster camera, the Odo Island Monster's spawn sounds, Godzilla's
-roar heard from either side of 200 blocks, the searchlight over water and ice (Fancy and Fabulous graphics), walking
+roar heard from either side of 200 blocks, the searchlight over water and ice (Fancy and Fabulous graphics), working a
+searchlight at night in first and third person (the middle of the view measured lamp on against lamp off, looking up
+into the empty sky; zombies in the beam, beside it and behind the wall it lands on, then the beam turned away and the
+lamp switched off: the light each is drawn in read back from the renderer), walking
 the Shinsei Maru's decks and climbing her ladders while she turns, her motor, the Shinden's camera, engine and Free
 Look, and Godzilla getting over his breath. Each check is logged as `GMO-CHECK PASS`/`FAIL` (the job fails on any
 `FAIL`), and the screenshots are uploaded as the `screenshots` artifact (and printed into the log as base64 JPEG

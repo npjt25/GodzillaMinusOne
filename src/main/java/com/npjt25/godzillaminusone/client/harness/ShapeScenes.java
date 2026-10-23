@@ -29,11 +29,7 @@ import net.minecraftforge.fml.ModList;
 import org.jetbrains.annotations.Nullable;
 import org.lwjgl.glfw.GLFW;
 
-import java.io.File;
-import java.io.IOException;
 import java.lang.reflect.Method;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.lang.reflect.Modifier;
 import java.util.UUID;
 
@@ -210,8 +206,8 @@ final class ShapeScenes {
         waitTicks(PlayerGodzilla.Move.ROAR.length);
 
         // his roar rebound from K to N, as Controls does it: N roars, K doesn't any more; saved with the game's options
-        once("shapes: Roar rebound to N", () -> rebind(PlayerGodzillaControls.ROAR, InputConstants.getKey(GLFW.GLFW_KEY_N, 0)));
-        check("shapes: the new key is saved with the game's options", () -> saved(PlayerGodzillaControls.ROAR, "key.keyboard.n"));
+        once("shapes: Roar rebound to N", () -> ShotsHarness.rebind(PlayerGodzillaControls.ROAR, InputConstants.getKey(GLFW.GLFW_KEY_N, 0)));
+        check("shapes: the new key is saved with the game's options", () -> ShotsHarness.saved(PlayerGodzillaControls.ROAR, "key.keyboard.n"));
         check("shapes: the list on screen names the new key", () -> {
             String shown = PlayerGodzillaControls.ROAR.getTranslatedKeyMessage().getString();
             log("shapes: roar's key shown as " + shown);
@@ -225,8 +221,8 @@ final class ShapeScenes {
         godzillaKey("shapes: K, no longer his roar's key, does nothing", GLFW.GLFW_KEY_K, PlayerGodzilla.Move.ROAR, false);
         godzillaKey("shapes: N, his roar's key now, roars", GLFW.GLFW_KEY_N, PlayerGodzilla.Move.ROAR, true);
         waitTicks(PlayerGodzilla.Move.ROAR.length);
-        once("shapes: Roar back on K", () -> rebind(PlayerGodzillaControls.ROAR, PlayerGodzillaControls.ROAR.getDefaultKey()));
-        check("shapes: K saved again", () -> saved(PlayerGodzillaControls.ROAR, "key.keyboard.k"));
+        once("shapes: Roar back on K", () -> ShotsHarness.rebind(PlayerGodzillaControls.ROAR, PlayerGodzillaControls.ROAR.getDefaultKey()));
+        check("shapes: K saved again", () -> ShotsHarness.saved(PlayerGodzillaControls.ROAR, "key.keyboard.k"));
 
         // B: his atomic breath, up into the sky; rooted from the start of the charge to the end of the roar after it
         once("shapes: look up", () -> {
@@ -311,33 +307,7 @@ final class ShapeScenes {
         });
     }
 
-    /** Binds {@code mapping} to {@code key} as the Controls screen does, and saves the options. */
-    private static void rebind(KeyMapping mapping, InputConstants.Key key) {
-        mapping.setKey(key);
-        KeyMapping.resetMapping();
-        mc().options.save();
-    }
 
-    /**
-     * Whether options.txt has {@code mapping} bound to {@code key} (null), or what's wrong: its line is
-     * {@code key_<name>:<key>}, with Forge's {@code :<modifier>} after it (NONE: no Ctrl, Shift or Alt).
-     */
-    @Nullable
-    private static String saved(KeyMapping mapping, String key) {
-        String prefix = "key_" + mapping.getName() + ":";
-        try {
-            for (String line : Files.readAllLines(new File(mc().gameDirectory, "options.txt").toPath(), StandardCharsets.UTF_8)) {
-                if (line.startsWith(prefix)) {
-                    log("shapes: options.txt: " + line);
-                    String value = line.substring(prefix.length());
-                    return value.equals(key) || value.equals(key + ":NONE") ? null : "saved as " + value;
-                }
-            }
-            return "no " + prefix + " line in options.txt";
-        } catch (IOException e) {
-            return "options.txt: " + e;
-        }
-    }
 
     // ------------------------------------------------------------------ the Odo Island Monster
 

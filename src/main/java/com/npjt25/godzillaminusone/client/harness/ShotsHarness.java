@@ -3,7 +3,9 @@ package com.npjt25.godzillaminusone.client.harness;
 import com.mojang.blaze3d.platform.NativeImage;
 import com.npjt25.godzillaminusone.GodzillaMinusOne;
 import com.npjt25.godzillaminusone.client.CameraPlacement;
+import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.client.CameraType;
+import net.minecraft.client.KeyMapping;
 import net.minecraft.client.GraphicsStatus;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.Screenshot;
@@ -455,6 +457,39 @@ public final class ShotsHarness {
             }
             return shotTaken;
         });
+    }
+
+    /** Binds {@code mapping} to {@code key} as the Controls screen does, and saves the options. */
+    static void rebind(KeyMapping mapping, InputConstants.Key key) {
+        mapping.setKey(key);
+        KeyMapping.resetMapping();
+        Minecraft.getInstance().options.save();
+    }
+
+    /**
+     * Whether options.txt has {@code mapping} bound to {@code key} (null), or what's wrong: its line is
+     * {@code key_<name>:<key>}, with Forge's {@code :<modifier>} after it when there is one.
+     */
+    @Nullable
+    static String saved(KeyMapping mapping, String key) {
+        File file = new File(Minecraft.getInstance().gameDirectory, "options.txt");
+        String prefix = "key_" + mapping.getName() + ":";
+        try {
+            List<String> lines = Files.readAllLines(file.toPath(), StandardCharsets.UTF_8);
+            for (String line : lines) {
+                if (line.startsWith(prefix)) {
+                    log("options.txt: " + line);
+                    String value = line.substring(prefix.length());
+                    return value.equals(key) || value.equals(key + ":NONE") ? null : "saved as " + value;
+                }
+            }
+            long keys = lines.stream().filter(l -> l.startsWith("key_")).count();
+            List<String> ours = lines.stream().filter(l -> l.contains(GodzillaMinusOne.MODID)).toList();
+            return String.format("no %s line in %s (%d lines, %d keys, modified %d ms ago; ours: %s)", prefix, file.getAbsolutePath(),
+                    lines.size(), keys, System.currentTimeMillis() - file.lastModified(), ours);
+        } catch (IOException e) {
+            return file.getAbsolutePath() + ": " + e;
+        }
     }
 
     /** Looks at the next frame drawn (nothing saved). */

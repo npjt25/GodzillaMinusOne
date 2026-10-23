@@ -1,6 +1,9 @@
 package com.npjt25.godzillaminusone.client.harness;
 
+import com.mojang.blaze3d.platform.InputConstants;
+import com.npjt25.godzillaminusone.client.PlayerGodzillaControls;
 import com.npjt25.godzillaminusone.client.SearchlightGlow;
+import com.npjt25.godzillaminusone.client.ShindenControls;
 import com.npjt25.godzillaminusone.client.ShinseiMaruSounds;
 import com.npjt25.godzillaminusone.entity.GodzillaEntity;
 import com.npjt25.godzillaminusone.entity.GodzillaStatueEntity;
@@ -13,6 +16,7 @@ import com.npjt25.godzillaminusone.registry.ModEntities;
 import com.npjt25.godzillaminusone.registry.ModItems;
 import com.npjt25.godzillaminusone.registry.ModSounds;
 import net.minecraft.client.CameraType;
+import net.minecraft.client.KeyMapping;
 import net.minecraft.core.BlockPos;
 import net.minecraft.client.CloudStatus;
 import net.minecraft.client.GraphicsStatus;
@@ -78,6 +82,7 @@ final class Scenes {
     static void script() {
         commands("gamerule doMobSpawning false", "gamerule mobGriefing true", "time set 6000", "weather clear");
         waitTicks(20);
+        controls();
         statue();
         odo();
         roars();
@@ -91,6 +96,30 @@ final class Scenes {
 
     private static Minecraft mc() {
         return Minecraft.getInstance();
+    }
+
+    // ------------------------------------------------------------------ the controls
+
+    /**
+     * The mod's keys are the game's own key bindings, saved with the rest in options.txt: Godzilla's Roar rebound to N
+     * (as the Controls screen does it) and saved, then back to K. (Whether the rebound key works is checked playing as
+     * him, with Walkers: ShapeScenes.)
+     */
+    private static void controls() {
+        check("controls: Godzilla's moves and the Shinden's free look are among the game's key bindings", () -> {
+            List<String> missing = new ArrayList<>();
+            for (KeyMapping key : new KeyMapping[] {PlayerGodzillaControls.TAIL_WHIP, PlayerGodzillaControls.SCRATCH, PlayerGodzillaControls.BITE,
+                    PlayerGodzillaControls.ROAR, PlayerGodzillaControls.ATOMIC_BREATH, ShindenControls.FREE_LOOK}) {
+                if (!java.util.Arrays.asList(mc().options.keyMappings).contains(key)) {
+                    missing.add(key.getName());
+                }
+            }
+            return missing.isEmpty() ? null : "not in Controls: " + missing;
+        });
+        once("controls: Roar rebound to N", () -> ShotsHarness.rebind(PlayerGodzillaControls.ROAR, InputConstants.getKey(GLFW.GLFW_KEY_N, 0)));
+        check("controls: the new key is saved in options.txt", () -> ShotsHarness.saved(PlayerGodzillaControls.ROAR, "key.keyboard.n"));
+        once("controls: Roar back on K", () -> ShotsHarness.rebind(PlayerGodzillaControls.ROAR, PlayerGodzillaControls.ROAR.getDefaultKey()));
+        check("controls: K saved again", () -> ShotsHarness.saved(PlayerGodzillaControls.ROAR, "key.keyboard.k"));
     }
 
     // ------------------------------------------------------------------ the hunched snarl statue

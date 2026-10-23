@@ -60,7 +60,9 @@ import net.minecraftforge.gametest.GameTestHolder;
 import net.minecraftforge.gametest.PrefixGameTestTemplate;
 
 import java.util.ArrayList;
+import java.util.EnumMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -156,14 +158,38 @@ public final class ModGameTests {
         helper.assertTrue(mine.isRemoved(), "a hurt naval mine should detonate");
     }
 
-    @GameTest(template = FLOOR, batch = "gmo_emerge", timeoutTicks = 400)
+    /**
+     * When each of Godzilla's phases began, by his own ticks. Not the test's: the tests stand in a world that's still
+     * being generated round them, and a mob can go a while before its chunk lets it tick (once, Godzilla was still
+     * emerging when the test had counted his 9 s), so a timer of his runs behind the test's.
+     */
+    private static Map<GodzillaEntity.Phase, Integer> phaseStarts(GameTestHelper helper, GodzillaEntity godzilla) {
+        Map<GodzillaEntity.Phase, Integer> starts = new EnumMap<>(GodzillaEntity.Phase.class);
+        starts.put(godzilla.getPhase(), godzilla.tickCount);
+        GodzillaEntity.Phase[] last = {godzilla.getPhase()};
+        helper.onEachTick(() -> {
+            if (godzilla.getPhase() != last[0]) {
+                last[0] = godzilla.getPhase();
+                starts.putIfAbsent(last[0], godzilla.tickCount);
+            }
+        });
+        return starts;
+    }
+
+    /** How many of his ticks went by from the start of phase {@code from} to the start of {@code to} (-1: not yet). */
+    private static int ticksBetween(Map<GodzillaEntity.Phase, Integer> starts, GodzillaEntity.Phase from, GodzillaEntity.Phase to) {
+        return starts.containsKey(from) && starts.containsKey(to) ? starts.get(to) - starts.get(from) : -1;
+    }
+
+    @GameTest(template = FLOOR, batch = "gmo_emerge", timeoutTicks = 1200)
     public static void godzillaEmergesThenBecomesActive(GameTestHelper helper) {
         GodzillaEntity godzilla = spawnGodzilla(helper);
         helper.assertTrue(godzilla.getPhase() == GodzillaEntity.Phase.EMERGING, "Godzilla should start by emerging");
-        helper.runAtTickTime(200, () -> helper.assertTrue(godzilla.getPhase() == GodzillaEntity.Phase.RISING,
-                "after 9 s he should be roaring, was " + godzilla.getPhase()));
+        Map<GodzillaEntity.Phase, Integer> starts = phaseStarts(helper, godzilla);
         helper.succeedWhen(() -> {
             helper.assertTrue(godzilla.isActive(), "Godzilla should become active, was " + godzilla.getPhase());
+            int emerging = ticksBetween(starts, GodzillaEntity.Phase.EMERGING, GodzillaEntity.Phase.RISING);
+            helper.assertTrue(Math.abs(emerging - 180) <= 2, "he should emerge for 9 s (180 of his ticks) before he roars, took " + emerging);
             remove(godzilla);
         });
     }
@@ -192,23 +218,23 @@ public final class ModGameTests {
         helper.succeed();
     }
 
-    @GameTest(template = FLOOR, batch = "gmo_regenerate", timeoutTicks = 800)
+    @GameTest(template = FLOOR, batch = "gmo_regenerate", timeoutTicks = 1600)
     public static void godzillaCollapsesAndRegenerates(GameTestHelper helper) {
         GodzillaEntity godzilla = spawnActiveGodzilla(helper);
         godzilla.setHealth(10.0F);
         detonateMine(helper, 4, 14);
         helper.assertTrue(godzilla.getPhase() == GodzillaEntity.Phase.COLLAPSING, "at zero health he should collapse, was " + godzilla.getPhase());
         helper.assertTrue(godzilla.isAlive(), "he should not really die");
-        helper.runAtTickTime(200, () -> helper.assertTrue(godzilla.getPhase() == GodzillaEntity.Phase.DEAD, "he should be lying dead"));
+        Map<GodzillaEntity.Phase, Integer> starts = phaseStarts(helper, godzilla);
         // downedSeconds counts from the end of his 5 s collapse
         int downed = Config.DOWNED_SECONDS.get() * 20;
-        helper.runAtTickTime(100 + downed - 10, () -> helper.assertTrue(godzilla.getPhase() == GodzillaEntity.Phase.DEAD,
-                "he should still be down " + downed / 20 + " s after his collapse, was " + godzilla.getPhase()));
-        helper.runAtTickTime(100 + downed + 10, () -> helper.assertTrue(godzilla.getPhase() == GodzillaEntity.Phase.EMERGING,
-                "he should be getting up after " + downed / 20 + " s, was " + godzilla.getPhase()));
         helper.succeedWhen(() -> {
             helper.assertTrue(godzilla.isActive() && godzilla.getHealth() >= godzilla.getMaxHealth() - 0.5F,
                     "he should rise again at full health, was " + godzilla.getPhase() + " / " + godzilla.getHealth());
+            int collapse = ticksBetween(starts, GodzillaEntity.Phase.COLLAPSING, GodzillaEntity.Phase.DEAD);
+            int down = ticksBetween(starts, GodzillaEntity.Phase.DEAD, GodzillaEntity.Phase.EMERGING);
+            helper.assertTrue(Math.abs(collapse - 100) <= 2, "his collapse should take 5 s (100 of his ticks), took " + collapse);
+            helper.assertTrue(Math.abs(down - downed) <= 2, "he should lie down " + downed / 20 + " s (" + downed + " of his ticks) after his collapse, lay " + down);
             remove(godzilla);
         });
     }
@@ -217,7 +243,7 @@ public final class ModGameTests {
      * His resting time is whatever downedSeconds says (here 3 s, not the 15 of the default), counted from the end of
      * his 5 s collapse, which is left as it is.
      */
-    @GameTest(template = FLOOR, batch = "gmo_regenerate_config", timeoutTicks = 500)
+    @GameTest(template = FLOOR, batch = "gmo_regenerate_config", timeoutTicks = 1200)
     public static void hisRestingTimeComesFromTheConfig(GameTestHelper helper) {
         int was = Config.DOWNED_SECONDS.get();
         Config.DOWNED_SECONDS.set(3);
@@ -225,20 +251,19 @@ public final class ModGameTests {
         godzilla.setHealth(10.0F);
         detonateMine(helper, 4, 14);
         helper.assertTrue(godzilla.getPhase() == GodzillaEntity.Phase.COLLAPSING, "at zero health he should collapse, was " + godzilla.getPhase());
-        helper.runAtTickTime(92, () -> helper.assertTrue(godzilla.getPhase() == GodzillaEntity.Phase.COLLAPSING,
-                "his collapse should still take its 5 s, was " + godzilla.getPhase()));
-        helper.runAtTickTime(108, () -> helper.assertTrue(godzilla.getPhase() == GodzillaEntity.Phase.DEAD,
-                "after his collapse he should lie defeated, was " + godzilla.getPhase()));
-        helper.runAtTickTime(100 + 60 - 8, () -> helper.assertTrue(godzilla.getPhase() == GodzillaEntity.Phase.DEAD,
-                "he should still be down 3 s after his collapse, was " + godzilla.getPhase()));
-        helper.runAtTickTime(100 + 60 + 8, () -> {
-            Config.DOWNED_SECONDS.set(was);
-            helper.assertTrue(godzilla.getPhase() == GodzillaEntity.Phase.EMERGING || godzilla.getPhase() == GodzillaEntity.Phase.RISING,
-                    "with downedSeconds = 3 he should be getting up 3 s after his collapse, was " + godzilla.getPhase());
+        Map<GodzillaEntity.Phase, Integer> starts = phaseStarts(helper, godzilla);
+        helper.onEachTick(() -> {
+            if (starts.containsKey(GodzillaEntity.Phase.EMERGING)) {
+                Config.DOWNED_SECONDS.set(was); // (he's up: the other tests get the file's own value back)
+            }
         });
         helper.succeedWhen(() -> {
             helper.assertTrue(godzilla.isActive(), "he should get back up, was " + godzilla.getPhase());
             Config.DOWNED_SECONDS.set(was);
+            int collapse = ticksBetween(starts, GodzillaEntity.Phase.COLLAPSING, GodzillaEntity.Phase.DEAD);
+            int down = ticksBetween(starts, GodzillaEntity.Phase.DEAD, GodzillaEntity.Phase.EMERGING);
+            helper.assertTrue(Math.abs(collapse - 100) <= 2, "his collapse should still take its 5 s (100 of his ticks), took " + collapse);
+            helper.assertTrue(Math.abs(down - 60) <= 2, "with downedSeconds = 3 he should lie down 60 of his ticks after his collapse, lay " + down);
             remove(godzilla);
         });
     }
@@ -883,6 +908,18 @@ public final class ModGameTests {
 
     private static void odoTower(GameTestHelper helper, String run, double startX) {
         int floor = floorY(helper);
+        // sealed in first, roof and walls of stone: the test's pocket is deep in a normal world, and with the rock over
+        // the room cleared from under it, the gravel in it fell in, in his way (ground, which he doesn't break: twice he
+        // stood stuck behind a pile of it till he gave up on the light); lava or water in a cave beside it could flow in
+        for (int x = -8; x <= 16; x++) {
+            for (int z = -5; z <= 35; z++) {
+                helper.setBlock(new BlockPos(x, floor + 17, z), Blocks.STONE.defaultBlockState());
+                boolean side = x == -8 || x == 16 || z == -5 || z == 35;
+                for (int y = floor; side && y <= floor + 16; y++) {
+                    helper.setBlock(new BlockPos(x, y, z), Blocks.STONE.defaultBlockState());
+                }
+            }
+        }
         // room to move: he's 9 wide and 14 tall, and the rock round the test's pocket is ground he doesn't break
         for (int x = -7; x <= 15; x++) {
             for (int y = floor + 1; y <= floor + 16; y++) {
@@ -897,8 +934,10 @@ public final class ModGameTests {
         List<Runnable> release = new ArrayList<>();
         for (int z : new int[]{0, 16, 34}) {
             BlockPos abs = helper.absolutePos(new BlockPos(4, floor, z));
-            helper.getLevel().setChunkForced(abs.getX() >> 4, abs.getZ() >> 4, true);
-            release.add(() -> helper.getLevel().setChunkForced(abs.getX() >> 4, abs.getZ() >> 4, false));
+            // (only let go of what this forced: the test framework keeps its tests' chunks forced too)
+            if (helper.getLevel().setChunkForced(abs.getX() >> 4, abs.getZ() >> 4, true)) {
+                release.add(() -> helper.getLevel().setChunkForced(abs.getX() >> 4, abs.getZ() >> 4, false));
+            }
         }
         for (int x = -7; x <= 15; x++) {
             for (int y = floor + 1; y <= floor + 12; y++) {
@@ -925,7 +964,7 @@ public final class ModGameTests {
         helper.assertTrue(odo.getHuntedLight() == light, "caught in its beam he should go for the searchlight");
         BlockPos origin = helper.absolutePos(BlockPos.ZERO);
         helper.onEachTick(() -> {
-            // (every 20 ticks at first: twice now something filled his box while he stood roaring, and he was stuck)
+            // (every 20 ticks at first, naming what's in his box: that's how the gravel falling into the room showed up)
             if (helper.getTick() % 100 == 0 || helper.getTick() < 200 && helper.getTick() % 20 == 0 || light.isRemoved() && !odoTowerDone(run)) {
                 BlockPos at = BlockPos.containing(odo.position()).subtract(origin);
                 GodzillaMinusOne.LOGGER.info("odo tower {} tick {}: odo at {} (yaw {}), hunting the light {}, stuck {}, target {}, light {} at y {}, tower {} blocks",
