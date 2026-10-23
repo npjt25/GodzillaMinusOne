@@ -247,11 +247,13 @@ final class ShapeScenes {
         speed("shapes: walking", walk);
         once("shapes: Left Control down", () -> mc().keyboardHandler.keyPress(mc().getWindow().getWindow(),
                 GLFW.GLFW_KEY_LEFT_CONTROL, 0, GLFW.GLFW_PRESS, GLFW.GLFW_MOD_CONTROL));
+        once("shapes: third person", () -> mc().options.setCameraType(CameraType.THIRD_PERSON_BACK));
         speed("shapes: running", run);
         shot("shape_odo_running");
+        once("shapes: first person", () -> mc().options.setCameraType(CameraType.FIRST_PERSON));
         once("shapes: Left Control up", () -> mc().keyboardHandler.keyPress(mc().getWindow().getWindow(),
                 GLFW.GLFW_KEY_LEFT_CONTROL, 0, GLFW.GLFW_RELEASE, 0));
-        check("shapes: Left Control runs at 6 blocks a second", () -> Math.abs(run[0] - 6.0) < 0.8 && run[0] > walk[0] + 1.0 ? null
+        check("shapes: Left Control runs at 6 blocks a second", () -> Math.abs(run[0] - 6.0) < 0.3 && run[0] > walk[0] + 1.0 ? null
                 : String.format("running %.2f, walking %.2f blocks a second", run[0], walk[0]));
 
         // a left click: his bite, not a punch
@@ -270,16 +272,21 @@ final class ShapeScenes {
         waitTicks(20);
     }
 
-    /** Walks forward 60 ticks: the speed (blocks a second) over the last 20. */
+    /** Walks forward about 60 ticks: the speed (blocks a second) over the last 20 or so, by the ticks that went by. */
     private static void speed(String label, double[] out) {
         Vec3[] at = {null};
+        int[] from = {0};
         once(label + ": go", () -> mc().options.keyUp.setDown(true));
         waitTicks(40);
-        once(label + ": from", () -> at[0] = mc().player != null ? mc().player.position() : Vec3.ZERO);
+        once(label + ": from", () -> {
+            at[0] = mc().player != null ? mc().player.position() : Vec3.ZERO;
+            from[0] = now();
+        });
         waitTicks(20);
         once(label + ": to", () -> {
             if (mc().player != null) {
-                out[0] = Math.sqrt(mc().player.position().subtract(at[0]).horizontalDistanceSqr());
+                int ticks = Math.max(1, now() - from[0]);
+                out[0] = Math.sqrt(mc().player.position().subtract(at[0]).horizontalDistanceSqr()) * 20.0 / ticks;
             }
             mc().options.keyUp.setDown(false);
             log(String.format("%s: %.2f blocks a second", label, out[0]));

@@ -377,6 +377,15 @@ Take his shape as you would Godzilla's (`godzillaminusone:odo_island_monster`):
 - **Left click bites** (his bite animation, seen by everyone; the jaws close 0.75 s in, `playerOdoBiteDamage`) instead
   of a punch.
 
+**Checked in the released game** (CI's `client-release` run: Minecraft 1.20.1, Forge 47.3.0, this mod's built jar with
+**Walkers 5.8.13, ReMorphed 4.2 and CraftedCore 5.8.2**, the same versions as the jars supplied with this request; mod
+ids `walkers`, `remorphed`, `craftedcore`): taking Godzilla's shape through Walkers' API, the server and the client both
+have him; the camera pulls back to show all of him; **J** bites (a pig in his jaws' way is hurt); **B** roots him from
+the charge to the end of the roar after the beam (he can't walk meanwhile), then he's free and walks again; walking, he
+breaks through a building in his way; changing back frees him. As the Odo: Left Control (sent as the keyboard sends it)
+runs, and a left click bites. What wasn't checked: two players (what one sees of the other's moves), and ReMorphed's
+menu and unlock by defeating him.
+
 ### Physics Mod
 
 **What's real integration and what's this mod's own**: there is no Physics Mod API that this mod calls (its mod id,
