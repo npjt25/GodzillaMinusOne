@@ -1025,6 +1025,8 @@ public final class ModGameTests {
         // (a crashing plane is already done for when its explosion goes off; this one, left whole, would be set off
         // by the blast like a naval mine and reach the tests next door)
         plane.discard();
+        // (items already lying about, dropped by the tests next door, aren't the blast's)
+        List<ItemEntity> before = helper.getLevel().getEntitiesOfClass(ItemEntity.class, plane.getBoundingBox().inflate(16.0));
         Blasts.impact(helper.getLevel(), plane.position(), ShindenEntity.CRASH_EXPLOSION_POWER, plane, pilot);
         helper.assertTrue(pilot.isAlive() && pilot.getHealth() == pilot.getMaxHealth(), "the pilot should be spared");
         helper.assertFalse(bystander.isAlive(), "a 3x TNT blast should kill a pig 4 blocks away");
@@ -1032,7 +1034,7 @@ public final class ModGameTests {
         // (the game test framework's own start buttons, on neighbouring tests' structure blocks, pop off when the blast
         // shakes their support and drop as items: they aren't blocks the blast broke)
         List<ItemEntity> drops = helper.getLevel().getEntitiesOfClass(ItemEntity.class, plane.getBoundingBox().inflate(16.0),
-                item -> item.getItem().getItem() instanceof BlockItem && !item.getItem().is(Items.STONE_BUTTON));
+                item -> item.getItem().getItem() instanceof BlockItem && !item.getItem().is(Items.STONE_BUTTON) && !before.contains(item));
         helper.assertTrue(drops.isEmpty(), "the blocks it breaks should vanish, not drop: " + drops);
         remove(pilot);
         helper.succeed();
