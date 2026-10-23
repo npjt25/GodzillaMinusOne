@@ -85,6 +85,11 @@ public class SearchlightEntity extends Entity implements GeoEntity {
     private final AnimatableInstanceCache cache = GeckoLibUtil.createInstanceCache(this);
     /** The light sources (light blocks) it has put where the beam lands. */
     private final Set<BlockPos> lights = new HashSet<>();
+    /** Client side: where the lamp pointed the tick before last and last tick (yaw, pitch), to draw it turning smoothly. */
+    private float aimYawO = Float.NaN;
+    private float aimPitchO;
+    private float aimYawNow;
+    private float aimPitchNow;
 
     public SearchlightEntity(EntityType<? extends SearchlightEntity> type, Level level) {
         super(type, level);
@@ -137,18 +142,40 @@ public class SearchlightEntity extends Entity implements GeoEntity {
 
     public void setAim(float yaw, float pitch) {
         this.entityData.set(DATA_AIM_YAW, Mth.wrapDegrees(yaw));
-        this.entityData.set(DATA_AIM_PITCH, Mth.clamp(pitch, -85.0F, 25.0F));
+        this.entityData.set(DATA_AIM_PITCH, clampPitch(pitch));
+    }
+
+    /** How far the lamp tilts: up to 85 degrees up, 25 down. */
+    public static float clampPitch(float pitch) {
+        return Mth.clamp(pitch, -85.0F, 25.0F);
+    }
+
+    /** Client side: where the lamp points between its last two ticks (as synced), for drawing it turning smoothly. */
+    public float getAimYaw(float partialTick) {
+        return Float.isNaN(this.aimYawO) ? getAimYaw() : Mth.rotLerp(partialTick, this.aimYawO, this.aimYawNow);
+    }
+
+    public float getAimPitch(float partialTick) {
+        return Float.isNaN(this.aimYawO) ? getAimPitch() : Mth.lerp(partialTick, this.aimPitchO, this.aimPitchNow);
     }
 
     /** The lens, and the direction the beam shines. */
     public Vec3 lens() {
-        Vec3 dir = beamDirection();
+        return lens(beamDirection());
+    }
+
+    /** Where the lens is with the lamp pointing {@code dir}. */
+    public Vec3 lens(Vec3 dir) {
         Vec3 flat = new Vec3(dir.x, 0.0, dir.z).normalize();
         return position().add(0.0, LENS_HEIGHT, 0.0).add(flat.scale(LENS_FORWARD));
     }
 
     public Vec3 beamDirection() {
-        return Vec3.directionFromRotation(getAimPitch(), getAimYaw());
+        return beamDirection(getAimYaw(), getAimPitch());
+    }
+
+    public static Vec3 beamDirection(float yaw, float pitch) {
+        return Vec3.directionFromRotation(pitch, yaw);
     }
 
     /** How wide the cone of light is (blocks from its axis) this far from the lens. */
@@ -171,12 +198,42 @@ public class SearchlightEntity extends Entity implements GeoEntity {
         return beamHit(level());
     }
 
-    /** Where the beam is seen to land (client side): like {@link #beamHit()}, but on the surface of any water. */
+    /**
+     * Where the beam is seen to land: like {@link #beamHit()}, but on the surface of any water (it's drawn stopping
+     * there, and lights up the surface).
+     */
     public HitResult visibleBeamHit() {
-        Vec3 from = lens();
-        Vec3 dir = beamDirection();
+        return visibleBeamHit(lens(), beamDirection());
+    }
+
+    /** The same, for a beam from {@code from} shining {@code dir}. */
+    public HitResult visibleBeamHit(Vec3 from, Vec3 dir) {
         Vec3 to = from.add(dir.scale(loadedReach(level(), from, dir, RANGE)));
         return level().clip(new ClipContext(from, to, ClipContext.Block.VISUAL, ClipContext.Fluid.ANY, this));
+    }
+
+    /**
+     * Where a beam (from {@code from}, shining {@code dir}, {@code length} long) touches a box, if it does: the point of
+     * the box nearest its axis, how far along the beam that is, and how strongly it's lit there (1 on the axis, falling
+     * to 0 at the edge of the cone). Only the shape of the cone: what's in the way is up to the caller.
+     */
+    @Nullable
+    public static BeamTouch beamTouch(AABB box, Vec3 from, Vec3 dir, double length) {
+        double along = Mth.clamp(box.getCenter().subtract(from).dot(dir), 0.0, length);
+        Vec3 axis = from.add(dir.scale(along));
+        Vec3 near = new Vec3(Mth.clamp(axis.x, box.minX, box.maxX), Mth.clamp(axis.y, box.minY, box.maxY),
+                Mth.clamp(axis.z, box.minZ, box.maxZ));
+        double at = near.subtract(from).dot(dir);
+        if (at < 0.0 || at > length + 0.25) {
+            return null;
+        }
+        double off = near.subtract(from.add(dir.scale(at))).length();
+        double radius = beamRadius(at);
+        return off < radius ? new BeamTouch(near, at, 1.0 - off / radius) : null;
+    }
+
+    /** See {@link #beamTouch}. */
+    public record BeamTouch(Vec3 point, double along, double strength) {
     }
 
     private HitResult beamHit(Level level) {
@@ -248,6 +305,16 @@ public class SearchlightEntity extends Entity implements GeoEntity {
     @Override
     public void tick() {
         super.tick();
+        if (level().isClientSide) {
+            if (Float.isNaN(this.aimYawO)) {
+                this.aimYawNow = getAimYaw();
+                this.aimPitchNow = getAimPitch();
+            }
+            this.aimYawO = this.aimYawNow;
+            this.aimPitchO = this.aimPitchNow;
+            this.aimYawNow = getAimYaw();
+            this.aimPitchNow = getAimPitch();
+        }
         // it sits on the ground
         if (!isNoGravity()) {
             setDeltaMovement(getDeltaMovement().add(0.0, -0.04, 0.0));
@@ -289,8 +356,9 @@ public class SearchlightEntity extends Entity implements GeoEntity {
     }
 
     /**
-     * Lights up a pool around where the beam lands, and (when someone is working it) catches any Odo Island Monster
-     * standing in the cone.
+     * Lights up a pool around where the beam is seen to land (on the surface, over water: the light sources go in the
+     * air above it), and (when someone is working it) catches any Odo Island Monster standing in the cone. (Mobs in
+     * the beam itself, anywhere along it, are lit by every client as they draw them: client.SearchlightGlow.)
      */
     private void shine(ServerLevel level, @Nullable LivingEntity operator) {
         Vec3 from = lens();
@@ -299,15 +367,16 @@ public class SearchlightEntity extends Entity implements GeoEntity {
         Vec3 end = hit.getLocation();
         double length = end.distanceTo(from);
         Set<BlockPos> wanted = new HashSet<>();
-        if (hit instanceof BlockHitResult blockHit && hit.getType() == HitResult.Type.BLOCK) {
+        HitResult seen = visibleBeamHit(from, dir);
+        if (seen instanceof BlockHitResult blockHit && seen.getType() == HitResult.Type.BLOCK) {
             Direction face = blockHit.getDirection();
             addLight(level, wanted, blockHit.getBlockPos().relative(face), face);
             // a ring of lights around it, in the plane of the face it lands on
             Vec3 normal = Vec3.atLowerCornerOf(face.getNormal());
             Vec3 u = Math.abs(normal.y) > 0.5 ? new Vec3(1, 0, 0) : new Vec3(0, 1, 0);
             Vec3 v = normal.cross(u);
-            double ring = Math.min(MAX_SPOT_LIGHT_RING, spotRadius(length) * 0.6);
-            Vec3 middle = end.add(normal.scale(0.5));
+            double ring = Math.min(MAX_SPOT_LIGHT_RING, spotRadius(seen.getLocation().distanceTo(from)) * 0.6);
+            Vec3 middle = seen.getLocation().add(normal.scale(0.5));
             for (int i = 0; i < SPOT_LIGHTS; i++) {
                 double angle = Math.PI * 2.0 * i / SPOT_LIGHTS;
                 Vec3 p = middle.add(u.scale(Math.cos(angle) * ring)).add(v.scale(Math.sin(angle) * ring));

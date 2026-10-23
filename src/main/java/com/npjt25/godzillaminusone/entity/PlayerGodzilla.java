@@ -95,6 +95,10 @@ public final class PlayerGodzilla {
     /** One player's moves in progress. */
     private static final class State {
         int busyUntil;
+        /** The last move made, and when (the player's ticks): for the in-game checks. */
+        @Nullable
+        Move last;
+        int lastAt = -1;
         boolean leftSwipe;
         int charge = -1;
         @Nullable
@@ -109,6 +113,18 @@ public final class PlayerGodzilla {
     /** Whether {@code player} is playing as Godzilla. */
     public static boolean isGodzilla(Player player) {
         return Shapes.godzillaOf(player) != null;
+    }
+
+    /** For the in-game checks: the last move {@code player} made (null: none yet), and when (their ticks; -1: never). */
+    @Nullable
+    public static Move lastMove(Player player) {
+        State state = STATES.get(player.getUUID());
+        return state == null ? null : state.last;
+    }
+
+    public static int lastMoveAt(Player player) {
+        State state = STATES.get(player.getUUID());
+        return state == null ? -1 : state.lastAt;
     }
 
     /** Ticks until {@code player}'s atomic breath is ready again. */
@@ -159,6 +175,8 @@ public final class PlayerGodzilla {
             }
         }
         state.busyUntil = player.tickCount + move.length;
+        state.last = move;
+        state.lastAt = player.tickCount;
         int cooldown = move == Move.ATOMIC_BREATH ? Config.ATOMIC_BREATH_COOLDOWN.get() * 20 + GodzillaEntity.CHARGE_LENGTH : breathCooldown(player);
         if (move == Move.ATOMIC_BREATH) {
             player.getPersistentData().putLong(BREATH_READY, level.getGameTime() + cooldown);

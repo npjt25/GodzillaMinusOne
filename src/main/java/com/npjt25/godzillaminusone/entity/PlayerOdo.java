@@ -27,7 +27,7 @@ import java.util.UUID;
 
 /**
  * A player playing as the Odo Island Monster (Walkers / ReMorphed: compat.Shapes), server side: his Run key (Left
- * Control by default, client.PlayerOdoControls) makes him run at playerOdoRunSpeed (6 blocks a second on level ground),
+ * Control by default, client.PlayerOdoControls) makes him run at playerOdoRunBlocksPerSecond (12 blocks a second on level ground),
  * and a left click is his bite (his "bite" animation, seen by everyone; the jaws close 0.75 s in and hurt what's in
  * front of them, playerOdoBiteDamage).
  */
@@ -106,7 +106,7 @@ public final class PlayerOdo {
     }
 
     /**
-     * Running, his speed attribute is made whatever gives playerOdoRunSpeed blocks a second (whatever else is on it,
+     * Running, his speed attribute is made whatever gives playerOdoRunBlocksPerSecond blocks a second (whatever else is on it,
      * sprinting included: the modifier makes up the difference), changed only when that difference changes; walking,
      * it's taken off.
      */

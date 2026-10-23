@@ -1,5 +1,8 @@
 package com.npjt25.godzillaminusone.client.harness;
 
+import com.mojang.blaze3d.platform.InputConstants;
+import com.npjt25.godzillaminusone.client.ModKeyContexts;
+import com.npjt25.godzillaminusone.client.PlayerGodzillaControls;
 import com.npjt25.godzillaminusone.compat.Shapes;
 import com.npjt25.godzillaminusone.entity.GodzillaEntity;
 import com.npjt25.godzillaminusone.entity.PlayerGodzilla;
@@ -13,6 +16,10 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.ai.attributes.AttributeInstance;
+import net.minecraft.world.entity.ai.attributes.AttributeModifier;
+import net.minecraft.world.entity.ai.attributes.Attributes;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.entity.animal.Pig;
 import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.block.Blocks;
@@ -22,7 +29,11 @@ import net.minecraftforge.fml.ModList;
 import org.jetbrains.annotations.Nullable;
 import org.lwjgl.glfw.GLFW;
 
+import java.io.File;
+import java.io.IOException;
 import java.lang.reflect.Method;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.lang.reflect.Modifier;
 import java.util.UUID;
 
@@ -43,9 +54,12 @@ import static com.npjt25.godzillaminusone.client.harness.ShotsHarness.waitTicks;
  * The in-game checks of playing as Godzilla and the Odo Island Monster, with the real Walkers (and ReMorphed) in the
  * game (CI's "client-shapes" job: the released game with this mod's built jar and theirs; Walkers can't run in the
  * development game). Skipped when Walkers isn't there. The player
- * takes a shape through Walkers' own API (as its commands and menus do) and plays it with the keys a player would
- * press: J bites, B breathes (rooted from the charge to the end of the roar after the beam, then free again), walking
- * breaks through what's built; as the Odo, Left Control runs (6 blocks a second) and a left click bites.
+ * takes Godzilla's shape through Walkers' own API (as its commands and menus do), and the Odo's through ReMorphed's
+ * (the request its morph menu sends), and plays them with the keys a player would press: as Godzilla each of his five
+ * keys makes its own move (J bites, B breathes: rooted from the charge to the end of the roar after the beam, then free
+ * again), a key rebound as in Controls is the one that works (and is saved with the game's options), and walking breaks
+ * through what's built; as the Odo, Left Control runs (12 blocks a second, measured by the distance he covers) and a
+ * left click bites; changing back leaves the player's speed as it was.
  */
 final class ShapeScenes {
     private static final Vec3 GODZILLA_AT = new Vec3(300.5, -60.0, 300.5);
@@ -85,6 +99,29 @@ final class ShapeScenes {
             log("shapes: Walkers' API: " + e);
         }
         return false;
+    }
+
+    /**
+     * Through ReMorphed, as its morph menu does (NetworkHandler.sendSwap2ndShapeRequest(ShapeType), from the client): the
+     * player asks to become {@code type}. False if ReMorphed isn't there (or that didn't work).
+     */
+    private static boolean morphThroughReMorphed(EntityType<?> type) {
+        if (!ModList.get().isLoaded("remorphed")) {
+            return false;
+        }
+        try {
+            Class<?> shapeType = Class.forName("tocraft.walkers.api.variant.ShapeType");
+            Object shape = shapeType.getMethod("from", EntityType.class).invoke(null, type);
+            if (shape == null) {
+                log("shapes: Walkers has no shape for " + type);
+                return false;
+            }
+            Class.forName("tocraft.remorphed.network.NetworkHandler").getMethod("sendSwap2ndShapeRequest", shapeType).invoke(null, shape);
+            return true;
+        } catch (ReflectiveOperationException | LinkageError e) {
+            log("shapes: ReMorphed's morph request: " + e);
+            return false;
+        }
     }
 
     /** Presses a key as the keyboard does (and lets it go a couple of ticks later). */
@@ -163,6 +200,34 @@ final class ShapeScenes {
         checkServer("shapes: J bites (the pig in front of him is hurt)", ShapeScenes::pigBitten);
         waitTicks(20); // (the bite's 20 ticks)
 
+        // each of his other keys makes its own move (each waited out before the next)
+        check("shapes: as Godzilla, his keys count", () -> ModKeyContexts.GODZILLA_SHAPE.isActive() ? null : "their context isn't active");
+        godzillaKey("shapes: Z makes his tail whip", GLFW.GLFW_KEY_Z, PlayerGodzilla.Move.TAIL_WHIP, true);
+        waitTicks(PlayerGodzilla.Move.TAIL_WHIP.length);
+        godzillaKey("shapes: H makes his scratch", GLFW.GLFW_KEY_H, PlayerGodzilla.Move.SCRATCH, true);
+        waitTicks(PlayerGodzilla.Move.SCRATCH.length);
+        godzillaKey("shapes: K makes his roar", GLFW.GLFW_KEY_K, PlayerGodzilla.Move.ROAR, true);
+        waitTicks(PlayerGodzilla.Move.ROAR.length);
+
+        // his roar rebound from K to N, as Controls does it: N roars, K doesn't any more; saved with the game's options
+        once("shapes: Roar rebound to N", () -> rebind(PlayerGodzillaControls.ROAR, InputConstants.getKey(GLFW.GLFW_KEY_N, 0)));
+        check("shapes: the new key is saved with the game's options", () -> saved(PlayerGodzillaControls.ROAR, "key.keyboard.n"));
+        check("shapes: the list on screen names the new key", () -> {
+            String shown = PlayerGodzillaControls.ROAR.getTranslatedKeyMessage().getString();
+            log("shapes: roar's key shown as " + shown);
+            return shown.equalsIgnoreCase(InputConstants.getKey(GLFW.GLFW_KEY_N, 0).getDisplayName().getString())
+                    && !shown.equalsIgnoreCase("K") ? null : "shows " + shown;
+        });
+        once("shapes: the HUD on (roar on N)", () -> mc().options.hideGui = false);
+        waitTicks(5);
+        shot("shape_godzilla_hud_roar_on_n");
+        once("shapes: the HUD off (roar on N)", () -> mc().options.hideGui = true);
+        godzillaKey("shapes: K, no longer his roar's key, does nothing", GLFW.GLFW_KEY_K, PlayerGodzilla.Move.ROAR, false);
+        godzillaKey("shapes: N, his roar's key now, roars", GLFW.GLFW_KEY_N, PlayerGodzilla.Move.ROAR, true);
+        waitTicks(PlayerGodzilla.Move.ROAR.length);
+        once("shapes: Roar back on K", () -> rebind(PlayerGodzillaControls.ROAR, PlayerGodzillaControls.ROAR.getDefaultKey()));
+        check("shapes: K saved again", () -> saved(PlayerGodzillaControls.ROAR, "key.keyboard.k"));
+
         // B: his atomic breath, up into the sky; rooted from the start of the charge to the end of the roar after it
         once("shapes: look up", () -> {
             if (mc().player != null) {
@@ -226,29 +291,79 @@ final class ShapeScenes {
         waitTicks(20);
         checkServer("shapes: changing back frees him", level -> !PlayerGodzilla.isGodzilla(serverPlayer(level))
                 && !PlayerGodzilla.isRooted(serverPlayer(level)) ? null : "still Godzilla or rooted");
+        check("shapes: himself again, Godzilla's keys don't count", () -> ModKeyContexts.GODZILLA_SHAPE.isActive() ? "their context is still active" : null);
+    }
+
+    /**
+     * Taps a key as Godzilla: {@code made}, the server should see {@code move} made then (and not, nothing new made).
+     */
+    private static void godzillaKey(String name, int key, PlayerGodzilla.Move move, boolean made) {
+        int[] before = {-1};
+        server(name + ": before", level -> before[0] = PlayerGodzilla.lastMoveAt(serverPlayer(level)));
+        tap(name, key);
+        waitTicks(6);
+        checkServer(name, level -> {
+            ServerPlayer player = serverPlayer(level);
+            PlayerGodzilla.Move last = PlayerGodzilla.lastMove(player);
+            boolean fresh = PlayerGodzilla.lastMoveAt(player) != before[0];
+            String detail = "last move " + last + (fresh ? ", just now" : ", from before");
+            return made ? (fresh && last == move ? null : detail) : (fresh ? detail : null);
+        });
+    }
+
+    /** Binds {@code mapping} to {@code key} as the Controls screen does, and saves the options. */
+    private static void rebind(KeyMapping mapping, InputConstants.Key key) {
+        mapping.setKey(key);
+        KeyMapping.resetMapping();
+        mc().options.save();
+    }
+
+    /** Whether options.txt has {@code mapping} bound to {@code key} (null), or what's wrong. */
+    @Nullable
+    private static String saved(KeyMapping mapping, String key) {
+        String line = "key_" + mapping.getName() + ":" + key;
+        try {
+            return Files.readAllLines(new File(mc().gameDirectory, "options.txt").toPath(), StandardCharsets.UTF_8).contains(line) ? null
+                    : "no \"" + line + "\" in options.txt";
+        } catch (IOException e) {
+            return "options.txt: " + e;
+        }
     }
 
     // ------------------------------------------------------------------ the Odo Island Monster
 
     private static void odo() {
-        server("shapes: as the Odo Island Monster", level -> {
-            ServerPlayer player = serverPlayer(level);
-            player.teleportTo(level, ODO_AT.x, ODO_AT.y, ODO_AT.z, 0.0F, 0.0F);
-            log("shapes: Odo taken: " + setShape(player, ModEntities.ODO_ISLAND_MONSTER.get().create(level)));
+        server("shapes: to the Odo's ground", level -> serverPlayer(level).teleportTo(level, ODO_AT.x, ODO_AT.y, ODO_AT.z, 0.0F, 0.0F));
+        waitTicks(10);
+        boolean[] remorphed = {false};
+        once("shapes: as the Odo Island Monster, through ReMorphed", () -> {
+            remorphed[0] = morphThroughReMorphed(ModEntities.ODO_ISLAND_MONSTER.get());
+            log("shapes: ReMorphed's morph request sent: " + remorphed[0]);
+        });
+        server("shapes: as the Odo Island Monster (Walkers, without ReMorphed)", level -> {
+            if (!remorphed[0]) {
+                log("shapes: Odo taken through Walkers: " + setShape(serverPlayer(level), ModEntities.ODO_ISLAND_MONSTER.get().create(level)));
+            }
         });
         waitTicks(60);
         check("shapes: playing as the Odo (both sides)", () -> mc().player != null && Shapes.shapeOf(mc().player)
                 instanceof com.npjt25.godzillaminusone.entity.OdoIslandMonsterEntity ? null : "the client doesn't have him");
         checkServer("shapes: the server has him too", level -> PlayerOdo.isOdo(serverPlayer(level)) ? null : "not on the server");
 
-        // walking, then holding Left Control (as the keyboard sends it) to run
-        double[] walk = {0.0};
-        double[] run = {0.0};
+        // walking, then holding Left Control (as the keyboard sends it) to run: the distance he covers, three times over
+        double[] walk = new double[3];
+        double[] run = new double[3];
         speed("shapes: walking", walk);
         once("shapes: Left Control down", () -> mc().keyboardHandler.keyPress(mc().getWindow().getWindow(),
                 GLFW.GLFW_KEY_LEFT_CONTROL, 0, GLFW.GLFW_PRESS, GLFW.GLFW_MOD_CONTROL));
         once("shapes: third person", () -> mc().options.setCameraType(CameraType.THIRD_PERSON_BACK));
         speed("shapes: running", run);
+        checkServer("shapes: running, one speed-up on him, no more", level -> {
+            long ups = runModifiers(serverPlayer(level));
+            double value = serverPlayer(level).getAttributeValue(Attributes.MOVEMENT_SPEED);
+            log(String.format("shapes: running: %d speed-up(s), speed attribute %.4f (server)", ups, value));
+            return ups == 1 ? null : ups + " speed-ups";
+        });
         check("shapes: as the Odo, third person stands back to show all of him", () -> {
             LocalPlayer player = mc().player;
             if (player == null) {
@@ -261,8 +376,19 @@ final class ShapeScenes {
         once("shapes: first person", () -> mc().options.setCameraType(CameraType.FIRST_PERSON));
         once("shapes: Left Control up", () -> mc().keyboardHandler.keyPress(mc().getWindow().getWindow(),
                 GLFW.GLFW_KEY_LEFT_CONTROL, 0, GLFW.GLFW_RELEASE, 0));
-        check("shapes: Left Control runs at 6 blocks a second", () -> Math.abs(run[0] - 6.0) < 0.3 && run[0] > walk[0] + 1.0 ? null
-                : String.format("running %.2f, walking %.2f blocks a second", run[0], walk[0]));
+        check("shapes: Left Control runs at 12 blocks a second (each second of it)", () -> {
+            String detail = String.format("running %.2f, %.2f, %.2f; walking %.2f, %.2f, %.2f blocks a second", run[0], run[1], run[2],
+                    walk[0], walk[1], walk[2]);
+            for (double v : run) {
+                if (Math.abs(v - 12.0) > 0.4) {
+                    return detail;
+                }
+            }
+            return walk[2] < 6.0 ? null : detail;
+        });
+        waitTicks(5);
+        checkServer("shapes: Left Control let go: the speed-up comes off", level -> runModifiers(serverPlayer(level)) == 0 ? null
+                : "still on");
 
         // a left click: his bite, not a punch
         once("shapes: look ahead", () -> {
@@ -278,27 +404,60 @@ final class ShapeScenes {
         checkServer("shapes: a left click bites (the pig in front of him is hurt)", ShapeScenes::pigBitten);
         server("shapes: back to himself", level -> log("shapes: back: " + setShape(serverPlayer(level), null)));
         waitTicks(20);
+        // himself again: his speed as it was (no speed-up left on him, either side), and he walks at a player's pace
+        checkServer("shapes: himself again, the server has his own speed", level -> {
+            ServerPlayer player = serverPlayer(level);
+            double value = player.getAttributeValue(Attributes.MOVEMENT_SPEED);
+            return runModifiers(player) == 0 && Math.abs(value - 0.1) < 1.0E-6 ? null
+                    : String.format("%d speed-up(s), speed attribute %.4f", runModifiers(player), value);
+        });
+        check("shapes: himself again, so does his client", () -> {
+            LocalPlayer player = mc().player;
+            if (player == null) {
+                return "no player";
+            }
+            double value = player.getAttributeValue(Attributes.MOVEMENT_SPEED);
+            return runModifiers(player) == 0 && Math.abs(value - 0.1) < 1.0E-6 ? null
+                    : String.format("%d speed-up(s), speed attribute %.4f", runModifiers(player), value);
+        });
+        double[] own = new double[3];
+        speed("shapes: walking as himself", own);
+        check("shapes: himself again, he walks at a player's pace (4.3 blocks a second)", () -> Math.abs(own[2] - 4.317) < 0.3 ? null
+                : String.format("walking %.2f blocks a second", own[2]));
     }
 
-    /** Walks forward about 60 ticks: the speed (blocks a second) over the last 20 or so, by the ticks that went by. */
+    /** The Odo's run speed-ups on a player's speed (PlayerOdo: one while the Run key is held, none otherwise). */
+    private static long runModifiers(Player player) {
+        AttributeInstance speed = player.getAttribute(Attributes.MOVEMENT_SPEED);
+        return speed == null ? -1 : speed.getModifiers().stream().map(AttributeModifier::getName)
+                .filter("Odo Island Monster running"::equals).count();
+    }
+
+    /**
+     * Walks forward: after 30 ticks to get going, the speed (blocks a second, level ground) over each of the next
+     * {@code out.length} stretches of 20 ticks or so, by the distance covered and the ticks that went by.
+     */
     private static void speed(String label, double[] out) {
         Vec3[] at = {null};
         int[] from = {0};
         once(label + ": go", () -> mc().options.keyUp.setDown(true));
-        waitTicks(40);
-        once(label + ": from", () -> {
-            at[0] = mc().player != null ? mc().player.position() : Vec3.ZERO;
-            from[0] = now();
-        });
-        waitTicks(20);
-        once(label + ": to", () -> {
-            if (mc().player != null) {
-                int ticks = Math.max(1, now() - from[0]);
-                out[0] = Math.sqrt(mc().player.position().subtract(at[0]).horizontalDistanceSqr()) * 20.0 / ticks;
-            }
-            mc().options.keyUp.setDown(false);
-            log(String.format("%s: %.2f blocks a second", label, out[0]));
-        });
+        waitTicks(30);
+        for (int i = 0; i < out.length; i++) {
+            int n = i;
+            once(label + ": from " + n, () -> {
+                at[0] = mc().player != null ? mc().player.position() : Vec3.ZERO;
+                from[0] = now();
+            });
+            waitTicks(20);
+            once(label + ": to " + n, () -> {
+                if (mc().player != null) {
+                    int ticks = Math.max(1, now() - from[0]);
+                    out[n] = Math.sqrt(mc().player.position().subtract(at[0]).horizontalDistanceSqr()) * 20.0 / ticks;
+                }
+                log(String.format("%s (%d): %.2f blocks a second", label, n + 1, out[n]));
+            });
+        }
+        once(label + ": stop", () -> mc().options.keyUp.setDown(false));
         waitTicks(10);
     }
 

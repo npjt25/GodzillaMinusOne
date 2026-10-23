@@ -114,6 +114,9 @@ public final class ShotsHarness {
     @Nullable
     private static String wantShot;
     private static boolean shotTaken;
+    @Nullable
+    private static Consumer<NativeImage> wantProbe;
+    private static boolean probed;
     static final List<Heard> HEARD = new ArrayList<>();
 
     // ------------------------------------------------------------------ driving the game
@@ -184,10 +187,23 @@ public final class ShotsHarness {
         }
     }
 
-    /** The screenshots: taken once a frame has been drawn, with everything in it. */
+    /** The screenshots (and probes): taken once a frame has been drawn, with everything in it. */
     @SubscribeEvent
     public static void onRenderTick(TickEvent.RenderTickEvent event) {
-        if (!ENABLED || event.phase != TickEvent.Phase.END || wantShot == null) {
+        if (!ENABLED || event.phase != TickEvent.Phase.END) {
+            return;
+        }
+        if (wantProbe != null) {
+            Consumer<NativeImage> probe = wantProbe;
+            wantProbe = null;
+            try (NativeImage image = Screenshot.takeScreenshot(Minecraft.getInstance().getMainRenderTarget())) {
+                probe.accept(image);
+            } catch (Throwable t) {
+                fail("probe", t.toString());
+            }
+            probed = true;
+        }
+        if (wantShot == null) {
             return;
         }
         String name = wantShot;
@@ -439,6 +455,35 @@ public final class ShotsHarness {
             }
             return shotTaken;
         });
+    }
+
+    /** Looks at the next frame drawn (nothing saved). */
+    static void probe(String label, Consumer<NativeImage> probe) {
+        boolean[] asked = {false};
+        add(label, () -> {
+            if (!asked[0]) {
+                asked[0] = true;
+                probed = false;
+                wantProbe = probe;
+                return false;
+            }
+            return probed;
+        });
+    }
+
+    /** How bright (0 to 255) a frame is on average in its middle: a square a tenth as high as the frame. */
+    static double middleBrightness(NativeImage image) {
+        int side = Math.max(2, image.getHeight() / 10);
+        int x0 = (image.getWidth() - side) / 2;
+        int y0 = (image.getHeight() - side) / 2;
+        double sum = 0.0;
+        for (int y = y0; y < y0 + side; y++) {
+            for (int x = x0; x < x0 + side; x++) {
+                int p = image.getPixelRGBA(x, y); // (ABGR)
+                sum += 0.299 * (p & 0xFF) + 0.587 * (p >> 8 & 0xFF) + 0.114 * (p >> 16 & 0xFF);
+            }
+        }
+        return sum / (side * side);
     }
 
     static int now() {

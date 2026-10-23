@@ -129,9 +129,11 @@ public final class Config {
                         "config menu: Mods, Godzilla Minus One, Config.")
                 .defineInRange("roarIntervalSeconds", 120, 0, 3600);
         DOWNED_SECONDS = BUILDER
-                .comment("When his health reaches zero he plays his collapse (5 s), then lies defeated for this many seconds",
-                        "before he regenerates and gets back up (the timer starts once the collapse is over and he lies still).",
-                        "Only used when regenerates = true.")
+                .comment("Resting time, in seconds: when his health reaches zero he plays his collapse (5 s), then lies defeated",
+                        "for this many seconds before he regenerates and gets back up (the timer starts once the collapse is over",
+                        "and he lies still; his get-up animation follows it as usual). 0 = he gets up as soon as he's down.",
+                        "Kept by the server (or the single-player world): only its copy of this file counts. Only used when",
+                        "regenerates = true.")
                 .defineInRange("downedSeconds", 15, 0, 3600);
         BUILDER.pop();
 
@@ -219,9 +221,10 @@ public final class Config {
                 .comment("Playing as Godzilla: his strides crush footprints (with playerGodzillaBreaksBlocks).")
                 .define("playerGodzillaFootprints", true);
         PLAYER_ODO_RUN_SPEED = BUILDER
-                .comment("Playing as the Odo Island Monster: how fast he runs (blocks per second on level ground) while the Run key",
-                        "(Left Control by default) is held.")
-                .defineInRange("playerOdoRunSpeed", 6.0, 1.0, 20.0);
+                .comment("Playing as the Odo Island Monster: how fast he runs, in blocks per second on level ground, while the Run",
+                        "key (Left Control by default) is held. Only the player playing as him; walking is left as it is.",
+                        "(Replaces playerOdoRunSpeed, 6 by default, of earlier versions.)")
+                .defineInRange("playerOdoRunBlocksPerSecond", 12.0, 1.0, 20.0);
         PLAYER_ODO_BITE_DAMAGE = BUILDER
                 .comment("Playing as the Odo Island Monster: damage of his bite (left click).")
                 .defineInRange("playerOdoBiteDamage", 30.0, 0.0, 1000.0);

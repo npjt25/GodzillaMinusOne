@@ -24,7 +24,6 @@ import net.minecraftforge.client.event.RegisterKeyMappingsEvent;
 import net.minecraftforge.client.event.RenderGuiEvent;
 import net.minecraftforge.client.event.RenderPlayerEvent;
 import net.minecraftforge.client.event.ViewportEvent;
-import net.minecraftforge.client.settings.KeyConflictContext;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
@@ -35,10 +34,15 @@ import java.util.Iterator;
 import java.util.Map;
 
 /**
- * Playing as Godzilla (Walkers / ReMorphed: entity.PlayerGodzilla), client side: his moves' keys (in Controls, Godzilla
- * Minus One: Z tail whip, H scratch, J bite, K roar, B atomic breath; Walkers' own keys are G, U, R and V), a small list
- * of them in the top left corner of the screen (with the breath's recharge time), and his animations on every
- * player playing as him: Walkers draws him in their place but never runs him, so here he's told what they're doing.
+ * Playing as Godzilla (Walkers / ReMorphed: entity.PlayerGodzilla), client side: his moves' keys, a small list of them
+ * in the top left corner of the screen (with the breath's recharge time), and his animations on every player playing
+ * as him: Walkers draws him in their place but never runs him, so here he's told what they're doing.
+ *
+ * <p>His moves are ordinary key bindings, the only say in which key does what: Options, Controls, Key Binds, Godzilla
+ * Minus One ("Godzilla: Tail Whip" Z, "Scratch" H, "Bite" J, "Roar" K, "Atomic Breath" B by default; Walkers' own keys
+ * are G, U, R and V, ReMorphed's `), saved with the rest of the game's (options.txt), and the list on screen shows
+ * whatever they're bound to. They only count while you're playing as him ({@link ModKeyContexts#GODZILLA_SHAPE}), as
+ * whichever of Walkers or ReMorphed made you him: otherwise their keys are free for whatever else is bound to them.
  * As him you see yourself from behind (third person, forced: back to first person when you change back), the camera
  * pulled far enough back for all of him to be in the picture.
  */
@@ -64,7 +68,7 @@ public final class PlayerGodzillaControls {
     private static final Map<Integer, Integer> CHARGING = new HashMap<>();
 
     private static KeyMapping key(String name, int key) {
-        return new KeyMapping(KEY + name, KeyConflictContext.IN_GAME, InputConstants.Type.KEYSYM, key, CATEGORY);
+        return new KeyMapping(KEY + name, ModKeyContexts.GODZILLA_SHAPE, InputConstants.Type.KEYSYM, key, CATEGORY);
     }
 
     @Mod.EventBusSubscriber(modid = GodzillaMinusOne.MODID, bus = Mod.EventBusSubscriber.Bus.MOD, value = Dist.CLIENT)

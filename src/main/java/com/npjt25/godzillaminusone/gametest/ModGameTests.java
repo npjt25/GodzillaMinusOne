@@ -31,6 +31,10 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.world.InteractionHand;
+import net.minecraft.world.item.context.UseOnContext;
+import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.core.Direction;
+import net.minecraft.tags.FluidTags;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.EntityType;
@@ -209,6 +213,36 @@ public final class ModGameTests {
         });
     }
 
+    /**
+     * His resting time is whatever downedSeconds says (here 3 s, not the 15 of the default), counted from the end of
+     * his 5 s collapse, which is left as it is.
+     */
+    @GameTest(template = FLOOR, batch = "gmo_regenerate_config", timeoutTicks = 500)
+    public static void hisRestingTimeComesFromTheConfig(GameTestHelper helper) {
+        int was = Config.DOWNED_SECONDS.get();
+        Config.DOWNED_SECONDS.set(3);
+        GodzillaEntity godzilla = spawnActiveGodzilla(helper);
+        godzilla.setHealth(10.0F);
+        detonateMine(helper, 4, 14);
+        helper.assertTrue(godzilla.getPhase() == GodzillaEntity.Phase.COLLAPSING, "at zero health he should collapse, was " + godzilla.getPhase());
+        helper.runAtTickTime(92, () -> helper.assertTrue(godzilla.getPhase() == GodzillaEntity.Phase.COLLAPSING,
+                "his collapse should still take its 5 s, was " + godzilla.getPhase()));
+        helper.runAtTickTime(108, () -> helper.assertTrue(godzilla.getPhase() == GodzillaEntity.Phase.DEAD,
+                "after his collapse he should lie defeated, was " + godzilla.getPhase()));
+        helper.runAtTickTime(100 + 60 - 8, () -> helper.assertTrue(godzilla.getPhase() == GodzillaEntity.Phase.DEAD,
+                "he should still be down 3 s after his collapse, was " + godzilla.getPhase()));
+        helper.runAtTickTime(100 + 60 + 8, () -> {
+            Config.DOWNED_SECONDS.set(was);
+            helper.assertTrue(godzilla.getPhase() == GodzillaEntity.Phase.EMERGING || godzilla.getPhase() == GodzillaEntity.Phase.RISING,
+                    "with downedSeconds = 3 he should be getting up 3 s after his collapse, was " + godzilla.getPhase());
+        });
+        helper.succeedWhen(() -> {
+            helper.assertTrue(godzilla.isActive(), "he should get back up, was " + godzilla.getPhase());
+            Config.DOWNED_SECONDS.set(was);
+            remove(godzilla);
+        });
+    }
+
     @GameTest(template = FLOOR, batch = "gmo_kamikaze", timeoutTicks = 60)
     public static void shindenFlownIntoGodzillaDetonates(GameTestHelper helper) {
         GodzillaEntity godzilla = spawnActiveGodzilla(helper);
@@ -290,6 +324,7 @@ public final class ModGameTests {
         LootParams params = new LootParams.Builder(level).withParameter(LootContextParams.ORIGIN, helper.absoluteVec(new Vec3(4, 4, 4)))
                 .create(LootContextParamSets.CHEST);
         int[] sizes = new int[4];
+        ItemStack found = ItemStack.EMPTY;
         for (ResourceLocation id : new ResourceLocation[]{BuiltInLootTables.END_CITY_TREASURE, BuiltInLootTables.NETHER_BRIDGE,
                 BuiltInLootTables.ANCIENT_CITY}) {
             LootTable table = level.getServer().getLootData().getLootTable(id);
@@ -301,6 +336,7 @@ public final class ModGameTests {
                 for (ItemStack stack : table.getRandomItems(params)) {
                     if (stack.is(ModItems.NAVAL_MINE_SPAWN_EGG.get())) {
                         mines += stack.getCount();
+                        found = stack;
                     } else {
                         others++;
                     }
@@ -319,6 +355,15 @@ public final class ModGameTests {
         ItemStack mine = new ItemStack(ModItems.NAVAL_MINE_SPAWN_EGG.get());
         helper.assertTrue(level.getRecipeManager().getRecipes().stream().anyMatch(r -> ItemStack.isSameItem(r.getResultItem(level.registryAccess()), mine)),
                 "the naval mine's recipe should still be there");
+        // what a chest gives is the mod's own naval mine, the one its recipe makes: used on the ground, it puts a mine there
+        Player player = helper.makeMockPlayer();
+        player.setItemInHand(InteractionHand.MAIN_HAND, found.copyWithCount(1));
+        BlockPos ground = helper.absolutePos(new BlockPos(4, floorY(helper), 4));
+        found.copyWithCount(1).useOn(new UseOnContext(player, InteractionHand.MAIN_HAND,
+                new BlockHitResult(Vec3.atCenterOf(ground).add(0.0, 0.5, 0.0), Direction.UP, ground, false)));
+        List<NavalMineEntity> placed = level.getEntitiesOfClass(NavalMineEntity.class, new AABB(ground).inflate(2.0));
+        helper.assertTrue(placed.size() == 1, "a naval mine from a chest should put a naval mine down, put " + placed.size());
+        remove(placed.toArray(new Entity[0]));
         helper.succeed();
     }
 
@@ -338,7 +383,8 @@ public final class ModGameTests {
 
     /**
      * Playing as Godzilla, his third key (J) is his bite, and plays his bite (not the claw swing he came with); playing
-     * as the Odo Island Monster, running gives him 6 blocks a second on level ground (a player walks 4.317 at 0.1).
+     * as the Odo Island Monster, running is made 12 blocks a second on level ground (a player walks 4.317 at 0.1; the
+     * real distance a second is measured in the game itself, client.harness.ShapeScenes).
      */
     @GameTest(template = FLOOR, batch = "gmo_playable", timeoutTicks = 20)
     public static void thePlayableShapesMovesAreWiredUp(GameTestHelper helper) {
@@ -347,7 +393,7 @@ public final class ModGameTests {
                 "J (the third key) should bite with his bite animation, was " + bite + " / " + bite.animation);
         helper.assertTrue(PlayerGodzilla.Move.ATOMIC_BREATH.length == GodzillaEntity.BEAM_END_TICK + GodzillaEntity.ROAR_TICKS,
                 "his breath (and his being rooted) should last until the roar after the beam is over");
-        helper.assertTrue(Math.abs(PlayerOdo.runSpeedAttribute() * 43.17 - 6.0) < 1.0E-6, "the Odo should run at 6 blocks a second");
+        helper.assertTrue(Math.abs(PlayerOdo.runSpeedAttribute() * 43.17 - 12.0) < 1.0E-6, "the Odo should run at 12 blocks a second");
         helper.succeed();
     }
 
@@ -731,6 +777,43 @@ public final class ModGameTests {
             // let the blast wave finish before the next test is set up next door
             helper.assertTrue(helper.getTick() - boom[0] >= 60, "waiting for the blast wave to pass");
             remove(odo);
+        });
+    }
+
+    /**
+     * A searchlight shining down on water lights up its surface, where the beam is seen to land (the light sources go in
+     * the air over it), not the bottom of the pool, which it can't reach for the water in the way.
+     */
+    @GameTest(template = FLOOR, batch = "gmo_searchlight_water", timeoutTicks = 80)
+    public static void aSearchlightOnWaterLightsItsSurface(GameTestHelper helper) {
+        int floor = floorY(helper);
+        Runnable release = room(helper, floor, 0, 0, 8, 16, 8);
+        for (int x = 0; x <= 8; x++) {
+            for (int z = 2; z <= 16; z++) {
+                for (int y = floor + 1; y <= floor + 4; y++) {
+                    helper.setBlock(new BlockPos(x, y, z), Blocks.WATER.defaultBlockState());
+                }
+            }
+        }
+        for (int y = floor + 1; y <= floor + 4; y++) {
+            helper.setBlock(new BlockPos(4, y, 1), Blocks.STONE.defaultBlockState());
+        }
+        SearchlightEntity light = helper.spawn(ModEntities.SEARCHLIGHT.get(), new Vec3(4.5, floor + 5, 1.5));
+        Pig operator = helper.spawn(EntityType.PIG, new Vec3(4.5, floor + 5, 0.5));
+        operator.setNoAi(true);
+        helper.assertTrue(operator.startRiding(light), "the searchlight should be mountable");
+        operator.setYRot(0.0F); // south, down at the water
+        operator.setXRot(30.0F);
+        int surface = helper.absolutePos(new BlockPos(0, floor + 5, 0)).getY();
+        helper.succeedWhen(() -> {
+            helper.assertTrue(light.isLit(), "manned, the searchlight should be lit");
+            helper.assertTrue(light.getLights().size() >= 2, "the beam should light up the water where it lands, lights " + light.getLights());
+            for (BlockPos pos : light.getLights()) {
+                helper.assertTrue(pos.getY() == surface && helper.getLevel().getFluidState(pos.below()).is(FluidTags.WATER),
+                        "its lights should be just over the water, one at " + pos + " (surface " + surface + ")");
+            }
+            remove(light, operator);
+            release.run();
         });
     }
 

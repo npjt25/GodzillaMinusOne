@@ -1,5 +1,6 @@
 package com.npjt25.godzillaminusone.client.harness;
 
+import com.npjt25.godzillaminusone.client.SearchlightGlow;
 import com.npjt25.godzillaminusone.client.ShinseiMaruSounds;
 import com.npjt25.godzillaminusone.entity.GodzillaEntity;
 import com.npjt25.godzillaminusone.entity.GodzillaStatueEntity;
@@ -13,7 +14,10 @@ import com.npjt25.godzillaminusone.registry.ModItems;
 import com.npjt25.godzillaminusone.registry.ModSounds;
 import net.minecraft.client.CameraType;
 import net.minecraft.core.BlockPos;
+import net.minecraft.client.CloudStatus;
 import net.minecraft.client.GraphicsStatus;
+import net.minecraft.client.renderer.LightTexture;
+import net.minecraft.world.entity.monster.Zombie;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.client.renderer.entity.EntityRenderer;
@@ -53,6 +57,7 @@ import static com.npjt25.godzillaminusone.client.harness.ShotsHarness.log;
 import static com.npjt25.godzillaminusone.client.harness.ShotsHarness.look;
 import static com.npjt25.godzillaminusone.client.harness.ShotsHarness.now;
 import static com.npjt25.godzillaminusone.client.harness.ShotsHarness.once;
+import static com.npjt25.godzillaminusone.client.harness.ShotsHarness.probe;
 import static com.npjt25.godzillaminusone.client.harness.ShotsHarness.server;
 import static com.npjt25.godzillaminusone.client.harness.ShotsHarness.serverPlayer;
 import static com.npjt25.godzillaminusone.client.harness.ShotsHarness.shot;
@@ -77,6 +82,7 @@ final class Scenes {
         odo();
         roars();
         searchlight();
+        searchlightOperator();
         boat();
         shinden();
         godzilla();
@@ -263,6 +269,154 @@ final class Scenes {
         waitTicks(80);
         shot("searchlight_water_ice_off_b");
         commands("time set 6000", "kill @e[type=minecraft:armor_stand]", "kill @e[type=godzillaminusone:searchlight]");
+    }
+
+    // ------------------------------------------------------------------ working a searchlight
+
+    /** Where the operated searchlight stands, at night: its beam runs north (-z), a little down, into a wall. */
+    private static final Vec3 OPERATED = new Vec3(200.5, -60.0, -200.5);
+
+    /** The zombie (client side) standing at (x, z) about the operated searchlight, if there is one. */
+    @Nullable
+    private static Zombie zombieAt(double x, double z) {
+        if (mc().level == null) {
+            return null;
+        }
+        List<Zombie> found = mc().level.getEntitiesOfClass(Zombie.class,
+                new AABB(OPERATED.x + x - 1.0, -62.0, OPERATED.z + z - 1.0, OPERATED.x + x + 1.0, -56.0, OPERATED.z + z + 1.0));
+        return found.isEmpty() ? null : found.get(0);
+    }
+
+    /** The light a zombie is drawn in: as the world has it, and as it's drawn (with the beams). */
+    private static int[] light(Zombie zombie) {
+        int world = mc().getEntityRenderDispatcher().getRenderer(zombie).getPackedLightCoords(zombie, 1.0F);
+        int drawn = mc().getEntityRenderDispatcher().getPackedLightCoords(zombie, 1.0F);
+        return new int[] {world, drawn};
+    }
+
+    /** Checks a zombie is drawn lit by the beam (or not). */
+    private static void litByTheBeam(String name, double x, double z, boolean lit) {
+        check(name, () -> {
+            Zombie zombie = zombieAt(x, z);
+            if (zombie == null) {
+                return "no zombie there";
+            }
+            int[] light = light(zombie);
+            String detail = String.format("block light %d as drawn, %d in the world; from the beams %d", LightTexture.block(light[1]),
+                    LightTexture.block(light[0]), SearchlightGlow.glow(zombie));
+            log(name + ": " + detail);
+            if (lit) {
+                return LightTexture.block(light[1]) >= 13 && LightTexture.block(light[0]) <= 3 ? null : detail;
+            }
+            return light[1] == light[0] && SearchlightGlow.glow(zombie) == 0 ? null : detail;
+        });
+    }
+
+    /** Where the player (the searchlight's operator) looks: yaw, pitch. */
+    private static void operatorLooks(String label, float yaw, float pitch) {
+        once(label, () -> {
+            if (mc().player != null) {
+                mc().player.setYRot(yaw);
+                mc().player.setXRot(pitch);
+            }
+        });
+    }
+
+    private static void switchOperated(String label, boolean on) {
+        server(label, level -> level.getEntitiesOfClass(SearchlightEntity.class, new AABB(OPERATED, OPERATED).inflate(4.0))
+                .forEach(light -> light.setSwitchedOn(on)));
+    }
+
+    /**
+     * Working a searchlight at night, as a player does (riding it, the beam going where they look): in first person, in
+     * third person, and looking up into the empty sky (where nothing of the beam should pile up in the middle of the
+     * view: it's measured, lamp on against lamp off); and the mobs it shines on: one in the beam lit (drawn brighter
+     * than the world's light there), one beside it and one behind the wall the beam lands on left as they are; then
+     * the beam turned away, and the lamp switched off, each putting the lit one back in the dark.
+     */
+    private static void searchlightOperator() {
+        commands("time set 18000",
+                "fill 194 -60 -231 206 -53 -231 minecraft:stone",
+                "summon minecraft:zombie 200.5 -60 -211.5 {NoAI:1b,Silent:1b,PersistenceRequired:1b,Rotation:[0f,0f]}",
+                "summon minecraft:zombie 206.5 -60 -211.5 {NoAI:1b,Silent:1b,PersistenceRequired:1b,Rotation:[0f,0f]}",
+                "summon minecraft:zombie 200.5 -60 -235.5 {NoAI:1b,Silent:1b,PersistenceRequired:1b,Rotation:[0f,0f]}");
+        once("searchlight operator: no clouds", () -> mc().options.cloudStatus().set(CloudStatus.OFF));
+        once("searchlight operator: the game's camera", () -> view(null, null));
+        server("searchlight operator: at it", level -> {
+            ServerPlayer player = serverPlayer(level);
+            player.setGameMode(GameType.CREATIVE);
+            player.getAbilities().flying = false;
+            player.onUpdateAbilities();
+            SearchlightEntity light = ModEntities.SEARCHLIGHT.get().create(level);
+            light.moveTo(OPERATED.x, OPERATED.y, OPERATED.z, 180.0F, 0.0F);
+            light.setAim(180.0F, 2.0F);
+            level.addFreshEntity(light);
+            player.teleportTo(level, OPERATED.x - 1.5, OPERATED.y, OPERATED.z, 180.0F, 2.0F);
+            player.startRiding(light, true);
+        });
+        once("searchlight operator: first person", () -> {
+            mc().options.setCameraType(CameraType.FIRST_PERSON);
+            mc().options.fov().set(70);
+        });
+        operatorLooks("searchlight operator: look down the beam", 180.0F, 2.0F);
+        waitTicks(60);
+        check("searchlight operator: riding it, lit", () -> {
+            SearchlightEntity light = find(SearchlightEntity.class);
+            return light != null && light.isLit() && mc().player != null && mc().player.getVehicle() == light ? null
+                    : "not riding a lit searchlight";
+        });
+        litByTheBeam("searchlight: the zombie in the beam is lit", 0.0, -11.0, true);
+        litByTheBeam("searchlight: the zombie beside the beam isn't", 6.0, -11.0, false);
+        litByTheBeam("searchlight: the zombie behind the wall isn't", 0.0, -35.0, false);
+        shot("searchlight_operator_first_person");
+
+        // up into the empty sky: whatever is drawn in the middle of the view, lamp on, should be what's there lamp off
+        double[] middle = new double[2];
+        operatorLooks("searchlight operator: look up", 180.0F, -20.0F);
+        waitTicks(20);
+        probe("searchlight operator: the middle of the view, lamp on", image -> middle[0] = ShotsHarness.middleBrightness(image));
+        shot("searchlight_operator_sky_first_person");
+        switchOperated("searchlight operator: lamp off", false);
+        waitTicks(20);
+        probe("searchlight operator: the middle of the view, lamp off", image -> middle[1] = ShotsHarness.middleBrightness(image));
+        check("searchlight operator: nothing of the beam in the middle of the view", () -> {
+            String detail = String.format("brightness in the middle %.1f lamp on, %.1f lamp off", middle[0], middle[1]);
+            log("searchlight operator: " + detail);
+            return Math.abs(middle[0] - middle[1]) < 3.0 ? null : detail;
+        });
+        switchOperated("searchlight operator: lamp on", true);
+        waitTicks(20);
+        once("searchlight operator: third person", () -> mc().options.setCameraType(CameraType.THIRD_PERSON_BACK));
+        waitTicks(10);
+        shot("searchlight_operator_sky_third_person");
+        operatorLooks("searchlight operator: look down the beam again", 180.0F, 2.0F);
+        waitTicks(20);
+        shot("searchlight_operator_third_person");
+        once("searchlight operator: first person again", () -> mc().options.setCameraType(CameraType.FIRST_PERSON));
+
+        // the beam turned away from the zombie, and back; then the lamp off
+        operatorLooks("searchlight operator: look west", 90.0F, 2.0F);
+        waitTicks(15);
+        litByTheBeam("searchlight: the beam turned away, the zombie goes dark", 0.0, -11.0, false);
+        operatorLooks("searchlight operator: look down the beam once more", 180.0F, 2.0F);
+        waitTicks(15);
+        litByTheBeam("searchlight: the beam back on the zombie, it's lit again", 0.0, -11.0, true);
+        once("searchlight operator: watch from the side", () -> view(OPERATED.add(14.0, 5.0, -12.0), OPERATED.add(0.0, -0.5, -16.0)));
+        waitTicks(10);
+        shot("searchlight_lights_mobs");
+        switchOperated("searchlight operator: lamp off again", false);
+        waitTicks(15);
+        litByTheBeam("searchlight: the lamp off, the zombie goes dark", 0.0, -11.0, false);
+        shot("searchlight_lights_mobs_off");
+
+        once("searchlight operator: done", () -> {
+            view(null, null);
+            mc().options.setCameraType(CameraType.FIRST_PERSON);
+            mc().options.cloudStatus().set(CloudStatus.FANCY);
+        });
+        server("searchlight operator: off it", level -> serverPlayer(level).stopRiding());
+        commands("kill @e[type=minecraft:zombie]", "kill @e[type=godzillaminusone:searchlight]", "time set 6000");
+        waitTicks(5);
     }
 
     // ------------------------------------------------------------------ the Shinsei Maru
