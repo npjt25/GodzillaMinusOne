@@ -12,6 +12,7 @@ import com.npjt25.godzillaminusone.registry.ModEntities;
 import com.npjt25.godzillaminusone.registry.ModItems;
 import com.npjt25.godzillaminusone.registry.ModSounds;
 import net.minecraft.client.CameraType;
+import net.minecraft.core.BlockPos;
 import net.minecraft.client.GraphicsStatus;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
@@ -604,6 +605,59 @@ final class Scenes {
                 : "they lift the vanilla boat, not her");
         commands("kill @e[type=minecraft:boat]", "weather clear");
         waitTicks(100);
+    }
+
+    /**
+     * Physics Mod's waves on a real ocean (the "ocean" script, a normal world): the nearest ocean to the world's middle,
+     * the Shinsei Maru and a vanilla boat on it in a thunderstorm, and how far its waves lift each as it draws them.
+     */
+    static void oceanScript() {
+        commands("gamerule doMobSpawning false", "time set 6000");
+        BlockPos[] sea = {null};
+        server("ocean: the nearest ocean", level -> {
+            com.mojang.datafixers.util.Pair<BlockPos, net.minecraft.core.Holder<net.minecraft.world.level.biome.Biome>> found =
+                    level.findClosestBiome3d(biome -> biome.is(net.minecraft.tags.BiomeTags.IS_OCEAN),
+                            new BlockPos(0, level.getSeaLevel(), 0), 3200, 32, 64);
+            if (found == null) {
+                log("ocean: none within 3200 blocks");
+                return;
+            }
+            sea[0] = new BlockPos(found.getFirst().getX(), level.getSeaLevel(), found.getFirst().getZ());
+            log("ocean: " + found.getSecond().unwrapKey().map(k -> k.location().toString()).orElse("?") + " at " + sea[0].toShortString());
+            ServerPlayer player = serverPlayer(level);
+            player.setGameMode(GameType.SPECTATOR);
+            float[] angles = look(new Vec3(sea[0].getX() - 14.5, sea[0].getY() + 9.0, sea[0].getZ() - 14.5), Vec3.atCenterOf(sea[0]).add(0.0, 1.0, 6.0));
+            player.teleportTo(level, sea[0].getX() - 14.5, sea[0].getY() + 9.0 - 1.62, sea[0].getZ() - 14.5, angles[0], angles[1]);
+        });
+        waitTicks(200); // (its chunks loading)
+        server("ocean: the boats", level -> {
+            if (sea[0] == null) {
+                return;
+            }
+            ShinseiMaruEntity maru = ModEntities.SHINSEI_MARU.get().create(level);
+            maru.moveTo(sea[0].getX() + 0.5, sea[0].getY() - 1.0, sea[0].getZ() + 0.5, 0.0F, 0.0F);
+            level.addFreshEntity(maru);
+            Boat boat = EntityType.BOAT.create(level);
+            boat.moveTo(sea[0].getX() + 0.5, sea[0].getY(), sea[0].getZ() + 14.5, 0.0F, 0.0F);
+            level.addFreshEntity(boat);
+        });
+        commands("weather thunder");
+        waitTicks(300); // (the storm coming on)
+        double[] ours = {Double.MAX_VALUE, -Double.MAX_VALUE};
+        double[] theirs = {Double.MAX_VALUE, -Double.MAX_VALUE};
+        during("ocean: Physics Mod's waves, in a storm", 200, () -> {
+            double a = waveOffset(find(ShinseiMaruEntity.class));
+            double b = waveOffset(find(Boat.class));
+            ours[0] = Math.min(ours[0], a);
+            ours[1] = Math.max(ours[1], a);
+            theirs[0] = Math.min(theirs[0], b);
+            theirs[1] = Math.max(theirs[1], b);
+            return Double.isNaN(a) || Double.isNaN(b) ? "can't read its wave offset (no Physics Mod, or no boats)" : null;
+        }, () -> String.format("lifted by its waves: the Shinsei Maru %.3f to %.3f, a vanilla boat %.3f to %.3f blocks",
+                ours[0], ours[1], theirs[0], theirs[1]));
+        shot("ocean_physicsmod_storm");
+        check("ocean: where its waves lift a boat, they lift her", () -> theirs[1] - theirs[0] < 0.02 || ours[1] - ours[0] > 0.02 ? null
+                : "they lift the vanilla boat, not her");
     }
 
     /** Physics Mod's wave offset of {@code entity} as it's drawn (blocks), or NaN. */

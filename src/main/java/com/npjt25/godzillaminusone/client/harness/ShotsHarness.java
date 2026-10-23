@@ -76,6 +76,11 @@ import java.util.function.Supplier;
 @Mod.EventBusSubscriber(modid = GodzillaMinusOne.MODID, bus = Mod.EventBusSubscriber.Bus.FORGE, value = Dist.CLIENT)
 public final class ShotsHarness {
     public static final boolean ENABLED = Boolean.getBoolean("godzillaminusone.shots");
+    /**
+     * Which script: "all" (the default: every scene, in a flat world), or "ocean" (-Dgodzillaminusone.shots.scene=ocean:
+     * only the Shinsei Maru on a real ocean, in a normal world, for Physics Mod's waves).
+     */
+    static final String SCENE = System.getProperty("godzillaminusone.shots.scene", "all");
     /** Everything has to be done within this many ticks of the world loading (30 minutes). */
     private static final int TIME_LIMIT = 20 * 60 * 30;
     private static final int IMAGE_WIDTH = 800;
@@ -136,7 +141,11 @@ public final class ShotsHarness {
             case LOADING -> {
                 if (mc.level != null && mc.player != null && mc.getSingleplayerServer() != null && ++loadingTicks > 60) {
                     log("world loaded; sound engine: " + mc.getSoundManager().getDebugString());
-                    Scenes.script();
+                    if (SCENE.equals("ocean")) {
+                        Scenes.oceanScript();
+                    } else {
+                        Scenes.script();
+                    }
                     state = State.RUNNING;
                 }
             }
@@ -226,7 +235,8 @@ public final class ShotsHarness {
         WorldOptions options = new WorldOptions(1954L, false, false);
         log("creating world " + name);
         mc.createWorldOpenFlows().createFreshLevel(name, settings, options,
-                registries -> registries.registryOrThrow(Registries.WORLD_PRESET).getHolderOrThrow(WorldPresets.FLAT).value()
+                registries -> registries.registryOrThrow(Registries.WORLD_PRESET)
+                        .getHolderOrThrow(SCENE.equals("ocean") ? WorldPresets.NORMAL : WorldPresets.FLAT).value()
                         .createWorldDimensions());
     }
 
