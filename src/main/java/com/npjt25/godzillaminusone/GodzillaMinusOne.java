@@ -6,6 +6,7 @@ import com.npjt25.godzillaminusone.entity.GodzillaEntity;
 import com.npjt25.godzillaminusone.entity.NavalMineEntity;
 import com.npjt25.godzillaminusone.entity.OdoIslandMonsterEntity;
 import com.npjt25.godzillaminusone.entity.ShindenEntity;
+import com.npjt25.godzillaminusone.loot.AddItemModifier;
 import com.npjt25.godzillaminusone.network.ModNetwork;
 import com.npjt25.godzillaminusone.registry.ModCreativeTabs;
 import com.npjt25.godzillaminusone.registry.ModEntities;
@@ -39,6 +40,7 @@ public class GodzillaMinusOne {
         ModParticles.PARTICLES.register(modBus);
         ModCreativeTabs.TABS.register(modBus);
         ModMenus.MENUS.register(modBus);
+        AddItemModifier.SERIALIZERS.register(modBus);
 
         modBus.addListener(this::commonSetup);
         modBus.addListener(this::registerAttributes);

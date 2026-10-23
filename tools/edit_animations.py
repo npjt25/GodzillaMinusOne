@@ -20,7 +20,8 @@ twice):
     side), "pose_tail_whip" (the tail swung round in front of him, its tip rising), "pose_sky_roar" (roaring
     up at the sky, arms spread), "pose_poster_snarl" (the 70th anniversary poster: braced and snarling, one arm
     reaching forward, the tail rising behind him in a tall J) and "pose_tail_hook" (turned three-quarters away,
-    growling, the tail swept round in front of him in a broad open hook). The tails were solved for with a small
+    growling, the tail swept round in front of him in a broad open hook), and "pose_hunched_snarl" (square on,
+    hunched forward, head low between his shoulders, snarling). The tails were solved for with a small
     search (see the tail waypoints), and the last two arms likewise, from where their elbows, wrists and fingers
     should be; their Root is turned so that the statue, which turns to face you, shows the poster's angle, and
     lowered so that the bent legs still stand on the ground.
@@ -270,6 +271,25 @@ def swim_bite(anims):
     }
 
 
+def bite():
+    """His bite on land (the "attack" animation he came with is mostly a claw swing): he rears his head back with his
+    jaws gaping, lunges, head and neck thrust forward and down, and snaps them shut half a second in (when the bite
+    lands: GodzillaEntity.Attack.BITE and PlayerGodzilla's bite), then draws back. Only the body, neck, head and jaw
+    move, so it plays over walking too."""
+    return {
+        "animation_length": 1.0,
+        "bones": {
+            "Body": {"rotation": keyed({0.0: [0, 0, 0], 0.3: [-3, 0, 0], 0.5: [7, 0, 0], 0.7: [5, 0, 0], 1.0: [0, 0, 0]})},
+            "Chest": {"rotation": keyed({0.0: [0, 0, 0], 0.3: [-6, 0, 0], 0.5: [12, 0, 0], 0.7: [9, 0, 0], 1.0: [0, 0, 0]})},
+            "Neck": {"rotation": keyed({0.0: [0, 0, 0], 0.3: [-14, 0, 0], 0.5: [26, 0, 0], 0.7: [20, 0, 0], 1.0: [0, 0, 0]})},
+            "Head": {"rotation": keyed({0.0: [-5, 0, 0], 0.3: [-22, 0, 0], 0.5: [6, 0, 0], 0.7: [2, 0, 0], 1.0: [-5, 0, 0]})},
+            "Jew": {"rotation": keyed({0.0: [0, 0, 0], 0.25: [34, 0, 0], 0.42: [42, 0, 0], 0.5: [0, 0, 0], 0.62: [6, 0, 0],
+                                       0.75: [0, 0, 0], 1.0: [0, 0, 0]})},
+        },
+        "sound_effects": {"0.1000": {"effect": "godzilla.attack"}},
+    }
+
+
 # ---------------------------------------------------------------- melee combo
 
 TAIL = ("bone11", "bone13", "bone14", "bone16", "bone17", "bone18")
@@ -468,6 +488,27 @@ POSES = {
         "bone11": [49.3, 79.3, 0], "bone13": [-29.9, 70.6, 0], "bone14": [-11.1, 53.3, 0], "bone16": [12.2, 22.4, 0],
         "bone17": [36.4, 5.3, 0], "bone18": [47.6, 0.7, 0],
     },
+    # Almost square on to you, leaning forward, the shoulders hunched up and forward (the arms' pivots raised 4 and
+    # moved 3 forward) so that the head, lowered in front of them, sits between them; snout a little down, face
+    # towards you, jaw slightly open in a snarl. His right arm (on your left) is bent, its claw forward at the bottom
+    # of his chest, fingers loosely curled; his left (on your right) hangs lower and further out, the elbow slightly
+    # bent, the claw open and angled down. A heavy advancing stance: left foot forward, knees bent; the tail trails
+    # behind him. The arms were solved (scratchpad lab, solve_limb) from elbow, wrist and finger targets in his
+    # chest's frame: right (19,59,-10) (15,56,-19.5) (14,54.5,-22), left (-21,60,-10) (-27,51.5,-13) (-29,49,-14.5).
+    # No glow.
+    "pose_hunched_snarl": {
+        "Root": {"rotation": [0, 0, 0], "position": [0, -2.87, 0]},
+        "Leg2": [-16, 0, 0], "Leg_bone2": [18, 0, 0], "Foot2": [-2, 0, 0],
+        "Leg": [8, 0, 3], "Leg_bone": [14, 0, 0], "Foot": [-20, 0, -3],
+        "Body": [6, 0, 0], "Metalbody": [8, 0, 0], "Chest": [10, 0, 0],
+        "Neck": [40, 0, 0], "neck2": [18, 0, 0], "Head": [-58, 0, 0], "Jew": [7, 0, 0],
+        "Right_arm": {"rotation": [-8.7, -4.3, 29.1], "position": [0, 4, -3]}, "bone": [-53.1, -35.9, -27.4],
+        "bone2": [10, 0, 0], "Finger": [35, 0, 0],
+        "Left_arm": {"rotation": [2.2, 18.3, -42.3], "position": [0, 4, -3]}, "bone4": [-4.5, 14.0, 9.6],
+        "bone5": [25, 0, 0], "Finger2": [-10, 0, 0],
+        "bone11": [-6, 4, 0], "bone13": [2, 8, 0], "bone14": [6, 10, 0], "bone16": [8, 8, 0], "bone17": [6, 4, 0],
+        "bone18": [2, -4, 0],
+    },
 }
 
 
@@ -494,6 +535,7 @@ def main():
     anims["animation.gojira.swipe_left"] = swipe(anims, -1)
     anims["animation.gojira.spin_whip"] = spin_whip(anims)
     anims["animation.gojira.swim_peek"] = swim_peek(anims)
+    anims["animation.gojira.bite"] = bite()
     poses(anims)
     with open(PATH, "w") as f:
         json.dump(data, f, indent=1)

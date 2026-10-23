@@ -257,6 +257,16 @@ def line(a, b, thick, kind):
               rot=(-angle, 0, 0), pivot=(x, cy, cz))
 
 
+def athwart(a, b, thick, kind):
+    """A rope or wire from a to b (full-size blocks) across her (z the same at both ends): a shroud."""
+    (x0, y0, z), (x1, y1, _) = a, b
+    length = math.hypot(x1 - x0, y1 - y0)
+    angle = math.degrees(math.atan2(x1 - x0, y1 - y0))      # from straight up, towards +x
+    cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
+    return hb(cx - thick / 2, cy - length / 2, z - thick / 2, cx + thick / 2, cy + length / 2, z + thick / 2, kind,
+              rot=(0, 0, angle), pivot=(cx, cy, z))
+
+
 def shinsei_maru():
     """16.3 blocks long, 5.6 across; the wheelhouse roof is 4.45 blocks above the keel, the mast 11. Run down and
     weather-beaten: rust weeping from every fitting, paint flaking off her topsides and wheelhouse, a rust-red
@@ -275,17 +285,17 @@ def shinsei_maru():
         c.append(hb(side * B, 1.92, -6.2, side * (B + 0.09), 2.06, 7.3, "rail"))                   # rubbing strake
         c.append(hb(side * 2.3, 2.1, -7.4, side * 2.38, 2.3, -6.2, "rail"))
         # rust weeping down her topsides from the scuppers and fittings, and paint flaking off
-        for z in np.linspace(-5.8, 6.9, 15) + rng.uniform(-0.3, 0.3, 15):
+        for z in np.linspace(-5.8, 6.9, 24) + rng.uniform(-0.25, 0.25, 24):
             w, l = rng.uniform(0.08, 0.2), rng.uniform(0.35, 0.95)
             c.append(hb(side * B, 2.08 - l, z - w / 2, side * (B + 0.025), 2.08, z + w / 2, "streak"))
-        for _ in range(8):
+        for _ in range(14):
             z, y = rng.uniform(-5.8, 6.8), rng.uniform(1.3, 1.85)
             c.append(hb(side * B, y - rng.uniform(0.12, 0.25), z - rng.uniform(0.25, 0.7),
                         side * (B + 0.015), y, z + rng.uniform(0.25, 0.7), "flake"))
         for z in (-4.6, -0.5, 5.2):                                                                   # patched planks
             c.append(hb(side * B, 1.35, z - 0.45, side * (B + 0.03), 1.65, z + 0.45, "patch"))
         # old tyres hung over the side as fenders
-        for z in (-4.0, 0.6, 5.6):
+        for z in (-4.0, -1.7, 0.6, 2.4, 5.6):
             c += octagon(side * (B + 0.16) * HALF, 1.55 * HALF, z * HALF, 0.62 * HALF, 0.22 * HALF, "tyre", axis="x")
             c.append(hb(side * (B + 0.12), 1.85, z - 0.03, side * (B + 0.18), 2.6, z + 0.03, "rope"))
         # the hawse pipe, weeping rust
@@ -293,7 +303,7 @@ def shinsei_maru():
         c.append(hb(side * 1.0 - 0.06, 1.35, -7.98, side * 1.0 + 0.06, 2.05, -7.9, "streak"))
     # deck and bulwarks (open just aft of the wheelhouse, where the ladders come up)
     c.append(hb(-2.65, 2.1, -7.4, 2.65, 2.2, 7.3, "deck"))
-    for _ in range(14):                                                                              # stains
+    for _ in range(26):                                                                              # stains
         x, z = rng.uniform(-2.2, 2.2), rng.uniform(-7.0, 6.8)
         r = rng.uniform(0.2, 0.55)
         c.append(hb(x - r, 2.2, z - r, x + r, 2.205, z + r, "stain"))
@@ -332,6 +342,10 @@ def shinsei_maru():
         c.append(hb(1.2 + dx - sx / 2, 3.3 + dy - sy / 2, 2.94, 1.2 + dx + sx / 2, 3.3 + dy + sy / 2, 3.04, "buoy"))  # life ring
     c.append(hb(-2.05, 4.3, -1.65, 2.05, 4.45, 3.1, "roof"))
     c.append(hb(-2.05, 4.1, -1.66, 2.05, 4.3, -1.6, "streak"))
+    for side in (-1, 1):                                                                              # rust off the roof
+        for z in rng.uniform(-1.3, 2.7, 5):
+            l = rng.uniform(0.3, 0.9)
+            c.append(hb(side * 1.9, 4.3 - l, z - 0.05, side * 1.915, 4.3, z + 0.05, "streak"))
     # the flying bridge: rails round the roof, the wheel on its stand, a binnacle, the horn
     for side in (-1, 1):
         c.append(hb(side * 1.97, 4.45, -1.6, side * 2.03, 5.2, 3.05, "rail"))
@@ -354,6 +368,18 @@ def shinsei_maru():
     c.append(hb(-0.32, 11.3, mz - 0.32, 0.32, 11.36, mz + 0.32, "metal"))
     c.append(line((0.0, 10.8, mz), (0.0, 2.95, -8.3), 0.05, "rope"))
     c.append(line((0.0, 10.6, mz), (0.0, 6.4, 2.55), 0.04, "rope"))
+    for side in (-1, 1):                                                                              # the shrouds
+        c.append(athwart((side * 0.1, 10.4, mz), (side * 2.66, 2.72, mz), 0.04, "rope"))
+        c.append(athwart((side * 1.35, 9.2, mz), (side * 2.66, 2.72, mz), 0.035, "rope"))
+        c.append(hb(side * 2.6, 2.6, mz - 0.08, side * 2.72, 2.78, mz + 0.08, "metal"))               # chainplates
+    # a net drying from the port yardarm, a float or two caught in it
+    c.append(hb(-1.3, 7.3, mz - 0.03, -0.75, 9.15, mz + 0.03, "net"))
+    c.append(hb(-1.2, 7.25, mz - 0.1, -1.0, 7.45, mz + 0.1, "buoy"))
+    # a net hung over the starboard bulwark to dry, floats along its head rope
+    c.append(hb(2.78, 1.35, -6.0, 2.84, 2.66, -4.5, "net"))
+    c.append(hb(2.66, 2.6, -6.05, 2.86, 2.7, -4.45, "rope"))
+    for z in (-5.8, -5.25, -4.7):
+        c.append(hb(2.84, 2.35, z - 0.12, 2.98, 2.55, z + 0.12, "buoy"))
     # the foredeck: cages, nets heaped up, floats, a coil of rope, the anchor, bollards, the winch, a ventilator
     for x, y, z in ((-1.2, 2.2, -5.1), (1.0, 2.2, -4.9), (-0.1, 3.0, -5.0), (1.1, 2.2, -3.8), (-1.0, 2.2, -3.9)):
         c.append(hb(x - 0.45, y, z - 0.45, x + 0.45, y + 0.8, z + 0.45, "crate"))
@@ -424,7 +450,7 @@ def shinsei_maru():
                "gun": (40, 42, 40), "drab": (78, 84, 56)}
     write("shinsei_maru", bones, 1024, palette, seed=7, texels=1, bounds=20,
           planks={"hull": "h", "bottom": "h", "cabin": "v", "deck": "v", "crate": "h", "patch": "h", "wood": "v"},
-          weather={"hull": 1.0, "bottom": 0.8, "cabin": 0.9, "roof": 1.0, "metal": 1.0, "deck": 0.5, "rail": 0.6,
+          weather={"hull": 1.0, "bottom": 0.8, "cabin": 0.9, "roof": 1.0, "metal": 1.0, "deck": 0.7, "rail": 0.7,
                    "drum": 1.0, "crate": 0.4, "boottop": 0.6, "wood": 0.5})
 
 

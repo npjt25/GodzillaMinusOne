@@ -10,7 +10,7 @@ import net.minecraftforge.network.PacketDistributor;
 import net.minecraftforge.network.simple.SimpleChannel;
 
 public final class ModNetwork {
-    private static final String VERSION = "3";
+    private static final String VERSION = "4";
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             GodzillaMinusOne.id("main"), () -> VERSION, VERSION::equals, VERSION::equals);
 
@@ -33,6 +33,10 @@ public final class ModNetwork {
                 .consumerMainThread(GodzillaMoveRequestPacket::handle).add();
         CHANNEL.messageBuilder(GodzillaMovePacket.class, id++, NetworkDirection.PLAY_TO_CLIENT)
                 .encoder(GodzillaMovePacket::encode).decoder(GodzillaMovePacket::decode).consumerMainThread(GodzillaMovePacket::handle).add();
+        CHANNEL.messageBuilder(OdoMoveRequestPacket.class, id++, NetworkDirection.PLAY_TO_SERVER)
+                .encoder(OdoMoveRequestPacket::encode).decoder(OdoMoveRequestPacket::decode).consumerMainThread(OdoMoveRequestPacket::handle).add();
+        CHANNEL.messageBuilder(ShapeAnimPacket.class, id++, NetworkDirection.PLAY_TO_CLIENT)
+                .encoder(ShapeAnimPacket::encode).decoder(ShapeAnimPacket::decode).consumerMainThread(ShapeAnimPacket::handle).add();
     }
 
     public static void send(ServerPlayer player, Object message) {

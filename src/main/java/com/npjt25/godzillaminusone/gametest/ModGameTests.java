@@ -12,6 +12,8 @@ import com.npjt25.godzillaminusone.entity.GodzillaStatueEntity;
 import com.npjt25.godzillaminusone.entity.NavalMineEntity;
 import com.npjt25.godzillaminusone.entity.NuclearBombEntity;
 import com.npjt25.godzillaminusone.entity.OdoIslandMonsterEntity;
+import com.npjt25.godzillaminusone.entity.PlayerGodzilla;
+import com.npjt25.godzillaminusone.entity.PlayerOdo;
 import com.npjt25.godzillaminusone.entity.SearchlightEntity;
 import com.npjt25.godzillaminusone.entity.ShindenEntity;
 import com.npjt25.godzillaminusone.entity.ShinseiMaruEntity;
@@ -21,8 +23,11 @@ import com.npjt25.godzillaminusone.menu.ShinseiMaruMenu;
 import com.npjt25.godzillaminusone.registry.ModDamageTypes;
 import com.npjt25.godzillaminusone.registry.ModEntities;
 import com.npjt25.godzillaminusone.registry.ModItems;
+import com.npjt25.godzillaminusone.registry.ModSounds;
 import net.minecraft.commands.arguments.EntityAnchorArgument;
 import net.minecraft.core.BlockPos;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.world.InteractionHand;
@@ -37,6 +42,11 @@ import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.entity.ChestBlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.storage.loot.BuiltInLootTables;
+import net.minecraft.world.level.storage.loot.LootParams;
+import net.minecraft.world.level.storage.loot.LootTable;
+import net.minecraft.world.level.storage.loot.parameters.LootContextParamSets;
+import net.minecraft.world.level.storage.loot.parameters.LootContextParams;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.gametest.GameTestHolder;
@@ -167,6 +177,12 @@ public final class ModGameTests {
         helper.assertTrue(godzilla.getPhase() == GodzillaEntity.Phase.COLLAPSING, "at zero health he should collapse, was " + godzilla.getPhase());
         helper.assertTrue(godzilla.isAlive(), "he should not really die");
         helper.runAtTickTime(200, () -> helper.assertTrue(godzilla.getPhase() == GodzillaEntity.Phase.DEAD, "he should be lying dead"));
+        // downedSeconds counts from the end of his 5 s collapse
+        int downed = Config.DOWNED_SECONDS.get() * 20;
+        helper.runAtTickTime(100 + downed - 10, () -> helper.assertTrue(godzilla.getPhase() == GodzillaEntity.Phase.DEAD,
+                "he should still be down " + downed / 20 + " s after his collapse, was " + godzilla.getPhase()));
+        helper.runAtTickTime(100 + downed + 10, () -> helper.assertTrue(godzilla.getPhase() == GodzillaEntity.Phase.EMERGING,
+                "he should be getting up after " + downed / 20 + " s, was " + godzilla.getPhase()));
         helper.succeedWhen(() -> {
             helper.assertTrue(godzilla.isActive() && godzilla.getHealth() >= godzilla.getMaxHealth() - 0.5F,
                     "he should rise again at full health, was " + godzilla.getPhase() + " / " + godzilla.getHealth());
@@ -186,6 +202,113 @@ public final class ModGameTests {
         });
     }
 
+    /** A piloted Shinden, its box centred on {@code at}, for flying into Godzilla. */
+    private static ShindenEntity planeAt(GameTestHelper helper, Vec3 at, Player pilot) {
+        ShindenEntity plane = helper.spawn(ModEntities.SHINDEN.get(), 4, 3, 4);
+        plane.moveTo(at.x, at.y - plane.getBbHeight() / 2.0, at.z, 0.0F, 0.0F);
+        pilot.startRiding(plane, true);
+        return plane;
+    }
+
+    /** Burnt from his breath, a Shinden flown into his face at full speed takes all his health: he collapses. */
+    @GameTest(template = FLOOR, batch = "gmo_face_crash", timeoutTicks = 20)
+    public static void aShindenInHisBurntFaceBringsHimDown(GameTestHelper helper) {
+        GodzillaEntity godzilla = spawnActiveGodzilla(helper);
+        godzilla.setBurnTicks(GodzillaEntity.BURN_TICKS);
+        Vec3 forward = Vec3.directionFromRotation(0.0F, godzilla.yBodyRot);
+        Player pilot = helper.makeMockPlayer();
+        ShindenEntity plane = planeAt(helper, godzilla.facePosition().add(forward.scale(3.0)), pilot);
+        helper.assertTrue(godzilla.shindenStrike(plane, forward.scale(-1.6)), "flying into his face should hit it");
+        helper.assertTrue(godzilla.getPhase() == GodzillaEntity.Phase.COLLAPSING, "burnt, he should collapse, was " + godzilla.getPhase());
+        helper.assertTrue(plane.isRemoved(), "the plane should crash");
+        pilot.stopRiding();
+        remove(godzilla);
+        helper.succeed();
+    }
+
+    /** ...but not when his mouth isn't burnt: then it's an ordinary crash (a naval mine's worth). */
+    @GameTest(template = FLOOR, batch = "gmo_face_crash_unburnt", timeoutTicks = 20)
+    public static void aShindenInHisUnburntFaceIsAnOrdinaryCrash(GameTestHelper helper) {
+        GodzillaEntity godzilla = spawnActiveGodzilla(helper);
+        helper.assertTrue(godzilla.getBurnTicks() == 0, "he shouldn't start out burnt");
+        Vec3 forward = Vec3.directionFromRotation(0.0F, godzilla.yBodyRot);
+        Player pilot = helper.makeMockPlayer();
+        ShindenEntity plane = planeAt(helper, godzilla.facePosition().add(forward.scale(3.0)), pilot);
+        helper.assertTrue(godzilla.shindenStrike(plane, forward.scale(-1.6)), "flying into his face should hit it");
+        helper.assertTrue(godzilla.isActive() && godzilla.getHealth() > godzilla.getMaxHealth() * 0.5F,
+                "unburnt, he should only lose a mine's worth, was " + godzilla.getPhase() + " / " + godzilla.getHealth());
+        pilot.stopRiding();
+        remove(godzilla);
+        helper.succeed();
+    }
+
+    /** Burnt or not, a Shinden into his chest, or one only drifting into his face, doesn't count as a face crash. */
+    @GameTest(template = FLOOR, batch = "gmo_face_crash_miss", timeoutTicks = 20)
+    public static void onlyAFullSpeedHitOnHisFaceCounts(GameTestHelper helper) {
+        GodzillaEntity godzilla = spawnActiveGodzilla(helper);
+        godzilla.setBurnTicks(GodzillaEntity.BURN_TICKS);
+        Vec3 forward = Vec3.directionFromRotation(0.0F, godzilla.yBodyRot);
+        Player pilot = helper.makeMockPlayer();
+        ShindenEntity chest = planeAt(helper, godzilla.position().add(forward.scale(7.0)).add(0.0, 20.0, 0.0), pilot);
+        helper.assertFalse(godzilla.shindenStrike(chest, forward.scale(-1.6)), "his chest is not his face");
+        pilot.stopRiding();
+        ShindenEntity slow = planeAt(helper, godzilla.facePosition().add(forward.scale(3.0)), pilot);
+        helper.assertFalse(godzilla.shindenStrike(slow, forward.scale(-0.3)), "drifting into him is no crash");
+        helper.assertFalse(godzilla.shindenStrike(slow, forward.scale(1.6)), "flying away from his face is no crash");
+        helper.assertTrue(godzilla.isActive() && godzilla.getHealth() == godzilla.getMaxHealth(), "he should be unhurt");
+        pilot.stopRiding();
+        remove(godzilla, chest, slow);
+        helper.succeed();
+    }
+
+    /**
+     * Naval mines turn up in end city, nether fortress and ancient city chests, on top of their usual loot (added by a
+     * global loot modifier, nothing replaced).
+     */
+    @GameTest(template = FLOOR, batch = "gmo_loot", timeoutTicks = 20)
+    public static void navalMinesTurnUpInEndCityFortressAndAncientCityChests(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        LootParams params = new LootParams.Builder(level).withParameter(LootContextParams.ORIGIN, helper.absoluteVec(new Vec3(4, 4, 4)))
+                .create(LootContextParamSets.CHEST);
+        for (ResourceLocation id : new ResourceLocation[]{BuiltInLootTables.END_CITY_TREASURE, BuiltInLootTables.NETHER_BRIDGE,
+                BuiltInLootTables.ANCIENT_CITY}) {
+            LootTable table = level.getServer().getLootData().getLootTable(id);
+            int mines = 0;
+            int others = 0;
+            for (int i = 0; i < 300; i++) {
+                for (ItemStack stack : table.getRandomItems(params)) {
+                    if (stack.is(ModItems.NAVAL_MINE_SPAWN_EGG.get())) {
+                        mines++;
+                    } else {
+                        others++;
+                    }
+                }
+            }
+            helper.assertTrue(mines > 0, id + " should sometimes hold naval mines");
+            helper.assertTrue(mines < 300, id + ": not every chest should, " + mines + " in 300");
+            helper.assertTrue(others > mines, id + " should still hold its usual loot");
+        }
+        ItemStack mine = new ItemStack(ModItems.NAVAL_MINE_SPAWN_EGG.get());
+        helper.assertTrue(level.getRecipeManager().getRecipes().stream().anyMatch(r -> ItemStack.isSameItem(r.getResultItem(level.registryAccess()), mine)),
+                "the naval mine's recipe should still be there");
+        helper.succeed();
+    }
+
+    /**
+     * Playing as Godzilla, his third key (J) is his bite, and plays his bite (not the claw swing he came with); playing
+     * as the Odo Island Monster, running gives him 6 blocks a second on level ground (a player walks 4.317 at 0.1).
+     */
+    @GameTest(template = FLOOR, batch = "gmo_playable", timeoutTicks = 20)
+    public static void thePlayableShapesMovesAreWiredUp(GameTestHelper helper) {
+        PlayerGodzilla.Move bite = PlayerGodzilla.Move.values()[2];
+        helper.assertTrue(bite == PlayerGodzilla.Move.BITE && "bite".equals(bite.animation),
+                "J (the third key) should bite with his bite animation, was " + bite + " / " + bite.animation);
+        helper.assertTrue(PlayerGodzilla.Move.ATOMIC_BREATH.length == GodzillaEntity.BEAM_END_TICK + GodzillaEntity.ROAR_TICKS,
+                "his breath (and his being rooted) should last until the roar after the beam is over");
+        helper.assertTrue(Math.abs(PlayerOdo.runSpeedAttribute() * 43.17 - 6.0) < 1.0E-6, "the Odo should run at 6 blocks a second");
+        helper.succeed();
+    }
+
     @GameTest(template = FLOOR, batch = "gmo_kill")
     public static void killCommandStillWorks(GameTestHelper helper) {
         GodzillaEntity godzilla = spawnActiveGodzilla(helper);
@@ -194,24 +317,32 @@ public final class ModGameTests {
         helper.succeed();
     }
 
-    /**
-     * Game tests run in a pocket dug out at y -60 of a normal world, so the beam hits rock right at his mouth.
-     * The pig waits in a sealed cell 40 blocks ahead: out of his sight and beyond his footsteps and the heat around him
-     * while he charges, but well inside the blast.
-     */
-    @GameTest(template = FLOOR, batch = "gmo_atomic_breath", timeoutTicks = 560)
-    public static void atomicBreathKillsHisTargetThenRecharges(GameTestHelper helper) {
-        GodzillaEntity godzilla = spawnActiveGodzilla(helper);
-        godzilla.setFirstBreathDelay(0);
+    /** A pig sealed in a one-block cell at (4, floor + 1, z), its chunk kept loaded until {@code release} runs. */
+    private static Pig cellPig(GameTestHelper helper, int z, List<Runnable> release) {
         int floor = floorY(helper);
-        BlockPos cell = new BlockPos(4, floor + 1, 44);
+        BlockPos cell = new BlockPos(4, floor + 1, z);
         for (BlockPos wall : new BlockPos[]{cell.below(), cell.above(), cell.north(), cell.south(), cell.east(), cell.west()}) {
             helper.setBlock(wall, Blocks.STONE.defaultBlockState());
         }
         helper.setBlock(cell, Blocks.AIR.defaultBlockState());
         BlockPos abs = helper.absolutePos(cell);
         helper.getLevel().setChunkForced(abs.getX() >> 4, abs.getZ() >> 4, true);
-        Pig pig = helper.spawn(EntityType.PIG, cell);
+        release.add(() -> helper.getLevel().setChunkForced(abs.getX() >> 4, abs.getZ() >> 4, false));
+        return helper.spawn(EntityType.PIG, cell);
+    }
+
+    /**
+     * Game tests run in a pocket dug out at y -60 of a normal world, so the beam hits rock right at his mouth.
+     * The pig waits in a sealed cell 40 blocks ahead: out of his sight and beyond his footsteps and the heat around him
+     * while he charges, but well inside the blast (closer than minTargetDistance, so that's lifted for this test).
+     */
+    @GameTest(template = FLOOR, batch = "gmo_atomic_breath", timeoutTicks = 560)
+    public static void atomicBreathKillsHisTargetThenRecharges(GameTestHelper helper) {
+        GodzillaEntity godzilla = spawnActiveGodzilla(helper);
+        godzilla.setFirstBreathDelay(0);
+        godzilla.setBreathMinDistance(0.0);
+        List<Runnable> release = new ArrayList<>();
+        Pig pig = cellPig(helper, 44, release);
         godzilla.setTarget(pig);
         helper.runAtTickTime(120, () -> helper.assertTrue(godzilla.isCharging(), "with a target he should be charging his atomic breath"));
         // The charge starts ~2 s after he spots his target; with the 4 s in-breath the blast is ~17.6 s later.
@@ -225,8 +356,98 @@ public final class ModGameTests {
                     + godzilla.getBreathCooldown());
             helper.assertTrue(godzilla.getBurnTicks() > 0, "once the beam is over his mouth should be burnt");
             remove(godzilla);
-            helper.getLevel().setChunkForced(abs.getX() >> 4, abs.getZ() >> 4, false);
+            release.forEach(Runnable::run);
         });
+    }
+
+    /** A target closer than minTargetDistance (75 blocks) gets walked up to and bitten or clawed, not breathed on. */
+    @GameTest(template = FLOOR, batch = "gmo_breath_near", timeoutTicks = 200)
+    public static void heUsesMeleeOnTargetsCloserThan75Blocks(GameTestHelper helper) {
+        GodzillaEntity godzilla = spawnActiveGodzilla(helper);
+        godzilla.setFirstBreathDelay(0);
+        helper.assertTrue(Config.BREATH_MIN_TARGET_DISTANCE.get() == 75, "the default minTargetDistance should be 75");
+        List<Runnable> release = new ArrayList<>();
+        Pig pig = cellPig(helper, 44, release);
+        pig.setInvulnerable(true);
+        godzilla.setTarget(pig);
+        helper.runAtTickTime(160, () -> {
+            helper.assertFalse(godzilla.isCharging(), "a target 40 blocks away is too close for his atomic breath");
+            helper.assertTrue(godzilla.getTarget() == pig, "he should still be after it");
+            remove(godzilla, pig);
+            release.forEach(Runnable::run);
+            helper.succeed();
+        });
+    }
+
+    /** A target 75 blocks away or more is fair game for the atomic breath. */
+    @GameTest(template = FLOOR, batch = "gmo_breath_far", timeoutTicks = 200)
+    public static void heBreathesAtTargets75BlocksAwayOrMore(GameTestHelper helper) {
+        GodzillaEntity godzilla = spawnActiveGodzilla(helper);
+        godzilla.setFirstBreathDelay(0);
+        List<Runnable> release = new ArrayList<>();
+        Pig pig = cellPig(helper, 120, release); // (~115 blocks: he closes in a little before he decides)
+        pig.setInvulnerable(true);
+        godzilla.setTarget(pig);
+        helper.runAtTickTime(120, () -> {
+            helper.assertTrue(godzilla.isCharging(), "a target this far off should get his atomic breath, distance "
+                    + (int) godzilla.distanceTo(pig));
+            remove(godzilla, pig);
+            release.forEach(Runnable::run);
+            helper.succeed();
+        });
+    }
+
+    /**
+     * After the beam he roars once, the whole roar, and then he's done: not charging, not roaring (a roar of his own
+     * that fell due during the charge isn't tacked on), free to move again.
+     */
+    @GameTest(template = FLOOR, batch = "gmo_breath_recovery", timeoutTicks = 700)
+    public static void afterHisBreathHeRoarsOnceThenMovesOn(GameTestHelper helper) {
+        GodzillaEntity godzilla = spawnActiveGodzilla(helper);
+        godzilla.setFirstBreathDelay(0);
+        godzilla.setBreathMinDistance(0.0);
+        godzilla.setRoarTimer(60); // falls due while he charges
+        List<Runnable> release = new ArrayList<>();
+        Pig pig = cellPig(helper, 44, release);
+        godzilla.setTarget(pig);
+        long[] roarAt = {-1};
+        long[] endAt = {-1};
+        helper.succeedWhen(() -> {
+            long now = helper.getTick();
+            if (roarAt[0] < 0 && godzilla.getChargeState() == GodzillaEntity.CHARGE_COOLING) {
+                helper.assertTrue(godzilla.isRoaring(), "he should roar as the beam ends");
+                roarAt[0] = now;
+            }
+            if (roarAt[0] >= 0 && endAt[0] < 0 && !godzilla.isCharging()) {
+                endAt[0] = now;
+                helper.assertTrue(now - roarAt[0] >= GodzillaEntity.ROAR_TICKS - 2, "the roar was cut short: "
+                        + (now - roarAt[0]) + " ticks");
+            }
+            helper.assertTrue(endAt[0] >= 0 && now >= endAt[0] + 60, "waiting for the charge to end, then 3 s more");
+            helper.assertFalse(godzilla.isCharging(), "the charge should be over");
+            helper.assertFalse(godzilla.isRoaring(), "he shouldn't roar again right after his post-breath roar");
+            helper.assertTrue(godzilla.getChargeState() == GodzillaEntity.CHARGE_NONE, "his charge state should be reset");
+            remove(godzilla, pig);
+            release.forEach(Runnable::run);
+        });
+    }
+
+    /** Within 200 blocks a roar is the roar itself; from 200 on it's a distant roar, the two taking turns. */
+    @GameTest(template = FLOOR, batch = "gmo_far_roar", timeoutTicks = 20)
+    public static void listenersFarAwayHearTheDistantRoars(GameTestHelper helper) {
+        double far = GodzillaEntity.FAR_ROAR_DISTANCE;
+        helper.assertTrue(far == 200.0, "the distant roars should start at 200 blocks");
+        helper.assertFalse(GodzillaEntity.isFarListener(199.9 * 199.9, far), "199.9 blocks away should hear the roar itself");
+        helper.assertTrue(GodzillaEntity.isFarListener(200.0 * 200.0, far), "200 blocks away should hear a distant roar");
+        helper.assertTrue(GodzillaEntity.isFarListener(2500.0 * 2500.0, far), "2500 blocks away should hear a distant roar");
+        Vec3 at = helper.absoluteVec(new Vec3(4, 4, 4));
+        var first = GodzillaEntity.nextFarRoar();
+        GodzillaEntity.broadcastRoar(helper.getLevel(), at.x, at.y, at.z, ModSounds.GODZILLA_ROAR.get(), 0L);
+        var second = GodzillaEntity.nextFarRoar();
+        GodzillaEntity.broadcastRoar(helper.getLevel(), at.x, at.y, at.z, ModSounds.GODZILLA_ROAR.get(), 0L);
+        helper.assertTrue(first != second, "the two distant roars should take turns");
+        helper.assertTrue(GodzillaEntity.nextFarRoar() == first, "...back to the first one");
+        helper.succeed();
     }
 
     @GameTest(template = FLOOR, batch = "gmo_plane_first", timeoutTicks = 60)
@@ -392,7 +613,8 @@ public final class ModGameTests {
         List<Vec3> spots = new ArrayList<>();
         int y = floorY(helper) + 4;
         for (EntityType<GodzillaStatueEntity> type : List.of(ModEntities.GODZILLA_POSE_CHARGING_ROAR.get(), ModEntities.GODZILLA_POSE_TAIL_WHIP.get(),
-                ModEntities.GODZILLA_POSE_SKY_ROAR.get(), ModEntities.GODZILLA_POSE_POSTER_SNARL.get(), ModEntities.GODZILLA_POSE_TAIL_HOOK.get())) {
+                ModEntities.GODZILLA_POSE_SKY_ROAR.get(), ModEntities.GODZILLA_POSE_POSTER_SNARL.get(), ModEntities.GODZILLA_POSE_TAIL_HOOK.get(),
+                ModEntities.GODZILLA_POSE_HUNCHED_SNARL.get())) {
             GodzillaStatueEntity statue = helper.spawn(type, new Vec3(4.5, y + 2 * statues.size(), 4.5));
             helper.assertFalse(statue.hurt(helper.getLevel().damageSources().generic(), 1000.0F), "a statue can't be hurt");
             statues.add(statue);
@@ -498,6 +720,60 @@ public final class ModGameTests {
             helper.assertTrue(light.isRemoved(), "he should smash the searchlight");
             helper.assertTrue(odo.getTarget() == operator, "then he should go for its operator, target " + odo.getTarget());
             remove(odo, operator);
+        });
+    }
+
+    /**
+     * A searchlight up on a brick tower inside a brick shed, behind a brick wall, over 20 blocks off: having been
+     * caught in its beam, he tears through the wall, the shed and the tower, and the light comes down and is smashed
+     * (he doesn't get stuck at the wall).
+     */
+    @GameTest(template = FLOOR, batch = "gmo_odo_tower", timeoutTicks = 900)
+    public static void theOdoMonsterTearsDownTheBuildingHoldingASearchlight(GameTestHelper helper) {
+        int floor = floorY(helper);
+        // room to move: he's 9 wide and 14 tall, and the rock round the test's pocket is ground he doesn't break
+        for (int x = -7; x <= 15; x++) {
+            for (int y = floor + 1; y <= floor + 16; y++) {
+                for (int z = -4; z <= 34; z++) {
+                    helper.setBlock(new BlockPos(x, y, z), Blocks.AIR.defaultBlockState());
+                }
+            }
+            for (int z = -4; z <= 34; z++) {
+                helper.setBlock(new BlockPos(x, floor, z), Blocks.STONE.defaultBlockState());
+            }
+        }
+        List<Runnable> release = new ArrayList<>();
+        for (int z : new int[]{0, 16, 34}) {
+            BlockPos abs = helper.absolutePos(new BlockPos(4, floor, z));
+            helper.getLevel().setChunkForced(abs.getX() >> 4, abs.getZ() >> 4, true);
+            release.add(() -> helper.getLevel().setChunkForced(abs.getX() >> 4, abs.getZ() >> 4, false));
+        }
+        for (int x = -7; x <= 15; x++) {
+            for (int y = floor + 1; y <= floor + 12; y++) {
+                helper.setBlock(new BlockPos(x, y, 14), Blocks.STONE_BRICKS.defaultBlockState()); // the wall
+            }
+        }
+        for (int x = 1; x <= 7; x++) {
+            for (int z = 24; z <= 30; z++) {
+                for (int y = floor + 1; y <= floor + 12; y++) {
+                    boolean shell = x == 1 || x == 7 || z == 24 || z == 30 || y == floor + 12;
+                    boolean tower = x == 4 && z == 27 && y <= floor + 8;
+                    if (shell || tower) {
+                        helper.setBlock(new BlockPos(x, y, z), Blocks.BRICKS.defaultBlockState());
+                    }
+                }
+            }
+        }
+        OdoIslandMonsterEntity odo = spawnOdo(helper, floor, 4);
+        SearchlightEntity light = helper.spawn(ModEntities.SEARCHLIGHT.get(), new Vec3(4.5, floor + 9, 27.5));
+        Pig operator = helper.spawn(EntityType.PIG, new Vec3(4.5, floor + 1, 0.5));
+        operator.setNoAi(true);
+        odo.spottedBy(light, operator);
+        helper.assertTrue(odo.getHuntedLight() == light, "caught in its beam he should go for the searchlight");
+        helper.succeedWhen(() -> {
+            helper.assertTrue(light.isRemoved(), "he should bring the building down and smash the searchlight");
+            remove(odo, operator);
+            release.forEach(Runnable::run);
         });
     }
 
@@ -623,6 +899,73 @@ public final class ModGameTests {
         });
     }
 
+    /**
+     * Afloat she keeps still: no bobbing of her own (with or without Physics Mod, whose waves can't be read).
+     */
+    @GameTest(template = FLOOR, batch = "gmo_boat_steady", timeoutTicks = 160)
+    public static void theShinseiMaruRidesSteady(GameTestHelper helper) {
+        int floor = floorY(helper);
+        Runnable release = room(helper, floor, 0, 0, 8, 14, 6);
+        for (int x = 0; x <= 8; x++) {
+            for (int z = 0; z <= 14; z++) {
+                for (int y = floor + 1; y <= floor + 4; y++) {
+                    helper.setBlock(new BlockPos(x, y, z), Blocks.WATER.defaultBlockState());
+                }
+            }
+        }
+        ShinseiMaruEntity boat = helper.spawn(ModEntities.SHINSEI_MARU.get(), new Vec3(4.5, floor + 2, 7.5));
+        double[] low = {Double.MAX_VALUE};
+        double[] high = {-Double.MAX_VALUE};
+        helper.onEachTick(() -> {
+            if (helper.getTick() >= 60) {
+                low[0] = Math.min(low[0], boat.getY());
+                high[0] = Math.max(high[0], boat.getY());
+            }
+        });
+        helper.runAtTickTime(140, () -> {
+            helper.assertTrue(high[0] - low[0] < 0.02, "settled, she shouldn't bob: y from " + low[0] + " to " + high[0]);
+            remove(boat);
+            release.run();
+            helper.succeed();
+        });
+    }
+
+    /**
+     * Whichever way she heads, there's deck under anyone standing anywhere on her decks (the main deck and side decks
+     * at deck height, the wheelhouse roof up at the helm), and none well out past her side.
+     */
+    @GameTest(template = FLOOR, batch = "gmo_boat_decks", timeoutTicks = 20)
+    public static void theShinseiMarusDecksHoldAtAnyHeading(GameTestHelper helper) {
+        ShinseiMaruEntity boat = helper.spawn(ModEntities.SHINSEI_MARU.get(), new Vec3(4.5, floorY(helper) + 1, 4.5));
+        for (float heading = 0.0F; heading < 360.0F; heading += 22.5F) {
+            boat.setYRot(heading);
+            boat.placeParts();
+            for (double f = -7.0; f <= 7.0; f += 0.5) {
+                for (double s = -2.3; s <= 2.3; s += 0.46) {
+                    boolean wheelhouse = f > -2.7 && f < 1.2 && Math.abs(s) < 1.8;
+                    double top = wheelhouse ? 4.45 : f < -4.4 ? 2.35 : 2.2;
+                    helper.assertTrue(standsOn(boat, f, s, top), "no deck under (" + f + ", " + s + ") heading " + heading);
+                }
+            }
+            helper.assertFalse(standsOn(boat, 0.0, ShinseiMaruEntity.BEAM + 0.9, 2.2), "deck reaching out past her side, heading " + heading);
+        }
+        remove(boat);
+        helper.succeed();
+    }
+
+    /** Whether a player's feet (0.6 wide) at (forward, to starboard) on her, at {@code top} above her keel, rest on a deck tile. */
+    private static boolean standsOn(ShinseiMaruEntity boat, double forward, double side, double top) {
+        Vec3 at = boat.at(new Vec3(side, top, forward));
+        AABB feet = new AABB(at.x - 0.3, at.y - 0.05, at.z - 0.3, at.x + 0.3, at.y + 0.05, at.z + 0.3);
+        for (ShinseiMaruPart part : boat.getParts()) {
+            AABB deck = part.getBoundingBox();
+            if (deck.intersects(feet) && Math.abs(deck.maxY - at.y) < 0.2) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /** The helmsman's key drops a naval mine from her hold over the stern. */
     @GameTest(template = FLOOR, batch = "gmo_boat_mine")
     public static void theShinseiMaruDropsAMineAstern(GameTestHelper helper) {
@@ -702,8 +1045,9 @@ public final class ModGameTests {
     public static void heKnocksTallBuildingsDownToSize(GameTestHelper helper) {
         GodzillaEntity godzilla = spawnActiveGodzilla(helper);
         int floor = floorY(helper);
-        int kept = Config.KNOCK_DOWN_TO_HEIGHT.get();
-        helper.assertTrue(26 >= Config.TALL_BUILDING_HEIGHT.get(), "the tower should count as tall");
+        int kept = GodzillaEntity.keptHeight();
+        helper.assertTrue(GodzillaEntity.tallBuildingHeight() == 23 && kept == 11,
+                "by default the thresholds should be half and a quarter of his real height (23, 11): " + GodzillaEntity.tallBuildingHeight() + ", " + kept);
         for (int y = floor + 1; y <= floor + 26; y++) {
             helper.setBlock(new BlockPos(4, y, 10), Blocks.STONE_BRICKS.defaultBlockState());
         }
@@ -720,6 +1064,8 @@ public final class ModGameTests {
             helper.assertTrue(helper.getBlockState(tooHigh).isAir(), "the tower should be knocked down to " + kept + " blocks");
             helper.assertTrue(helper.getBlockState(tooHigh.below()).is(Blocks.STONE_BRICKS), "he should only knock it down to size");
             helper.assertFalse(godzilla.isDemolishing(), "then he should move on");
+            helper.assertTrue(godzilla.getDemolitionRest() > (Config.DEMOLITION_INTERVAL.get() - 5) * 20,
+                    "and leave buildings alone for demolitionIntervalSeconds, rest " + godzilla.getDemolitionRest());
             remove(godzilla);
         });
     }

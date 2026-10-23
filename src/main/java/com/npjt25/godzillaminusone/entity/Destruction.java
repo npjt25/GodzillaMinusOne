@@ -457,6 +457,23 @@ public final class Destruction {
         return false;
     }
 
+    @Nullable
+    private static Boolean physicsMod;
+
+    /**
+     * Whether Physics Mod (mod id "physicsmod") is installed. It has no API this mod calls: it shows a block broken the
+     * vanilla way (Level.destroyBlock: the break sound and particles) as pieces flying under physics, on its own. So with
+     * it installed the destruction leaves the breaking to Minecraft (and to it) and adds no particles of its own; the
+     * toppling of buildings is this mod's own (falling blocks thrown off a building land as rubble), with or without it.
+     */
+    public static boolean physicsMod() {
+        if (physicsMod == null) {
+            net.minecraftforge.fml.ModList mods = net.minecraftforge.fml.ModList.get();
+            physicsMod = mods != null && mods.isLoaded("physicsmod");
+        }
+        return physicsMod;
+    }
+
     /** Whether a block may be destroyed; {@code breaker} is the mob doing it, or null for a bomb. */
     static boolean canBreak(ServerLevel level, BlockPos pos, BlockState state, @Nullable LivingEntity breaker) {
         return state.getDestroySpeed(level, pos) >= 0.0F

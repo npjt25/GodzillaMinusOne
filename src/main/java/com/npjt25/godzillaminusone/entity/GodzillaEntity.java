@@ -114,16 +114,20 @@ public class GodzillaEntity extends Monster implements GeoEntity {
     private static final int EMERGE_TICKS = 180;        // gojira_spawn1 timer: 9 s
     private static final int RISE_TICKS = 120;          // gojira_spawn2 timer: 6 s
     private static final int COLLAPSE_TICKS = 100;      // gojira_dead timer: 5 s
-    private static final int DEAD_TICKS = 300;          // gojira_dead2 timer: 15 s
     private static final int ANGER_DELAY = 40;          // angry timeline: charge starts at 2.0 s
     public static final int BEAM_START_TICK = 304;     // charge animation: the beam appears at 14.96 s (after the 4 s in-breath)
     public static final int CHARGE_BLAST_TICK = 344;   // ...and 2 s later its impact goes up in a nuclear blast
     public static final int BEAM_END_TICK = 388;       // charge animation: the beam is gone at 19.17 s
-    public static final int CHARGE_LENGTH = 518;       // charge animation: 25.67 s
+    public static final int ROAR_TICKS = 109;           // animation.gojira.roar: 5.46 s
+    /**
+     * The charge is over once the roar he lets out as the beam ends (at BEAM_END_TICK) has played out: then he's back
+     * on his feet, jaw shut, free to move (the charge animation is back at rest by then; its last 0.8 s of settling
+     * legs is covered by the blend into idle).
+     */
+    public static final int CHARGE_LENGTH = BEAM_END_TICK + ROAR_TICKS;
     private static final int AURA_INTERVAL = 10;        // idle timeline loops every 0.5 s
     private static final int REGEN_INTERVAL = 100;      // calm timeline loops every 5 s
     private static final int STUN_TICKS = 100;          // naval mine: slowness for 5 s
-    private static final int ROAR_TICKS = 109;          // animation.gojira.roar: 5.46 s
 
     /** He walks a little slower than the add-on: the walk cycle plays at 70% speed... */
     public static final double WALK_ANIM_SPEED = 0.7;
@@ -176,6 +180,7 @@ public class GodzillaEntity extends Monster implements GeoEntity {
     private static final RawAnimation COLLAPSE = RawAnimation.begin().thenPlayAndHold("animation.gojira.dead2");
     private static final RawAnimation LIE_DEAD = RawAnimation.begin().thenLoop("animation.gojira.dead");
     private static final RawAnimation ATTACK = RawAnimation.begin().thenPlay("animation.gojira.attack");
+    private static final RawAnimation BITE_ANIM = RawAnimation.begin().thenPlay("animation.gojira.bite");
     private static final RawAnimation STOMP = RawAnimation.begin().thenPlay("animation.gojira.stomp");
     private static final RawAnimation SWIPE_RIGHT = RawAnimation.begin().thenPlay("animation.gojira.swipe_right");
     private static final RawAnimation SWIPE_LEFT = RawAnimation.begin().thenPlay("animation.gojira.swipe_left");
@@ -205,6 +210,7 @@ public class GodzillaEntity extends Monster implements GeoEntity {
     private int phaseTicks;
     private int angryTicks;
     private int chargeTicks = -1;
+    private double breathMinDistance = -1.0;
     private int breathCooldown;
     /** Ticks after he appears before he may use his atomic breath for the first time (firstBreathMin/MaxSeconds). */
     private int firstBreathDelay;
@@ -246,7 +252,7 @@ public class GodzillaEntity extends Monster implements GeoEntity {
     private boolean shapeSwimming;
 
     private enum Attack {
-        BITE("attack", 10, 20), STOMP("stomp", 25, 65), SWIM_BITE("swim_bite", 14, 26),
+        BITE("bite", 10, 20), STOMP("stomp", 25, 65), SWIM_BITE("swim_bite", 14, 26),
         // the melee combo: two claw swipes, then a heavy spin whose tail sweeps round him and then snaps
         SWIPE_RIGHT("swipe_right", 10, 22), SWIPE_LEFT("swipe_left", 10, 22), SPIN("spin_whip", 17, 44), TAIL_SNAP(null, 9, 0);
 
@@ -520,7 +526,7 @@ public class GodzillaEntity extends Monster implements GeoEntity {
                 }
             }
             case DEAD -> {
-                if (this.phaseTicks >= DEAD_TICKS) {
+                if (this.phaseTicks >= Config.DOWNED_SECONDS.get() * 20) {
                     setPhase(Phase.EMERGING);
                 }
             }
@@ -545,6 +551,7 @@ public class GodzillaEntity extends Monster implements GeoEntity {
         if (this.tickCount % AURA_INTERVAL == 0) {
             radiationAura(level);
         }
+        tickFaceStrikes(level);
 
         if (target == null) {
             this.angryTicks = 0;
@@ -578,7 +585,7 @@ public class GodzillaEntity extends Monster implements GeoEntity {
         } else {
             updateAim(null);
             if (target != null && this.angryTicks >= ANGER_DELAY && this.breathCooldown <= 0 && this.firstBreathDelay <= 0 && this.stunTicks <= 0
-                    && this.pendingHitTicks < 0 && !isSwimmingAtSurface()) {
+                    && this.pendingHitTicks < 0 && this.roaringTicks <= 0 && !isSwimmingAtSurface() && farEnoughToBreathe(target)) {
                 this.chargeTicks = 0;
                 setChargeState(CHARGE_GLOWING);
             }
@@ -721,6 +728,9 @@ public class GodzillaEntity extends Monster implements GeoEntity {
         int kamikaze = Config.SHINDEN_KAMIKAZE_DISTANCE.get();
         if (kamikaze > 0) {
             for (ShindenEntity shinden : level.getEntitiesOfClass(ShindenEntity.class, getBoundingBox().inflate(kamikaze))) {
+                if (getBurnTicks() > 0 && headingForFace(shinden)) {
+                    continue; // he's burnt: let it through to his face (checked every tick: tickFaceStrikes)
+                }
                 shinden.explode();
             }
         }
@@ -804,6 +814,20 @@ public class GodzillaEntity extends Monster implements GeoEntity {
 
     // ------------------------------------------------------------------ atomic breath
 
+    /**
+     * The atomic breath is for things far off (minTargetDistance, 75 blocks by default): anything closer he walks up to
+     * and attacks in melee (ChaseGoal). Only asked when he decides whether to start a charge, never during one.
+     */
+    boolean farEnoughToBreathe(LivingEntity target) {
+        double min = this.breathMinDistance >= 0 ? this.breathMinDistance : Config.BREATH_MIN_TARGET_DISTANCE.get();
+        return distanceToSqr(target) >= min * min;
+    }
+
+    /** For the game tests: overrides minTargetDistance for this Godzilla (a negative value goes back to the config's). */
+    public void setBreathMinDistance(double blocks) {
+        this.breathMinDistance = blocks;
+    }
+
     private void tickCharge(ServerLevel level, @Nullable LivingEntity target) {
         this.chargeTicks++;
         if (target != null) {
@@ -840,14 +864,25 @@ public class GodzillaEntity extends Monster implements GeoEntity {
             fireAtomicBlast(level);
         } else if (this.chargeTicks == BEAM_END_TICK) {
             setChargeState(CHARGE_COOLING);
+            // His roar as the beam dies out is a roar like any other: he stands until it's over (the charge ends with it),
+            // and the roar he'd have let out on his own meanwhile is not owed afterwards.
+            this.roaringTicks = ROAR_TICKS;
+            this.roarTimer = Math.max(Config.ROAR_INTERVAL.get() * 20, 1);
             roar();
             // the breath has burnt his own mouth raw
             this.entityData.set(DATA_BURNS, BURN_TICKS);
             Vec3 mouth = locator(BEAM_NEAR.x, BEAM_NEAR.y, BEAM_NEAR.z);
             level.playSound(null, mouth.x, mouth.y, mouth.z, SoundEvents.LAVA_EXTINGUISH, SoundSource.HOSTILE, 8.0F, 0.5F);
         } else if (this.chargeTicks >= CHARGE_LENGTH) {
+            // back to his normal stance: nothing left over from before the charge, and on his way again
             this.chargeTicks = -1;
             this.angryTicks = 0;
+            this.roaringTicks = 0;
+            this.pendingHitTicks = -1;
+            this.pendingAttack = null;
+            this.entityData.set(DATA_AIM, 0.0F);
+            this.entityData.set(DATA_AIM_YAW, 0.0F);
+            getNavigation().stop();
             setChargeState(CHARGE_NONE);
         }
     }
@@ -970,6 +1005,83 @@ public class GodzillaEntity extends Monster implements GeoEntity {
         Blasts.nuclearHit(entity, source, false);
     }
 
+    // ------------------------------------------------------------------ a Shinden in the face
+
+    /** The middle of his face (locator: right, up, forward), over his snout in front of his eyes... */
+    private static final Vec3 FACE = new Vec3(0.0, 35.6, 16.5);
+    /** ...and how close to it a Shinden has to get to have flown into it (his head is ~7 blocks long, ~5 tall). */
+    private static final double FACE_RADIUS = 4.5;
+
+    /** Every tick: a piloted Shinden flying into his face (only the face) crashes there. */
+    private void tickFaceStrikes(ServerLevel level) {
+        Vec3 face = locator(FACE.x, FACE.y, FACE.z);
+        for (ShindenEntity plane : level.getEntitiesOfClass(ShindenEntity.class, new AABB(face, face).inflate(FACE_RADIUS + 4.0),
+                p -> p.isAlive() && p.getControllingPassenger() instanceof Player)) {
+            shindenStrike(plane, plane.getFlightMotion());
+        }
+    }
+
+    /**
+     * A Shinden, piloted and moving at {@code motion} (blocks per tick), checked against his face. Flown into it at crash
+     * speed, head on (from in front of his head, towards it), it crashes there: like any crash it goes off as a naval
+     * mine, but if his mouth is still burnt raw from his atomic breath ({@link #getBurnTicks()} > 0) it finishes him:
+     * all his health gone, and he collapses as when mines bring him down (an exception to "only naval mines hurt him").
+     * A hit anywhere else (chest, tail, legs...), or on a face that isn't burnt, is no such thing. Returns whether it
+     * hit his face.
+     */
+    public boolean shindenStrike(ShindenEntity plane, Vec3 motion) {
+        if (!(level() instanceof ServerLevel level) || !isActive() || !(plane.getControllingPassenger() instanceof Player pilot)) {
+            return false;
+        }
+        Vec3 face = locator(FACE.x, FACE.y, FACE.z);
+        AABB box = plane.getBoundingBox();
+        Vec3 nearest = new Vec3(Mth.clamp(face.x, box.minX, box.maxX), Mth.clamp(face.y, box.minY, box.maxY),
+                Mth.clamp(face.z, box.minZ, box.maxZ));
+        if (nearest.distanceToSqr(face) > FACE_RADIUS * FACE_RADIUS || motion.length() < ShindenEntity.crashSpeed()) {
+            return false;
+        }
+        Vec3 forward = Vec3.directionFromRotation(0.0F, this.yBodyRot);
+        Vec3 from = box.getCenter();
+        boolean inFront = from.subtract(face).dot(forward) > -2.0;
+        boolean towards = motion.dot(face.subtract(from)) > 0.0 || nearest.distanceToSqr(face) < 1.0;
+        if (!inFront || !towards) {
+            return false;
+        }
+        if (getBurnTicks() > 0) {
+            DamageSource source = ModDamageTypes.source(level, ModDamageTypes.NAVAL_MINE, plane, pilot);
+            setHealth(0.0F);
+            die(source);
+        }
+        plane.crash(pilot);
+        return true;
+    }
+
+    /** A piloted Shinden in front of his face, closing on it on a course that hits it. */
+    private boolean headingForFace(ShindenEntity plane) {
+        if (!(plane.getControllingPassenger() instanceof Player)) {
+            return false;
+        }
+        Vec3 face = locator(FACE.x, FACE.y, FACE.z);
+        Vec3 from = plane.getBoundingBox().getCenter();
+        Vec3 motion = plane.getFlightMotion();
+        Vec3 forward = Vec3.directionFromRotation(0.0F, this.yBodyRot);
+        if (motion.lengthSqr() < 1.0E-4 || from.subtract(face).dot(forward) <= 0.0 || motion.dot(face.subtract(from)) <= 0.0) {
+            return false;
+        }
+        Vec3 ahead = from.add(motion.normalize().scale(from.distanceTo(face) + FACE_RADIUS));
+        return distanceSqrToSegment(face, from, ahead) <= Mth.square(FACE_RADIUS + 1.5);
+    }
+
+    /** For the game tests: his mouth burnt (as after his atomic breath) for {@code ticks}. */
+    public void setBurnTicks(int ticks) {
+        this.entityData.set(DATA_BURNS, Mth.clamp(ticks, 0, BURN_TICKS));
+    }
+
+    /** For the game tests: where a Shinden would fly into his face. */
+    public Vec3 facePosition() {
+        return locator(FACE.x, FACE.y, FACE.z);
+    }
+
     // ------------------------------------------------------------------ roaring
 
     /** His roar carries this far (fading out linearly: sounds.json gives the roars this attenuation distance). */
@@ -1027,14 +1139,51 @@ public class GodzillaEntity extends Monster implements GeoEntity {
         broadcastRoar(level, getX(), getY() + 30.0, getZ(), sound, this.random.nextLong());
     }
 
-    /** A roar from (x, y, z), heard {@link #ROAR_RANGE} blocks away (also a player playing as Godzilla's). */
+    /**
+     * A roar from (x, y, z), heard {@link #ROAR_RANGE} blocks away (also a player playing as Godzilla's). Each listener
+     * gets one sound, picked by their own distance: up to {@link #FAR_ROAR_DISTANCE} blocks the roar itself, from there
+     * on a distant roar (godzilla.roar_far and godzilla.roar_far2 by turns, one roar to the next).
+     */
     public static void broadcastRoar(ServerLevel level, double x, double y, double z, SoundEvent sound, long seed) {
-        Holder<SoundEvent> holder = BuiltInRegistries.SOUND_EVENT.wrapAsHolder(sound);
+        boolean roar = sound == ModSounds.GODZILLA_ROAR.get() || sound == ModSounds.GODZILLA_ROAR2.get();
+        SoundEvent far = null;
+        if (roar) {
+            far = (farRoars++ & 1) == 0 ? ModSounds.GODZILLA_ROAR_FAR.get() : ModSounds.GODZILLA_ROAR_FAR2.get();
+        }
+        broadcast(level, x, y, z, sound, far, FAR_ROAR_DISTANCE, ROAR_RANGE, ROAR_VOLUME, seed);
+    }
+
+    /** Listeners this far away or more hear a distant roar instead of the roar itself. */
+    public static final double FAR_ROAR_DISTANCE = 200.0;
+    /** Counts the roars that had distant versions, so they take turns. */
+    private static int farRoars;
+
+    /**
+     * Sends a sound from (x, y, z) to every player within {@code range} blocks, each getting exactly one of the two:
+     * {@code near}, or {@code far} (when there is one) if they are {@code farDistance} blocks away or more. How loud it
+     * is follows the sound's attenuation distance in sounds.json, so it still fades with distance.
+     */
+    public static void broadcast(ServerLevel level, double x, double y, double z, SoundEvent near, @Nullable SoundEvent far,
+                                 double farDistance, double range, float volume, long seed) {
+        Holder<SoundEvent> nearHolder = BuiltInRegistries.SOUND_EVENT.wrapAsHolder(near);
+        Holder<SoundEvent> farHolder = far != null ? BuiltInRegistries.SOUND_EVENT.wrapAsHolder(far) : nearHolder;
         for (ServerPlayer player : level.players()) {
-            if (player.distanceToSqr(x, y, z) < ROAR_RANGE * ROAR_RANGE) {
-                player.connection.send(new ClientboundSoundPacket(holder, SoundSource.HOSTILE, x, y, z, ROAR_VOLUME, 1.0F, seed));
+            double d = player.distanceToSqr(x, y, z);
+            if (d < range * range) {
+                Holder<SoundEvent> holder = isFarListener(d, farDistance) ? farHolder : nearHolder;
+                player.connection.send(new ClientboundSoundPacket(holder, SoundSource.HOSTILE, x, y, z, volume, 1.0F, seed));
             }
         }
+    }
+
+    /** Whether a listener {@code sqrt(distanceSqr)} blocks away hears the distant version (the game tests check this). */
+    public static boolean isFarListener(double distanceSqr, double farDistance) {
+        return distanceSqr >= farDistance * farDistance;
+    }
+
+    /** For the game tests: the distant roar the next roar would send. */
+    public static SoundEvent nextFarRoar() {
+        return (farRoars & 1) == 0 ? ModSounds.GODZILLA_ROAR_FAR.get() : ModSounds.GODZILLA_ROAR_FAR2.get();
     }
 
     // ------------------------------------------------------------------ burns
@@ -1147,6 +1296,8 @@ public class GodzillaEntity extends Monster implements GeoEntity {
                 if (target != null && target.isAlive() && canReach(target, 4.0)) {
                     doHurtTarget(target);
                 }
+                Vec3 jaws = locator(BEAM_NEAR.x, BEAM_NEAR.y, BEAM_NEAR.z);
+                level.playSound(null, jaws.x, jaws.y, jaws.z, ModSounds.GODZILLA_BITE.get(), SoundSource.HOSTILE, 6.0F, 1.0F);
                 ModNetwork.shake(level, position(), 48.0, 0.4F, 1.0F);
             }
             case STOMP -> {
@@ -1214,6 +1365,7 @@ public class GodzillaEntity extends Monster implements GeoEntity {
             }
         }
         level.playSound(null, jaws.x, jaws.y, jaws.z, SoundEvents.GENERIC_SPLASH, SoundSource.HOSTILE, 6.0F, 0.5F);
+        level.playSound(null, jaws.x, jaws.y, jaws.z, ModSounds.GODZILLA_BITE.get(), SoundSource.HOSTILE, 6.0F, 1.0F);
         ModNetwork.shake(level, jaws, 48.0, 0.4F, 1.0F);
     }
 
@@ -1504,7 +1656,7 @@ public class GodzillaEntity extends Monster implements GeoEntity {
     /** The nearest building in sight standing demolishFromHeight blocks or more above the ground, if any. */
     @Nullable
     private Building findTallBuilding(ServerLevel level) {
-        int threshold = Config.TALL_BUILDING_HEIGHT.get();
+        int threshold = tallBuildingHeight();
         int cx = Mth.floor(getX());
         int cz = Mth.floor(getZ());
         Building best = null;
@@ -1568,9 +1720,28 @@ public class GodzillaEntity extends Monster implements GeoEntity {
         triggerAnim("action", attack.anim);
     }
 
-    /** How tall (blocks above its ground) he leaves a building he knocks down: demolishDownToHeight, below the threshold. */
-    private static int keptHeight() {
-        return Math.min(Config.KNOCK_DOWN_TO_HEIGHT.get(), Config.TALL_BUILDING_HEIGHT.get() - 1);
+    /**
+     * How tall he really stands (blocks): his model is 92.7 pixels tall, drawn at GodzillaRenderer.SCALE (7.83) sixteenths
+     * of a block per pixel. (His hitbox is a little shorter, 40.)
+     */
+    public static final double REAL_HEIGHT = 92.7 * 7.83 / 16.0;
+
+    /** How tall (blocks above its ground) a building has to be for him to knock it down: demolishFromHeight, or half his height. */
+    public static int tallBuildingHeight() {
+        int set = Config.TALL_BUILDING_HEIGHT.get();
+        return set >= 0 ? Math.max(4, set) : (int) Math.round(REAL_HEIGHT / 2.0);
+    }
+
+    /** How tall (blocks above its ground) he leaves a building he knocks down: demolishDownToHeight (or a quarter of his height), below the threshold. */
+    public static int keptHeight() {
+        int set = Config.KNOCK_DOWN_TO_HEIGHT.get();
+        return Math.min(set >= 0 ? set : (int) Math.round(REAL_HEIGHT / 4.0), tallBuildingHeight() - 1);
+    }
+
+    /** Done with a building (or giving up on it): he leaves buildings alone for demolitionIntervalSeconds. */
+    private void restFromDemolition() {
+        this.demolishing = null;
+        this.demolitionRest = Config.DEMOLITION_INTERVAL.get() * 20;
     }
 
     /**
@@ -1604,8 +1775,10 @@ public class GodzillaEntity extends Monster implements GeoEntity {
                             away.z * (0.35 + 0.45 * up) + (this.random.nextDouble() - 0.5) * 0.25);
                     if (toppled < 160 && this.random.nextInt(3) != 0 && Destruction.topple(level, pos, state, push, true)) {
                         toppled++;
-                    } else if (knocked % 4 == 0) {
-                        level.destroyBlock(pos, false, this); // (Minecraft's own break effects: a physics mod can show its pieces)
+                    } else if (knocked % 4 == 0 || Destruction.physicsMod()) {
+                        // Minecraft's own breaking: with Physics Mod, it's what shows the pieces flying (so every block
+                        // goes this way then, and nothing of ours is added on top: no doubled debris)
+                        level.destroyBlock(pos, false, this);
                     } else {
                         if (knocked % 6 == 0) {
                             level.sendParticles(new BlockParticleOption(ParticleTypes.BLOCK, state), pos.getX() + 0.5, pos.getY() + 0.5,
@@ -1618,13 +1791,15 @@ public class GodzillaEntity extends Monster implements GeoEntity {
             }
         }
         if (knocked == 0) {
-            // it won't come down: he gives up on buildings for a while
-            this.demolishing = null;
-            this.demolitionRest = 60 * 20;
+            // it won't come down: he gives up on it
+            restFromDemolition();
             return;
         }
         level.playSound(null, building.x() + 0.5, bottom, building.z() + 0.5, SoundEvents.GENERIC_EXPLODE, SoundSource.BLOCKS, 6.0F, 0.5F);
         this.demolishing = tallestStanding(level, building, keep);
+        if (this.demolishing == null) {
+            restFromDemolition(); // down to size
+        }
     }
 
     /** What is left of a building after a swipe: its tallest column still standing above {@link #keptHeight}, if any. */
@@ -1670,6 +1845,11 @@ public class GodzillaEntity extends Monster implements GeoEntity {
             }
         }
         this.demolishing = new Building(base.getX(), base.getZ(), base.getY() - 1, top);
+    }
+
+    /** For the game tests: ticks until he'll look for another building to knock down. */
+    public int getDemolitionRest() {
+        return this.demolitionRest;
     }
 
     /** For the game tests: whether he's still busy knocking a building down. */
@@ -1765,6 +1945,7 @@ public class GodzillaEntity extends Monster implements GeoEntity {
                 .setParticleKeyframeHandler(this::onParticleKeyframe));
         controllers.add(new AnimationController<>(this, "action", 3, state -> PlayState.STOP)
                 .triggerableAnim("attack", ATTACK)
+                .triggerableAnim("bite", BITE_ANIM)
                 .triggerableAnim("stomp", STOMP)
                 .triggerableAnim("swipe_right", SWIPE_RIGHT)
                 .triggerableAnim("swipe_left", SWIPE_LEFT)
@@ -2023,7 +2204,11 @@ public class GodzillaEntity extends Monster implements GeoEntity {
 
         @Override
         public void stop() {
-            this.godzilla.demolishing = null;
+            if (this.timeout <= 0) {
+                this.godzilla.restFromDemolition(); // (taking too long: he gives up on it)
+            } else {
+                this.godzilla.demolishing = null;
+            }
         }
     }
 

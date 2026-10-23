@@ -16,9 +16,9 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ASSETS = os.path.join(ROOT, "src", "main", "resources", "assets", "godzillaminusone")
 KEY = (255, 0, 255)
 
-# item: (model, texture, yaw, pitch, bones to frame (None = all), turn the picture by (degrees))
+# item: (model, texture, yaw, pitch, bones to frame (None = all), turn the picture by (degrees)). (The spawn eggs use
+# vanilla's spawn egg template, coloured in ModItems.)
 ICONS = {
-    "odo_island_monster_spawn_egg": ("odo_island_monster", "odo_island_monster", 125, 8, {"bone12", "bone5", "bone11"}, 0),
     "searchlight": ("searchlight", "searchlight", 25, 12, None, 0),
     "nuclear_bomb": ("nuclear_bomb", "nuclear_bomb", 30, 10, None, -135),
     "shinsei_maru": ("shinsei_maru", "shinsei_maru", 60, 18, None, 0),

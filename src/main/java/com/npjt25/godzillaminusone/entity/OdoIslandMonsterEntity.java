@@ -19,6 +19,8 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
+import net.minecraft.world.entity.MobSpawnType;
+import net.minecraft.world.entity.SpawnGroupData;
 import net.minecraft.world.entity.ai.attributes.AttributeInstance;
 import net.minecraft.world.entity.ai.attributes.AttributeModifier;
 import net.minecraft.world.entity.ai.attributes.AttributeSupplier;
@@ -30,7 +32,9 @@ import net.minecraft.world.entity.ai.goal.target.HurtByTargetGoal;
 import net.minecraft.world.entity.ai.goal.target.NearestAttackableTargetGoal;
 import net.minecraft.world.entity.monster.Monster;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.DifficultyInstance;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.ServerLevelAccessor;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.phys.AABB;
@@ -108,6 +112,15 @@ public class OdoIslandMonsterEntity extends Monster implements GeoEntity {
     private static final int BITE_HIT = 15;
     private static final int STOMP_HIT = 22;
     private static final int ROAR_LENGTH = 110;
+    /** animation.odo.roar opens his jaws 1.5 s in: that's when the roar's sound goes out. */
+    private static final int ROAR_SOUND_AT = ROAR_LENGTH - 30;
+    /** His roars carry this far; from {@link #FAR_ROAR_DISTANCE} on, listeners hear the distant roar (odo.roar_far). */
+    public static final double ROAR_RANGE = 400.0;
+    public static final double FAR_ROAR_DISTANCE = 100.0;
+    /** Hunting a searchlight, if he's made no headway for this long he tears down whatever's in the way... */
+    private static final int STUCK_TICKS = 40;
+    /** ...and if he still can't get at it after this long, he gives up on the light and goes for whoever worked it. */
+    private static final int GIVE_UP_TICKS = 30 * 20;
 
     private static final RawAnimation IDLE = RawAnimation.begin().thenLoop("animation.odo.idle");
     private static final RawAnimation IDLE_ANGRY = RawAnimation.begin().thenLoop("animation.odo.idle_angry");
@@ -132,6 +145,12 @@ public class OdoIslandMonsterEntity extends Monster implements GeoEntity {
     private int attackCooldown;
     private int roarTicks;
     private int roarCooldown;
+    /** The sound the roar under way makes (odo.roar, or odo.spotted when a searchlight caught him). */
+    @Nullable
+    private SoundEvent roarSound;
+    // headway towards the hunted searchlight: the closest he's come (horizontally) and how long since he got closer
+    private double lightBest = Double.MAX_VALUE;
+    private int lightStuckTicks;
     private int pendingHitTicks = -1;
     private boolean pendingStomp;
     /** The searchlight that caught him in its beam: he's going to smash it. */
@@ -204,6 +223,17 @@ public class OdoIslandMonsterEntity extends Monster implements GeoEntity {
         return this.entityData.get(DATA_RUNNING);
     }
 
+    /**
+     * Client side, as a player's shape (Walkers / ReMorphed: entity.PlayerOdo; Walkers draws it in their place but never
+     * runs it): where the player is (so its sounds come from them), running or walking as they are.
+     */
+    public void prepareAsShape(Player player, boolean running) {
+        setPosRaw(player.getX(), player.getY(), player.getZ());
+        if (running != isRunning()) {
+            this.entityData.set(DATA_RUNNING, running);
+        }
+    }
+
     /** Seconds since he was burnt (client side), for the embers in his hide cooling down. */
     public float getBurntSeconds(float partialTick) {
         return this.burntSinceTick < 0 ? 0.0F : (this.tickCount - this.burntSinceTick + partialTick) / 20.0F;
@@ -242,11 +272,11 @@ public class OdoIslandMonsterEntity extends Monster implements GeoEntity {
             return; // (already on his way to it)
         }
         this.huntedLight = light;
+        this.lightBest = Double.MAX_VALUE;
+        this.lightStuckTicks = 0;
         setTarget(null);
         lookAtLight(light, 180.0F);
-        this.roarTicks = ROAR_LENGTH;
-        this.roarCooldown = 200;
-        triggerAnim("action", "roar");
+        startRoar(ModSounds.ODO_SPOTTED.get()); // caught in the light: once, as he turns on it
     }
 
     /** The searchlight he's going to smash, if any. */
@@ -380,6 +410,12 @@ public class OdoIslandMonsterEntity extends Monster implements GeoEntity {
         setTarget(null);
         setHealth(getMaxHealth());
         clearFire();
+        this.roarTicks = 0;
+        this.roarSound = null;
+        if (level() instanceof ServerLevel level) {
+            GodzillaEntity.broadcast(level, getX(), getY() + 6.0, getZ(), ModSounds.ODO_NUKED.get(), null, 0.0, ROAR_RANGE, 1.0F,
+                    this.random.nextLong());
+        }
     }
 
     private void enrage(int ticks) {
@@ -387,10 +423,24 @@ public class OdoIslandMonsterEntity extends Monster implements GeoEntity {
         this.rageTicks = Math.max(this.rageTicks, ticks);
         setState(STATE_ANGRY);
         if (wasCalm && this.roarCooldown <= 0) {
-            this.roarTicks = ROAR_LENGTH;
-            this.roarCooldown = 200;
-            triggerAnim("action", "roar");
+            startRoar(ModSounds.ODO_ROAR.get());
         }
+    }
+
+    private void startRoar(SoundEvent sound) {
+        this.roarTicks = ROAR_LENGTH;
+        this.roarCooldown = 200;
+        this.roarSound = sound;
+        triggerAnim("action", "roar");
+    }
+
+    /**
+     * Sends his roar out (once per roar) to everyone within {@link #ROAR_RANGE} blocks: up to {@link #FAR_ROAR_DISTANCE}
+     * the roar itself, further off the distant roar.
+     */
+    private void roarOut(ServerLevel level, SoundEvent sound) {
+        GodzillaEntity.broadcast(level, getX(), getY() + 8.0, getZ(), sound, ModSounds.ODO_ROAR_FAR.get(), FAR_ROAR_DISTANCE,
+                ROAR_RANGE, 1.0F, this.random.nextLong());
     }
 
     @Override
@@ -429,6 +479,10 @@ public class OdoIslandMonsterEntity extends Monster implements GeoEntity {
         }
         if (this.roarTicks > 0) {
             this.roarTicks--;
+            if (this.roarTicks == ROAR_SOUND_AT && this.roarSound != null) {
+                roarOut(level, this.roarSound);
+                this.roarSound = null;
+            }
         }
         if (this.roarCooldown > 0) {
             this.roarCooldown--;
@@ -478,8 +532,31 @@ public class OdoIslandMonsterEntity extends Monster implements GeoEntity {
                 hunted = null;
             }
         }
+        boolean stuck = false;
+        if (hunted != null && this.roarTicks <= 0) {
+            // making headway? (a wall, a cliff or a building in the way: he's not)
+            double d = Math.sqrt(hunted.position().subtract(position()).horizontalDistanceSqr());
+            if (d < this.lightBest - 0.5 || inReachOfLight(hunted)) {
+                this.lightBest = Math.min(this.lightBest, d);
+                this.lightStuckTicks = 0;
+            } else {
+                this.lightStuckTicks++;
+            }
+            stuck = this.lightStuckTicks >= STUCK_TICKS || this.horizontalCollision;
+            if (this.lightStuckTicks >= GIVE_UP_TICKS) {
+                // nothing he can break gets him to it (it's up a cliff, say): on to whoever was working it
+                LivingEntity operator = this.lightOperator;
+                this.huntedLight = null;
+                this.lightOperator = null;
+                this.lightStuckTicks = 0;
+                hunted = null;
+                if (operator != null && operator.isAlive()) {
+                    frenzy(operator, true);
+                }
+            }
+        }
         if (hunted != null && this.tickCount % 5 == 0 && !inReachOfLight(hunted) && ForgeEventFactory.getMobGriefingEvent(level, this)
-                && hunted.position().distanceTo(position()) < TEAR_DOWN_RANGE) {
+                && (stuck || hunted.position().distanceTo(position()) < TEAR_DOWN_RANGE)) {
             tearDownTowards(level, hunted);
         }
         if (this.huntedLight != null && !this.huntedLight.isAlive()) {
@@ -688,6 +765,14 @@ public class OdoIslandMonsterEntity extends Monster implements GeoEntity {
 
     // ------------------------------------------------------------------ sounds & saving
 
+    /** Spawned (spawn egg, /summon, a spawner): his arrival cry, heard ~64 blocks around, once. */
+    @Override
+    public SpawnGroupData finalizeSpawn(ServerLevelAccessor level, DifficultyInstance difficulty, MobSpawnType reason,
+                                        @Nullable SpawnGroupData data, @Nullable CompoundTag tag) {
+        level.getLevel().playSound(null, getX(), getY() + 4.0, getZ(), ModSounds.ODO_SPAWN.get(), SoundSource.HOSTILE, 4.0F, 1.0F);
+        return super.finalizeSpawn(level, difficulty, reason, data, tag);
+    }
+
     @Nullable
     @Override
     protected SoundEvent getAmbientSound() {
@@ -778,6 +863,9 @@ public class OdoIslandMonsterEntity extends Monster implements GeoEntity {
 
     private void onSoundKeyframe(SoundKeyframeEvent<OdoIslandMonsterEntity> event) {
         String name = event.getKeyframeData().getSound();
+        if (name.equals("odo.roar") || name.equals("odo.death")) {
+            return; // the server sends his roars (so they carry, and the one that fits: see roarOut) and his nuked cry
+        }
         RegistryObject<SoundEvent> sound = ModSounds.BY_NAME.get(name);
         if (sound != null) {
             float volume = name.equals("odo.step") ? 3.0F : 6.0F;

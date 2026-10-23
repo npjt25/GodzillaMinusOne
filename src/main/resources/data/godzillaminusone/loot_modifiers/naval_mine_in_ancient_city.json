@@ -1,0 +1,13 @@
+{
+  "type": "godzillaminusone:add_item",
+  "conditions": [
+    {
+      "condition": "forge:loot_table_id",
+      "loot_table_id": "minecraft:chests/ancient_city"
+    }
+  ],
+  "item": "godzillaminusone:naval_mine_spawn_egg",
+  "chance": 0.2,
+  "min": 1,
+  "max": 2
+}

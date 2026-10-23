@@ -67,17 +67,19 @@ import java.util.List;
  *   <li>Sneak and right-click to open her mine hold ({@link #MINE_SLOTS} slots, naval mines only; right-clicking her
  *       with a naval mine in hand loads it too). The helmsman drops one over the stern with the "Vehicle Action" key
  *       (R): it floats there, and goes off when Godzilla comes near.</li>
- *   <li>Her decks are solid ({@link ShinseiMaruPart}s over her whole length and beam: the foredeck, the wheelhouse and
- *       its roof, the side decks beside it, the after deck and the stern platform), and whoever stands on them is
+ *   <li>Her decks are solid ({@link ShinseiMaruPart}s tiling her whole length and beam: the forecastle, the main deck
+ *       and the side decks, the wheelhouse and its roof, and the stern platform), and whoever stands on them is
  *       carried along as she moves and turns. Her own box covers all of her (Minecraft only looks at a multipart
  *       entity's parts where its own box is), so she does her own collisions with blocks, along her hull; anything
  *       she moves into (or that finds itself inside her) is pushed out, onto her deck if it's nearly up there.</li>
  *   <li>Boarding ladders on both sides, just aft of the wheelhouse, and one up the back of the wheelhouse to its roof
  *       (the helm): walk (or swim) into one to climb it, sneak to hold on.</li>
- *   <li>The crew's seats move with her deck as she pitches and rolls, so the gunner stays level with the gun.</li>
- *   <li>At sea she rides the swell: she heaves up and down with it, and pitches and rolls as it passes under her
- *       (rougher in the rain, rougher still in a thunderstorm, and higher with Physics Mod installed), and now and
- *       then a bigger wave slaps her side and sets her rocking.</li>
+ *   <li>Her crew stand at their stations: the helmsman at the wheel, the gunner on the stern platform behind the gun.</li>
+ *   <li>Afloat she sits steady at the surface: no bobbing of her own. (Physics Mod's ocean waves are drawn on its
+ *       client side and it has no API to read their height from, so she can't follow them; rather than bob out of
+ *       step with them, she keeps still.)</li>
+ *   <li>Under way her motor runs (client.ShinseiMaruSounds): quiet, a little louder and higher as she picks up
+ *       speed, fading out as she stops.</li>
  *   <li>Hit her like a boat to knock her back into her item (with her mines); explosions and Godzilla wreck her.</li>
  * </ul>
  */
@@ -145,28 +147,34 @@ public class ShinseiMaruEntity extends Entity implements GeoEntity {
     private double lerpZ;
     private double lerpYRot;
 
+    /**
+     * Her decks as tiles, bow to stern: the forecastle, the main deck, the wheelhouse (up to its roof) and the stern
+     * platform. Each is a square box (Minecraft's boxes never turn), small enough, and overlapping its neighbours enough,
+     * that whichever way she heads the decks have no gap anyone could fall through, and stick out past her sides by
+     * little.
+     */
     private ShinseiMaruPart[] makeParts() {
         List<ShinseiMaruPart> list = new ArrayList<>();
-        list.add(new ShinseiMaruPart(this, 0.0, 7.0, 2.6F, DECK));                      // the bow
-        for (double f : new double[] {4.6, 2.4, -3.9}) {                                 // the foredeck, the after deck
-            for (double s : new double[] {-1.4, 1.4}) {
-                list.add(new ShinseiMaruPart(this, s, f, 2.8F, DECK));
-            }
-        }
-        for (double f : new double[] {0.37, -1.83}) {                                    // the wheelhouse, up to its roof
-            for (double s : new double[] {-0.95, 0.95}) {
-                list.add(new ShinseiMaruPart(this, s, f, 2.2F, HELM.y));
-            }
-        }
-        for (double f = 1.1; f > -2.5; f -= 0.7) {                                       // the side decks beside it
-            for (double s : new double[] {-2.45, 2.45}) {
-                list.add(new ShinseiMaruPart(this, s, f, 0.7F, DECK));
-            }
-        }
-        for (double s : new double[] {-1.35, 1.35}) {                                    // the stern platform
-            list.add(new ShinseiMaruPart(this, s, -6.2, 2.7F, GUNNER.y));
-        }
+        tiles(list, 8.1, 8.6, 0.8, 2.7, 1.0);                       // her stem
+        tiles(list, 7.4, 8.1, 1.6, 2.95, 1.1);                      // the forecastle
+        tiles(list, -4.2, 7.4, 2.65, DECK, 1.4);                    // the main deck, the side decks beside the wheelhouse
+        tiles(list, WHEELHOUSE_AFT, 1.47, 2.05, HELM.y, 1.1);       // the wheelhouse, up to its roof (the helm)
+        tiles(list, -7.5, -4.2, 2.5, GUNNER.y, 1.2);                // the stern platform (the gun)
         return list.toArray(new ShinseiMaruPart[0]);
+    }
+
+    /** Covers forward {@code aft} to {@code fore}, {@code half} each side, up to {@code top}, in tiles of about {@code size}. */
+    private void tiles(List<ShinseiMaruPart> list, double aft, double fore, double half, double top, double size) {
+        int along = Math.max(1, (int) Math.ceil((fore - aft) / size));
+        int across = Math.max(1, (int) Math.ceil(2.0 * half / size));
+        double df = (fore - aft) / along;
+        double ds = 2.0 * half / across;
+        float width = (float) (Math.max(df, ds) * 1.12);
+        for (int i = along - 1; i >= 0; i--) {
+            for (int j = 0; j < across; j++) {
+                list.add(new ShinseiMaruPart(this, -half + ds * (j + 0.5), aft + df * (i + 0.5), width, top));
+            }
+        }
     }
 
     public ShinseiMaruEntity(EntityType<? extends ShinseiMaruEntity> type, Level level) {
@@ -207,6 +215,13 @@ public class ShinseiMaruEntity extends Entity implements GeoEntity {
     @Override
     public ShinseiMaruPart[] getParts() {
         return this.parts;
+    }
+
+    /** Puts her deck tiles where they belong on her as she now lies (each tick does this; the game tests too). */
+    public void placeParts() {
+        for (ShinseiMaruPart part : this.parts) {
+            part.follow();
+        }
     }
 
     public static boolean isMine(ItemStack stack) {
@@ -316,8 +331,9 @@ public class ShinseiMaruEntity extends Entity implements GeoEntity {
         if (!hasPassenger(passenger)) {
             return;
         }
-        Vec3 seat = at(onDeck(passenger == gunStation() ? GUNNER : HELM));
-        move.accept(passenger, seat.x, seat.y + passenger.getMyRidingOffset(), seat.z);
+        // they stand at their stations (shouldRiderSit): feet on the deck
+        Vec3 seat = at(passenger == gunStation() ? GUNNER : HELM);
+        move.accept(passenger, seat.x, seat.y, seat.z);
         // the crew turn with her
         passenger.setYRot(passenger.getYRot() + this.deltaRotation);
         passenger.setYHeadRot(passenger.getYHeadRot() + this.deltaRotation);
@@ -326,6 +342,12 @@ public class ShinseiMaruEntity extends Entity implements GeoEntity {
     @Override
     public double getPassengersRidingOffset() {
         return HELM.y;
+    }
+
+    /** Her helmsman stands at the wheel and her gunner behind the gun (Forge: drawn standing, not sitting). */
+    @Override
+    public boolean shouldRiderSit() {
+        return false;
     }
 
     @Override
@@ -496,9 +518,7 @@ public class ShinseiMaruEntity extends Entity implements GeoEntity {
         } else {
             setDeltaMovement(Vec3.ZERO);
         }
-        for (ShinseiMaruPart part : this.parts) {
-            part.follow();
-        }
+        placeParts();
         carry(standing, before, getYRot() - yawBefore);
         for (Entity entity : around()) {
             pushOut(entity);
@@ -714,92 +734,13 @@ public class ShinseiMaruEntity extends Entity implements GeoEntity {
         double surface = waterSurface();
         Vec3 v = getDeltaMovement();
         if (!Double.isNaN(surface)) {
-            double heave = swell(getX(), getZ(), level().getGameTime());
-            double vy = Mth.clamp((surface - DRAFT + heave - getY()) * 0.25, -0.35, 0.35);
+            double vy = Mth.clamp((surface - DRAFT - getY()) * 0.25, -0.35, 0.35);
             setDeltaMovement(v.x, vy, v.z);
             resetFallDistance();
         } else {
             this.speed *= 0.6;
             setDeltaMovement(v.x * 0.6, onGround() ? 0.0 : v.y - 0.08, v.z * 0.6);
         }
-    }
-
-    /**
-     * The height of the sea's swell (blocks above or below its calm surface) at (x, z) at a moment: two long rollers
-     * crossing, a little higher in the rain and higher still in a thunderstorm. She heaves with it; the renderer
-     * pitches and rolls her by how it slopes under her bow and stern, port and starboard.
-     */
-    public double swell(double x, double z, double time) {
-        return seaState() * (Math.sin(time * 0.11 + x * 0.09 + z * 0.03) + 0.6 * Math.sin(time * 0.07 - z * 0.08 + x * 0.02 + 1.3)
-                + 0.3 * Math.sin(time * 0.23 + x * 0.21 - z * 0.17 + 0.7));
-    }
-
-    /**
-     * How high the sea runs: a little higher in the rain and higher still in a thunderstorm. Physics Mod's ocean waves
-     * (when it's installed) run taller than anything vanilla shows, so she rides a bigger swell with it; its waves
-     * themselves can't be read (it has no API), so hers are her own, not exactly its.
-     */
-    private double seaState() {
-        return 0.13 * (1.0 + level().getRainLevel(1.0F) + 1.5 * level().getThunderLevel(1.0F)) * (physicsMod() ? 1.8 : 1.0);
-    }
-
-    @Nullable
-    private static Boolean physicsMod;
-
-    private static boolean physicsMod() {
-        if (physicsMod == null) {
-            net.minecraftforge.fml.ModList mods = net.minecraftforge.fml.ModList.get();
-            physicsMod = mods != null && mods.isLoaded("physicsmod");
-        }
-        return physicsMod;
-    }
-
-    /**
-     * Now and then (every 3 to 4 seconds) a bigger wave slaps her side: a sharp kick of roll that rocks her and dies
-     * away; some waves hit harder than others. -1 to 1.
-     */
-    private double slap(double time) {
-        double waves = time / 70.0 + (getId() % 97) * 0.37;
-        double since = (waves - Math.floor(waves)) * 70.0;
-        double strength = 0.4 + 0.6 * Math.abs(Math.sin(Math.floor(waves) * 12.9898));
-        return strength * Math.exp(-since / 16.0) * Math.sin(since * 0.45);
-    }
-
-    /** Her pitch (degrees, bow up) and roll (degrees, to starboard) on the swell at a moment, for the renderer. */
-    public float[] swellTilt(double time) {
-        if (!isAfloat()) {
-            return new float[] {0.0F, 0.0F};
-        }
-        Vec3 bow = at(new Vec3(0.0, 0.0, 6.0));
-        Vec3 stern = at(new Vec3(0.0, 0.0, -6.0));
-        Vec3 port = at(new Vec3(-BEAM, 0.0, 0.0));
-        Vec3 starboard = at(new Vec3(BEAM, 0.0, 0.0));
-        double pitch = Math.atan2(swell(bow.x, bow.z, time) - swell(stern.x, stern.z, time), 12.0);
-        double roll = Math.atan2(swell(port.x, port.z, time) - swell(starboard.x, starboard.z, time), 2.0 * BEAM);
-        double slap = slap(time) * seaState() / 0.13;
-        return new float[] {(float) (Math.toDegrees(pitch) * 1.6 + slap * 0.8), (float) (Math.toDegrees(roll) * 1.8 + slap * 3.5)};
-    }
-
-    /**
-     * A point on her (blocks to starboard, up from her keel, forward) where it is as she pitches and rolls on the swell,
-     * as her renderer tilts her: about her waterline, rolled, then pitched.
-     */
-    private Vec3 onDeck(Vec3 local) {
-        float[] tilt = swellTilt(level().getGameTime());
-        if (tilt[0] == 0.0F && tilt[1] == 0.0F) {
-            return local;
-        }
-        // in the model's frame (x to port, z aft), as the renderer turns it
-        double x = -local.x;
-        double y = local.y - DRAFT;
-        double z = -local.z;
-        double roll = Math.toRadians(tilt[1]);
-        double x1 = x * Math.cos(roll) - y * Math.sin(roll);
-        double y1 = x * Math.sin(roll) + y * Math.cos(roll);
-        double pitch = Math.toRadians(-tilt[0]);
-        double y2 = y1 * Math.cos(pitch) - z * Math.sin(pitch);
-        double z2 = y1 * Math.sin(pitch) + z * Math.cos(pitch);
-        return new Vec3(-x1, y2 + DRAFT, -z2);
     }
 
     /** Whether she's afloat (not aground). */

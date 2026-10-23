@@ -76,6 +76,14 @@ public class ShindenEntity extends Mob implements GeoEntity {
     private double flightSpeed;
     private boolean exploded;
     private boolean crashed;
+    /** Client side, while the pilot holds Free Look: the heading it keeps (client.ShindenControls). */
+    private boolean freeLook;
+    private float steerYaw;
+    private float steerPitch;
+    /** Server side: how far it moved over the last tick (its pilot's client flies it; the server only sees where to). */
+    private Vec3 flightMotion = Vec3.ZERO;
+    @Nullable
+    private Vec3 lastServerPos;
     /** Ticks between rounds while the trigger is held: five a second. */
     private static final int GUN_COOLDOWN = 4;
     private int lastShotTick = -GUN_COOLDOWN;
@@ -136,6 +144,9 @@ public class ShindenEntity extends Mob implements GeoEntity {
             this.pitch += (wantedPitch - this.pitch) * 0.2F;
             return;
         }
+        Vec3 here = position();
+        this.flightMotion = this.lastServerPos != null ? here.subtract(this.lastServerPos) : Vec3.ZERO;
+        this.lastServerPos = here;
         // like a boat, knocks wear off again
         if (getWobbleTime() > 0) {
             this.entityData.set(DATA_HURT_TIME, getWobbleTime() - 1);
@@ -184,8 +195,45 @@ public class ShindenEntity extends Mob implements GeoEntity {
     @Override
     protected void tickRidden(Player player, Vec3 input) {
         super.tickRidden(player, input);
-        setRot(player.getYRot(), player.getXRot());
+        if (this.freeLook) {
+            setRot(this.steerYaw, this.steerPitch); // the pilot is looking around: it flies on as it was
+        } else {
+            setRot(player.getYRot(), player.getXRot());
+        }
         this.yRotO = this.yBodyRot = this.yHeadRot = getYRot();
+    }
+
+    /** Client side: the pilot starts looking around; the plane keeps this heading until {@link #stopFreeLook()}. */
+    public void startFreeLook(float yaw, float pitch) {
+        this.freeLook = true;
+        this.steerYaw = yaw;
+        this.steerPitch = pitch;
+    }
+
+    public void stopFreeLook() {
+        this.freeLook = false;
+    }
+
+    public boolean isFreeLooking() {
+        return this.freeLook;
+    }
+
+    public float getSteerYaw() {
+        return this.steerYaw;
+    }
+
+    public float getSteerPitch() {
+        return this.steerPitch;
+    }
+
+    /** Server side: its movement over the last tick (blocks). */
+    public Vec3 getFlightMotion() {
+        return this.flightMotion;
+    }
+
+    /** Flying at least this fast (blocks per tick) into something is a crash. */
+    public static double crashSpeed() {
+        return Config.SHINDEN_MAX_SPEED.get() * CRASH_SPEED;
     }
 
     @Override
@@ -290,7 +338,7 @@ public class ShindenEntity extends Mob implements GeoEntity {
 
         double range = Config.TORRID_RANGE.get();
         float damage = Config.TORRID_DAMAGE.get().floatValue();
-        Vec3 aim = Vec3.directionFromRotation(pilot.getXRot(), pilot.getYRot());
+        Vec3 aim = Vec3.directionFromRotation(getXRot(), getYRot()); // along the nose (the pilot may be looking round)
         Vec3 origin = position().add(0.0, 1.5, 0.0);
         DamageSource source = ModDamageTypes.source(level, ModDamageTypes.TORRID, this, pilot);
         for (LivingEntity target : level.getEntitiesOfClass(LivingEntity.class, getBoundingBox().inflate(range),

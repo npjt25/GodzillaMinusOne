@@ -27,7 +27,8 @@ public final class ModItems {
     public static final RegistryObject<Item> SHINSEI_MARU = ITEMS.register("shinsei_maru",
             () -> new ShinseiMaruItem(new Item.Properties().stacksTo(1).rarity(Rarity.RARE)));
 
-    // The eggs use their own textures from the add-on, so both tint colours are white (no tint).
+    // Godzilla's, the Shinden's and the naval mine's eggs use their own textures from the add-on, so both tint colours
+    // are white (no tint); the Odo Island Monster's is a vanilla-style egg (item/template_spawn_egg) in his colours.
     public static final RegistryObject<Item> GODZILLA_SPAWN_EGG = ITEMS.register("godzilla_spawn_egg",
             () -> new ForgeSpawnEggItem(ModEntities.GODZILLA, 0xFFFFFF, 0xFFFFFF, new Item.Properties().rarity(Rarity.EPIC)));
     public static final RegistryObject<Item> SHINDEN_SPAWN_EGG = ITEMS.register("shinden_spawn_egg",
@@ -35,7 +36,7 @@ public final class ModItems {
     public static final RegistryObject<Item> NAVAL_MINE_SPAWN_EGG = ITEMS.register("naval_mine_spawn_egg",
             () -> new ForgeSpawnEggItem(ModEntities.NAVAL_MINE, 0xFFFFFF, 0xFFFFFF, new Item.Properties()));
     public static final RegistryObject<Item> ODO_ISLAND_MONSTER_SPAWN_EGG = ITEMS.register("odo_island_monster_spawn_egg",
-            () -> new ForgeSpawnEggItem(ModEntities.ODO_ISLAND_MONSTER, 0xFFFFFF, 0xFFFFFF, new Item.Properties().rarity(Rarity.RARE)));
+            () -> new ForgeSpawnEggItem(ModEntities.ODO_ISLAND_MONSTER, 0x6B6258, 0x3A2F28, new Item.Properties().rarity(Rarity.RARE)));
 
     private ModItems() {
     }

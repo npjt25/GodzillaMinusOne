@@ -181,9 +181,8 @@
   "subtitle": "subtitles.godzillaminusone.odo.roar",
   "sounds": [
    {
-    "name": "godzillaminusone:godzilla_roar",
-    "stream": true,
-    "pitch": 1.3
+    "name": "godzillaminusone:odo_roar",
+    "attenuation_distance": 400
    }
   ]
  },
@@ -191,8 +190,7 @@
   "subtitle": "subtitles.godzillaminusone.odo.bite",
   "sounds": [
    {
-    "name": "godzillaminusone:godzilla_attack",
-    "pitch": 1.35
+    "name": "godzillaminusone:odo_bite"
    }
   ]
  },
@@ -238,6 +236,79 @@
   "sounds": [
    {
     "name": "godzillaminusone:shinsei_maru_gun"
+   }
+  ]
+ },
+ "godzilla.bite": {
+  "subtitle": "subtitles.godzillaminusone.godzilla.bite",
+  "sounds": [
+   {
+    "name": "godzillaminusone:godzilla_bite"
+   }
+  ]
+ },
+ "godzilla.roar_far": {
+  "subtitle": "subtitles.godzillaminusone.godzilla.roar_far",
+  "sounds": [
+   {
+    "name": "godzillaminusone:godzilla_roar_far",
+    "stream": true,
+    "attenuation_distance": 3000
+   }
+  ]
+ },
+ "godzilla.roar_far2": {
+  "subtitle": "subtitles.godzillaminusone.godzilla.roar_far2",
+  "sounds": [
+   {
+    "name": "godzillaminusone:godzilla_roar_far2",
+    "stream": true,
+    "attenuation_distance": 3000
+   }
+  ]
+ },
+ "odo.roar_far": {
+  "subtitle": "subtitles.godzillaminusone.odo.roar_far",
+  "sounds": [
+   {
+    "name": "godzillaminusone:odo_roar_far",
+    "attenuation_distance": 400
+   }
+  ]
+ },
+ "odo.spotted": {
+  "subtitle": "subtitles.godzillaminusone.odo.spotted",
+  "sounds": [
+   {
+    "name": "godzillaminusone:odo_spotted",
+    "attenuation_distance": 400
+   }
+  ]
+ },
+ "odo.spawn": {
+  "subtitle": "subtitles.godzillaminusone.odo.spawn",
+  "sounds": [
+   {
+    "name": "godzillaminusone:odo_spawn"
+   }
+  ]
+ },
+ "odo.nuked": {
+  "subtitle": "subtitles.godzillaminusone.odo.nuked",
+  "sounds": [
+   {
+    "name": "godzillaminusone:odo_nuked",
+    "stream": true,
+    "attenuation_distance": 400
+   }
+  ]
+ },
+ "shinsei_maru.motor": {
+  "subtitle": "subtitles.godzillaminusone.shinsei_maru.motor",
+  "sounds": [
+   {
+    "name": "godzillaminusone:shinsei_maru_motor",
+    "attenuation_distance": 32
    }
   ]
  }

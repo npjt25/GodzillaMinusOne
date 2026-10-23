@@ -77,6 +77,8 @@ public final class ModEntities {
             statue("godzilla_pose_poster_snarl", GodzillaStatueEntity.Stance.POSTER_SNARL);
     public static final RegistryObject<EntityType<GodzillaStatueEntity>> GODZILLA_POSE_TAIL_HOOK =
             statue("godzilla_pose_tail_hook", GodzillaStatueEntity.Stance.TAIL_HOOK);
+    public static final RegistryObject<EntityType<GodzillaStatueEntity>> GODZILLA_POSE_HUNCHED_SNARL =
+            statue("godzilla_pose_hunched_snarl", GodzillaStatueEntity.Stance.HUNCHED_SNARL);
 
     private static RegistryObject<EntityType<GodzillaStatueEntity>> statue(String name, GodzillaStatueEntity.Stance stance) {
         return ENTITIES.register(name, () -> EntityType.Builder.<GodzillaStatueEntity>of((type, level) -> new GodzillaStatueEntity(type, level, stance), MobCategory.MISC)

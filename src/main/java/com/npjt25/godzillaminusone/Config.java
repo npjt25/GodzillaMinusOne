@@ -27,12 +27,15 @@ public final class Config {
     public static final ForgeConfigSpec.BooleanValue KNOCKS_DOWN_TALL_BUILDINGS;
     public static final ForgeConfigSpec.IntValue TALL_BUILDING_HEIGHT;
     public static final ForgeConfigSpec.IntValue KNOCK_DOWN_TO_HEIGHT;
+    public static final ForgeConfigSpec.IntValue DEMOLITION_INTERVAL;
     public static final ForgeConfigSpec.IntValue ROAR_INTERVAL;
+    public static final ForgeConfigSpec.IntValue DOWNED_SECONDS;
 
     // ---- Atomic breath
     public static final ForgeConfigSpec.IntValue ATOMIC_BREATH_COOLDOWN;
     public static final ForgeConfigSpec.IntValue FIRST_BREATH_MIN_DELAY;
     public static final ForgeConfigSpec.IntValue FIRST_BREATH_MAX_DELAY;
+    public static final ForgeConfigSpec.IntValue BREATH_MIN_TARGET_DISTANCE;
     public static final ForgeConfigSpec.IntValue ATOMIC_BLAST_KILL_RADIUS;
     public static final ForgeConfigSpec.IntValue ATOMIC_BLAST_RADIATION_RADIUS;
     public static final ForgeConfigSpec.IntValue ATOMIC_BLAST_RADIATION_AMPLIFIER;
@@ -51,6 +54,12 @@ public final class Config {
     public static final ForgeConfigSpec.IntValue MINE_BLAST_RADIUS;
     public static final ForgeConfigSpec.DoubleValue MINE_BLAST_DAMAGE;
     public static final ForgeConfigSpec.DoubleValue PILOT_BLAST_DAMAGE;
+
+    // ---- Playing as Godzilla / the Odo Island Monster (Walkers or ReMorphed)
+    public static final ForgeConfigSpec.BooleanValue PLAYER_GODZILLA_BREAKS_BLOCKS;
+    public static final ForgeConfigSpec.BooleanValue PLAYER_GODZILLA_FOOTPRINTS;
+    public static final ForgeConfigSpec.DoubleValue PLAYER_ODO_RUN_SPEED;
+    public static final ForgeConfigSpec.DoubleValue PLAYER_ODO_BITE_DAMAGE;
 
     static {
         BUILDER.push("godzilla");
@@ -103,15 +112,27 @@ public final class Config {
                         "then leaves it alone (also needs breaksBlocks and mobGriefing).")
                 .define("knocksDownTallBuildings", true);
         TALL_BUILDING_HEIGHT = BUILDER
-                .comment("How tall (in blocks above the ground) a building must be for him to knock it down: half his height (45).")
-                .defineInRange("demolishFromHeight", 23, 4, 256);
+                .comment("How tall (in blocks above the ground) a building must be for him to go and knock it down.",
+                        "-1 = half his real height (he stands ~45 blocks tall: 23).")
+                .defineInRange("demolishFromHeight", -1, -1, 256);
         KNOCK_DOWN_TO_HEIGHT = BUILDER
-                .comment("How tall (in blocks above the ground) he leaves a building he knocks down: a quarter of his height.")
-                .defineInRange("demolishDownToHeight", 11, 0, 256);
+                .comment("How tall (in blocks above the ground) he leaves a building he knocks down. -1 = a quarter of his",
+                        "real height (11). Always kept below demolishFromHeight.")
+                .defineInRange("demolishDownToHeight", -1, -1, 256);
+        DEMOLITION_INTERVAL = BUILDER
+                .comment("How often he picks a building to demolish: after he's done with one (or given up on it) he waits this",
+                        "many seconds before he looks for the next (0 = straight away). Only buildings, and only with nothing to",
+                        "kill about; what he walks into or treads on is broken regardless (breaksBlocks, footprints).")
+                .defineInRange("demolitionIntervalSeconds", 20, 0, 3600);
         ROAR_INTERVAL = BUILDER
                 .comment("Seconds between the roars he lets out on his own (0 = only when he fires or is hit). Also in the",
                         "config menu: Mods, Godzilla Minus One, Config.")
                 .defineInRange("roarIntervalSeconds", 120, 0, 3600);
+        DOWNED_SECONDS = BUILDER
+                .comment("When his health reaches zero he plays his collapse (5 s), then lies defeated for this many seconds",
+                        "before he regenerates and gets back up (the timer starts once the collapse is over and he lies still).",
+                        "Only used when regenerates = true.")
+                .defineInRange("downedSeconds", 15, 0, 3600);
         BUILDER.pop();
 
         BUILDER.push("atomic_breath");
@@ -125,6 +146,11 @@ public final class Config {
         FIRST_BREATH_MAX_DELAY = BUILDER
                 .comment("See firstBreathMinSeconds.")
                 .defineInRange("firstBreathMaxSeconds", 180, 0, 3600);
+        BREATH_MIN_TARGET_DISTANCE = BUILDER
+                .comment("While he's after a target, he only starts an atomic breath at one at least this many blocks away",
+                        "(measured from him to it, horizontally and vertically); anything closer he walks up to and attacks in",
+                        "melee. Checked only when he decides to start charging: a charge already under way is never called off.")
+                .defineInRange("minTargetDistance", 75, 0, 1000);
         ATOMIC_BLAST_KILL_RADIUS = BUILDER
                 .comment("Everything within this many blocks of the blast is killed, except Shinden pilots (add-on: 2000 around Godzilla).")
                 .defineInRange("killRadius", 64, 0, 2000);
@@ -181,6 +207,24 @@ public final class Config {
         PILOT_BLAST_DAMAGE = BUILDER
                 .comment("Blast damage taken by Shinden pilots ('plot armour' in the add-on: 30).")
                 .defineInRange("pilotBlastDamage", 30.0, 0.0, Double.MAX_VALUE);
+        BUILDER.pop();
+
+        BUILDER.push("playable");
+        PLAYER_GODZILLA_BREAKS_BLOCKS = BUILDER
+                .comment("Playing as Godzilla (Walkers / ReMorphed): walking through buildings breaks them, each stride crushes a",
+                        "footprint, and his claws and jaws tear through what's built. Also needs breaksBlocks, the mobGriefing",
+                        "gamerule, and the player being allowed to build there.")
+                .define("playerGodzillaBreaksBlocks", true);
+        PLAYER_GODZILLA_FOOTPRINTS = BUILDER
+                .comment("Playing as Godzilla: his strides crush footprints (with playerGodzillaBreaksBlocks).")
+                .define("playerGodzillaFootprints", true);
+        PLAYER_ODO_RUN_SPEED = BUILDER
+                .comment("Playing as the Odo Island Monster: how fast he runs (blocks per second on level ground) while the Run key",
+                        "(Left Control by default) is held.")
+                .defineInRange("playerOdoRunSpeed", 6.0, 1.0, 20.0);
+        PLAYER_ODO_BITE_DAMAGE = BUILDER
+                .comment("Playing as the Odo Island Monster: damage of his bite (left click).")
+                .defineInRange("playerOdoBiteDamage", 30.0, 0.0, 1000.0);
         BUILDER.pop();
     }
 

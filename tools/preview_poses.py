@@ -31,6 +31,7 @@ POSES = [
     ("pose_sky_roar", "godzilla_pose_sky_roar", None),
     ("pose_poster_snarl", "godzilla_pose_poster_snarl", "charged"),
     ("pose_tail_hook", "godzilla_pose_tail_hook", None),
+    ("pose_hunched_snarl", "godzilla_pose_hunched_snarl", None),
 ]
 # in model pixels (his model faces -z, towards you): low down in front of him, looking up
 CAMERA = {"eye": (0.0, 14.0, -165.0), "target": (0.0, 50.0, 0.0), "fov": 52.0}

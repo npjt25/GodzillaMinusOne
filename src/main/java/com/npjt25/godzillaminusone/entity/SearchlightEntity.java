@@ -171,6 +171,14 @@ public class SearchlightEntity extends Entity implements GeoEntity {
         return beamHit(level());
     }
 
+    /** Where the beam is seen to land (client side): like {@link #beamHit()}, but on the surface of any water. */
+    public HitResult visibleBeamHit() {
+        Vec3 from = lens();
+        Vec3 dir = beamDirection();
+        Vec3 to = from.add(dir.scale(loadedReach(level(), from, dir, RANGE)));
+        return level().clip(new ClipContext(from, to, ClipContext.Block.VISUAL, ClipContext.Fluid.ANY, this));
+    }
+
     private HitResult beamHit(Level level) {
         Vec3 from = lens();
         Vec3 dir = beamDirection();

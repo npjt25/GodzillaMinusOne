@@ -46,7 +46,8 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * A player playing as Godzilla (with Walkers or ReMorphed: compat.Shapes), server side. Walkers gives them his size and
+ * A player playing as Godzilla (with Walkers, mod id "walkers", or ReMorphed, "remorphed", both by To_Craft; their
+ * API is looked up in compat.Shapes), server side. Walkers gives them his size and
  * draws him in their place; this gives them his moves, on their own keys (client.PlayerGodzillaControls), each with
  * his own animation (seen by everyone) and his own blows, as the mob deals them:
  *
@@ -58,13 +59,16 @@ import java.util.UUID;
  *   <li>{@link Move#ROAR}: heard thousands of blocks away; whatever is near cowers (Weakness and Slowness).</li>
  *   <li>{@link Move#ATOMIC_BREATH}: the whole charge as the mob does it (the plates lighting up one by one, the
  *       in-breath; he stands his ground meanwhile), then the beam, where he's looking, and the nuclear blast where it
- *       lands, flattening and all; then the breath needs to recharge (atomicBreathCooldown, 3 minutes).</li>
+ *       lands, flattening and all, and his roar as the beam dies out: he can't move from the start of the charge to the
+ *       end of that roar. Then the breath needs to recharge (atomicBreathCooldown, 3 minutes).</li>
+ *   <li>Walking, he breaks through what's built in his way and crushes footprints (playable section of the config).
+ *       Whatever interrupts him (changing back, dying, respawning, changing dimension, logging out) frees him.</li>
  * </ul>
  */
 @Mod.EventBusSubscriber(modid = GodzillaMinusOne.MODID, bus = Mod.EventBusSubscriber.Bus.FORGE)
 public final class PlayerGodzilla {
     public enum Move {
-        TAIL_WHIP("spin_whip", 44), SCRATCH("swipe_right", 22), BITE("attack", 20), ROAR("roar", 60),
+        TAIL_WHIP("spin_whip", 44), SCRATCH("swipe_right", 22), BITE("bite", 20), ROAR("roar", 60),
         ATOMIC_BREATH(null, GodzillaEntity.CHARGE_LENGTH);
 
         /** The animation it plays (the scratch alternates with "swipe_left"; the bite is "swim_bite" in the water). */
@@ -177,6 +181,10 @@ public final class PlayerGodzilla {
             stomp(player);
         }
         State state = STATES.get(player.getUUID());
+        if (state == null || state.charge < 0) {
+            // never left rooted by a breath that isn't going on (changed back, died, logged out mid-charge...)
+            root(player, false);
+        }
         if (state == null) {
             return;
         }
@@ -211,7 +219,7 @@ public final class PlayerGodzilla {
         }
         Vec3 now = player.position();
         Vec3 before = LAST_POSITION.put(player.getUUID(), now);
-        if (before == null || !Config.GODZILLA_BREAKS_BLOCKS.get() || !player.mayBuild() || player.isSpectator()) {
+        if (before == null || !mayDestroy(player)) {
             return;
         }
         Vec3 moved = new Vec3(now.x - before.x, 0.0, now.z - before.z);
@@ -227,8 +235,8 @@ public final class PlayerGodzilla {
             for (int x = Mth.floor(box.minX); x <= Mth.floor(box.maxX) && broken < 300; x++) {
                 for (int z = Mth.floor(box.minZ); z <= Mth.floor(box.maxZ) && broken < 300; z++) {
                     BlockState state = level.getBlockState(pos.set(x, y, z));
-                    if (state.isAir() || !state.getFluidState().isEmpty()) {
-                        continue;
+                    if (state.isAir() || !state.getFluidState().isEmpty() || Destruction.isGround(state)) {
+                        continue; // (hills and cliffs he climbs, as the mob does)
                     }
                     if (Destruction.canBreak(level, pos, state, player)) {
                         level.destroyBlock(pos, false, player);
@@ -239,12 +247,43 @@ public final class PlayerGodzilla {
         }
         // every couple of seconds' walking, a foot comes down: a footprint crushed where it lands
         int strides = STRIDES.merge(player.getUUID(), 1, Integer::sum);
-        if (strides % 4 == 0 && player.onGround()) {
+        if (strides % 4 == 0 && player.onGround() && Config.PLAYER_GODZILLA_FOOTPRINTS.get() && Config.FOOTPRINTS.get()) {
             double side = (strides / 4) % 2 == 0 ? GodzillaEntity.FOOT_SIDE : -GodzillaEntity.FOOT_SIDE;
             float yaw = player.yBodyRot;
             Vec3 fwd = Vec3.directionFromRotation(0.0F, yaw);
             Vec3 foot = now.add(fwd.scale(GodzillaEntity.FOOT_FORWARD)).add(-fwd.z * side, 0.0, fwd.x * side);
             Destruction.footprint(level, player, foot, yaw, GodzillaEntity.FOOT_HALF_WIDTH, GodzillaEntity.FOOT_HALF_LENGTH);
+        }
+    }
+
+    /**
+     * Whether, playing as him, {@code player} may break blocks: playerGodzillaBreaksBlocks and breaksBlocks on, the
+     * mobGriefing gamerule on, and they may build here (not in adventure mode, not in spawn protection).
+     */
+    static boolean mayDestroy(ServerPlayer player) {
+        return Config.PLAYER_GODZILLA_BREAKS_BLOCKS.get() && Config.GODZILLA_BREAKS_BLOCKS.get() && !player.isSpectator()
+                && player.mayBuild() && player.serverLevel().getGameRules().getBoolean(GameRules.RULE_MOBGRIEFING);
+    }
+
+    @SubscribeEvent
+    public static void onRespawn(PlayerEvent.PlayerRespawnEvent event) {
+        if (event.getEntity() instanceof ServerPlayer player) {
+            State state = STATES.get(player.getUUID());
+            if (state != null) {
+                stop(player, state);
+            }
+            root(player, false);
+        }
+    }
+
+    @SubscribeEvent
+    public static void onChangeDimension(PlayerEvent.PlayerChangedDimensionEvent event) {
+        if (event.getEntity() instanceof ServerPlayer player) {
+            State state = STATES.get(player.getUUID());
+            if (state != null) {
+                stop(player, state); // (the breath's beam and blast belong to the world he left)
+            }
+            LAST_POSITION.remove(player.getUUID());
         }
     }
 
@@ -259,9 +298,7 @@ public final class PlayerGodzilla {
     }
 
     private static void stop(ServerPlayer player, State state) {
-        if (state.charge >= 0) {
-            root(player, false);
-        }
+        root(player, false);
         STATES.remove(player.getUUID());
     }
 
@@ -317,15 +354,17 @@ public final class PlayerGodzilla {
         Vec3 jaws = player.isInWater() ? at(player, 0.0, 1.0, 18.0) : player.getEyePosition().add(player.getLookAngle().scale(14.0));
         hurtAround(player, jaws, 9.0, damage(), Vec3.ZERO);
         tearThrough(player, jaws, 5.0, player.getLookAngle().scale(0.4));
-        player.level().playSound(null, jaws.x, jaws.y, jaws.z, player.isInWater() ? SoundEvents.GENERIC_SPLASH : SoundEvents.PLAYER_ATTACK_STRONG,
-                SoundSource.PLAYERS, 6.0F, 0.5F);
+        if (player.isInWater()) {
+            player.level().playSound(null, jaws.x, jaws.y, jaws.z, SoundEvents.GENERIC_SPLASH, SoundSource.PLAYERS, 6.0F, 0.5F);
+        }
+        player.level().playSound(null, jaws.x, jaws.y, jaws.z, ModSounds.GODZILLA_BITE.get(), SoundSource.PLAYERS, 6.0F, 1.0F);
         ModNetwork.shake(player.serverLevel(), jaws, 48.0, 0.4F, 1.0F);
     }
 
     /** What's built within {@code radius} of {@code center} is torn apart: solid blocks topple, the rest breaks. */
     private static void tearThrough(ServerPlayer player, Vec3 center, double radius, Vec3 push) {
         ServerLevel level = player.serverLevel();
-        if (!Config.GODZILLA_BREAKS_BLOCKS.get() || !level.getGameRules().getBoolean(GameRules.RULE_MOBGRIEFING)) {
+        if (!mayDestroy(player)) {
             return;
         }
         int r = Mth.ceil(radius);
@@ -393,16 +432,25 @@ public final class PlayerGodzilla {
             blast(player, beam(player)[1]);
         }
         if (t == GodzillaEntity.BEAM_END_TICK) {
-            root(player, false);
+            // the roar as the beam dies out, as the mob's: he stays rooted until it's over (CHARGE_LENGTH)
             GodzillaEntity.broadcastRoar(level, player.getX(), player.getY() + 30.0, player.getZ(), ModSounds.GODZILLA_ROAR.get(),
                     player.getRandom().nextLong());
+            ModNetwork.sendNear(level, player.position(), 512.0,
+                    new GodzillaMovePacket(player.getId(), Move.ROAR.ordinal(), breathCooldown(player), "roar"));
         }
         if (t == GodzillaEntity.BEAM_END_TICK + 80 && state.blastAt != null) {
             ModNetwork.sendNear(level, state.blastAt, 640.0, new FxPacket(FxPacket.Type.BLACK_RAIN, state.blastAt, 150.0F, 20.0F));
         }
         if (t >= GodzillaEntity.CHARGE_LENGTH) {
             state.charge = -1;
+            root(player, false); // his roar is over: free to move again
         }
+    }
+
+    /** Whether he's rooted to the spot by his atomic breath (its charge, the beam and the roar after it). */
+    public static boolean isRooted(Player player) {
+        AttributeInstance speed = player.getAttribute(Attributes.MOVEMENT_SPEED);
+        return speed != null && speed.hasModifier(ROOTED);
     }
 
     /** The beam: from his mouth where he's looking, to the first thing it hits (or as far as it reaches). */

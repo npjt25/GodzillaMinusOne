@@ -1,0 +1,13 @@
+{
+  "type": "godzillaminusone:add_item",
+  "conditions": [
+    {
+      "condition": "forge:loot_table_id",
+      "loot_table_id": "minecraft:chests/end_city_treasure"
+    }
+  ],
+  "item": "godzillaminusone:naval_mine_spawn_egg",
+  "chance": 0.25,
+  "min": 1,
+  "max": 2
+}

@@ -35,19 +35,12 @@ public class ShinseiMaruRenderer extends GeoEntityRenderer<ShinseiMaruEntity> {
     }
 
     /**
-     * She turns with her heading (GeckoLib only turns living things by their body: she'd always face the same way),
-     * pitches and rolls on the swell, and rocks when she's hit.
+     * She turns with her heading (GeckoLib only turns living things by their body: she'd always face the same way), and
+     * rocks when she's hit.
      */
     @Override
     protected void applyRotations(ShinseiMaruEntity boat, PoseStack poseStack, float ageInTicks, float rotationYaw, float partialTick) {
         super.applyRotations(boat, poseStack, ageInTicks, Mth.rotLerp(partialTick, boat.yRotO, boat.getYRot()), partialTick);
-        float[] tilt = boat.swellTilt(boat.level().getGameTime() + partialTick);
-        // (about her waterline, which sits her draft above her keel)
-        float draft = (float) ShinseiMaruEntity.DRAFT;
-        poseStack.translate(0.0F, draft, 0.0F);
-        poseStack.mulPose(Axis.XP.rotationDegrees(-tilt[0]));
-        poseStack.mulPose(Axis.ZP.rotationDegrees(tilt[1]));
-        poseStack.translate(0.0F, -draft, 0.0F);
         float wobble = boat.getWobble() - partialTick;
         if (wobble > 0.0F) {
             poseStack.mulPose(Axis.ZP.rotationDegrees(Mth.sin(wobble) * wobble * 0.3F));

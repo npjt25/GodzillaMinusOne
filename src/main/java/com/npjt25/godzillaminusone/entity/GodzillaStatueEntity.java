@@ -47,7 +47,12 @@ public class GodzillaStatueEntity extends Entity implements GeoEntity {
          */
         POSTER_SNARL("pose_poster_snarl", Glow.CHARGED),
         /** Turned three-quarters, growling, the tail swept round in front of him in a broad open hook. */
-        TAIL_HOOK("pose_tail_hook", Glow.NONE);
+        TAIL_HOOK("pose_tail_hook", Glow.NONE),
+        /**
+         * Square on, leaning forward, shoulders hunched and the head low between them, snarling; one arm bent with
+         * its claw at his chest, the other lower and further out. Best seen from low down, almost straight in front.
+         */
+        HUNCHED_SNARL("pose_hunched_snarl", Glow.NONE);
 
         public final String id;
         public final Glow glow;

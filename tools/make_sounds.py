@@ -9,6 +9,9 @@
   * shinden_gun.ogg      - one shot of the Shinden's cannons (one per click): the first of the three shots in the
                            add-on's kplane_fire.ogg burst, with a short echo instead of the next two.
   * shinsei_maru_gun.ogg - one shot of the Shinsei Maru's Type 93 13 mm machine gun: the same shot, lighter and sharper.
+  * shinsei_maru_motor.ogg - her old diesel at a steady idle-to-cruise, 2 s that loop seamlessly (every part of it
+                           repeats exactly every 2 s: the firing beat, its harmonics and the noise), for the motor
+                           (client.ShinseiMaruSounds plays it on a loop, louder and higher as she speeds up).
 
 Needs numpy and imageio-ffmpeg (for the Vorbis encoder).
 """
@@ -149,6 +152,32 @@ def single_shot(rng, pitch=1.0, tail=0.25):
     return echo
 
 
+def motor(rng, seconds=2.0):
+    """A small marine diesel: a firing beat of 12 Hz (4-stroke, a few cylinders at a low cruise), its exhaust thump
+    and harmonics, a lumpy chug as the cylinders fire unevenly, valve clatter and a rumble of filtered noise. Built from
+    whole numbers of cycles of everything in the loop's length, so it loops without a seam."""
+    n = int(seconds * RATE)
+    t = np.arange(n) / RATE
+    beat = 12.0                     # firings per second: 24 in the loop (six rounds of four cylinders)
+    out = np.zeros(n)
+    for k, amp in ((1, 1.0), (2, 0.55), (3, 0.35), (4, 0.22), (6, 0.12), (8, 0.06)):
+        out += amp * np.sin(2 * np.pi * beat * k * t + rng.uniform(0, 2 * np.pi))
+    # each firing a thump, the cylinders not quite even (one in four a little weaker: a pattern of 4 beats)
+    phase = (t * beat) % 1.0
+    which = np.floor(t * beat).astype(int) % 4
+    strength = np.array([1.0, 0.85, 0.95, 0.75])[which]
+    pulse = (1.0 - np.exp(-phase * 60.0)) * np.exp(-phase * 5.0)   # a quick swell and a slower fall: no click
+    out *= 0.55 + 0.6 * strength * pulse
+    # rumble and clatter: noise shaped in the frequency domain over exactly the loop's length (so it's periodic too)
+    spec = rng.standard_normal(n // 2 + 1) + 1j * rng.standard_normal(n // 2 + 1)
+    f = np.fft.rfftfreq(n, 1.0 / RATE)
+    rumble = np.fft.irfft(spec * np.exp(-((f - 60.0) / 70.0) ** 2), n)
+    clatter = np.fft.irfft(spec * np.exp(-((f - 1400.0) / 500.0) ** 2), n) * ((1.0 - np.exp(-phase * 80.0)) * np.exp(-phase * 14.0) + 0.15)
+    out = out / np.max(np.abs(out))
+    out += 0.5 * rumble / np.max(np.abs(rumble)) + 0.12 * clatter / np.max(np.abs(clatter))
+    return out
+
+
 def write_ogg(samples, name):
     samples = samples / np.max(np.abs(samples)) * 0.89
     pcm = (samples * 32767).astype(np.int16)
@@ -172,6 +201,7 @@ def main():
     write_ogg(alarm(rng), "nuke_alarm")
     write_ogg(single_shot(rng), "shinden_gun")
     write_ogg(single_shot(rng, pitch=1.35, tail=0.18), "shinsei_maru_gun")
+    write_ogg(motor(rng), "shinsei_maru_motor")
 
 
 if __name__ == "__main__":

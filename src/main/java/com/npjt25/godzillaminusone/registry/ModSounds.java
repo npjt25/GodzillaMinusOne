@@ -29,6 +29,10 @@ public final class ModSounds {
     public static final RegistryObject<SoundEvent> GODZILLA_FULL_CHARGE = register("godzilla.full_charge");
     public static final RegistryObject<SoundEvent> GODZILLA_INHALE = register("godzilla.inhale");
     public static final RegistryObject<SoundEvent> GODZILLA_ATOMIC_BLAST = register("godzilla.atomic_blast");
+    public static final RegistryObject<SoundEvent> GODZILLA_BITE = register("godzilla.bite");
+    /** Roars for listeners 200+ blocks away (GodzillaEntity.broadcastRoar picks one per listener, alternating). */
+    public static final RegistryObject<SoundEvent> GODZILLA_ROAR_FAR = register("godzilla.roar_far");
+    public static final RegistryObject<SoundEvent> GODZILLA_ROAR_FAR2 = register("godzilla.roar_far2");
     public static final RegistryObject<SoundEvent> SHINDEN_ENGINE = register("shinden.engine");
     public static final RegistryObject<SoundEvent> SHINDEN_GUN = register("shinden.gun");
     public static final RegistryObject<SoundEvent> NAVAL_MINE_EXPLODE = register("naval_mine.explode");
@@ -40,7 +44,12 @@ public final class ModSounds {
     public static final RegistryObject<SoundEvent> ODO_STEP = register("odo.step");
     public static final RegistryObject<SoundEvent> ODO_HURT = register("odo.hurt");
     public static final RegistryObject<SoundEvent> ODO_DEATH = register("odo.death");
+    public static final RegistryObject<SoundEvent> ODO_ROAR_FAR = register("odo.roar_far");
+    public static final RegistryObject<SoundEvent> ODO_SPOTTED = register("odo.spotted");
+    public static final RegistryObject<SoundEvent> ODO_SPAWN = register("odo.spawn");
+    public static final RegistryObject<SoundEvent> ODO_NUKED = register("odo.nuked");
     public static final RegistryObject<SoundEvent> SHINSEI_MARU_GUN = register("shinsei_maru.gun");
+    public static final RegistryObject<SoundEvent> SHINSEI_MARU_MOTOR = register("shinsei_maru.motor");
 
     private static RegistryObject<SoundEvent> register(String name) {
         RegistryObject<SoundEvent> sound = SOUNDS.register(name, () -> SoundEvent.createVariableRangeEvent(GodzillaMinusOne.id(name)));
