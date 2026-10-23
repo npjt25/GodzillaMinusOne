@@ -60,15 +60,12 @@ minecraft {
 }
 
 repositories {
-    // only for -Pshapes (below): Walkers, CraftedCore and ReMorphed from Modrinth's Maven
-    exclusiveContent {
-        forRepository {
-            maven {
-                name = 'Modrinth'
-                url = 'https://api.modrinth.com/maven'
-            }
-        }
-        filter {
+    // only for -Pshapes (below): Walkers, CraftedCore and ReMorphed from Modrinth's Maven (not exclusive: ForgeGradle's
+    // own repository serves the remapped copies under the same group)
+    maven {
+        name = 'Modrinth'
+        url = 'https://api.modrinth.com/maven'
+        content {
             includeGroup 'maven.modrinth'
         }
     }
