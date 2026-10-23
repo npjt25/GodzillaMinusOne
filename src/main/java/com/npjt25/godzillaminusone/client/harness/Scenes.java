@@ -559,7 +559,8 @@ final class Scenes {
     /**
      * With Physics Mod in the game: how far its waves lift the Shinsei Maru as it draws her, beside a vanilla boat (its
      * EntityOcean, mixed into every entity: getPhysicsYOffset), and its ocean settings. Where they lift the vanilla boat,
-     * they have to lift her too.
+     * they have to lift her too. In the rain: its waves are as high as the weather makes them (oceanWeatherClear,
+     * oceanWeatherRain, oceanWeatherThunder), flat in clear weather by default.
      */
     private static void physicsModWaves() {
         once("physics mod: its ocean settings", () -> {
@@ -580,7 +581,11 @@ final class Scenes {
             boat.moveTo(-70.5, -56.0, 16.5, 0.0F, 0.0F);
             level.addFreshEntity(boat);
         });
-        waitTicks(60);
+        commands("weather rain");
+        waitTicks(200); // (the rain coming on)
+        camera("physics mod: the boats in the rain", new Vec3(-82.0, -50.0, -14.0), new Vec3(-70.0, -55.0, 4.0), 60);
+        waitTicks(20);
+        shot("boat_physicsmod_rain");
         double[] ours = {Double.MAX_VALUE, -Double.MAX_VALUE};
         double[] theirs = {Double.MAX_VALUE, -Double.MAX_VALUE};
         during("physics mod: its waves", 100, () -> {
@@ -597,7 +602,8 @@ final class Scenes {
                 ours[0], ours[1], theirs[0], theirs[1]));
         check("physics mod: where its waves lift a boat, they lift her", () -> theirs[1] - theirs[0] < 0.02 || ours[1] - ours[0] > 0.02 ? null
                 : "they lift the vanilla boat, not her");
-        commands("kill @e[type=minecraft:boat]");
+        commands("kill @e[type=minecraft:boat]", "weather clear");
+        waitTicks(100);
     }
 
     /** Physics Mod's wave offset of {@code entity} as it's drawn (blocks), or NaN. */
