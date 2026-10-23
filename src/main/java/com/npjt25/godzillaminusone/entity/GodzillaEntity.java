@@ -1072,11 +1072,6 @@ public class GodzillaEntity extends Monster implements GeoEntity {
         return distanceSqrToSegment(face, from, ahead) <= Mth.square(FACE_RADIUS + 1.5);
     }
 
-    /** For the game tests: his mouth burnt (as after his atomic breath) for {@code ticks}. */
-    public void setBurnTicks(int ticks) {
-        this.entityData.set(DATA_BURNS, Mth.clamp(ticks, 0, BURN_TICKS));
-    }
-
     /** For the game tests: where a Shinden would fly into his face. */
     public Vec3 facePosition() {
         return locator(FACE.x, FACE.y, FACE.z);
