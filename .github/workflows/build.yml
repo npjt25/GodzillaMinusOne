@@ -79,8 +79,17 @@ jobs:
             mkdir -p pm && (cd pm && unzip -q ../physicsmod.jar)
             echo "OPTIONAL physicsmod class files mentioning wave/ocean:"
             grep -rlaiE 'waveheight|getwave|oceanphysics|wave_height' pm --include=*.class | head -20 | sed 's/^/OPTIONAL   /'
-            for c in $(grep -rlaiE 'waveheight|getwave|oceanphysics' pm --include=*.class | head -8); do
-              javap -p -cp pm "$(echo ${c#pm/} | sed 's/\.class$//; s#/#.#g')" 2>/dev/null | grep -iE 'public|static' | head -30 | sed 's/^/OPTIONAL     /'
+            # its ocean: what a mod could read the waves from, and what it does to boats and other entities by itself
+            for c in net.diebuddies.physics.ocean.WaveFunction net.diebuddies.physics.ocean.OceanWorld \
+                     net.diebuddies.physics.ocean.EntityOcean net.diebuddies.minecraft.ShipOceanTransform \
+                     net.diebuddies.mixins.ocean.MixinBoat net.diebuddies.mixins.ocean.MixinEntity; do
+              echo "OPTIONAL --- $c"
+              javap -p -cp pm "$c" 2>&1 | head -70 | sed 's/^/OPTIONAL     /'
+            done
+            for c in net.diebuddies.mixins.ocean.MixinBoat net.diebuddies.mixins.ocean.MixinEntity; do
+              echo "OPTIONAL --- $c: what it hooks"
+              javap -v -cp pm "$c" 2>/dev/null | grep -E "= Utf8 " | grep -vE "Ljava|^\s*#[0-9]+ = Utf8 (Code|LineNumberTable|LocalVariableTable|this|StackMapTable|SourceFile|RuntimeVisible)" \
+                | sed 's/.*= Utf8 //' | head -60 | sed 's/^/OPTIONAL       /'
             done
           fi
           if [ -f woodwalkers.jar ]; then
@@ -115,6 +124,83 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: in-game-screenshots
+          path: |
+            run/screenshots/*.png
+            run/gmo-checks.txt
+            client.log
+          if-no-files-found: warn
+
+  # The same in-game checks with the real Walkers, ReMorphed and CraftedCore (latest for Forge 1.20.1 on Modrinth) in
+  # the development game (-Pshapes), adding playing as Godzilla and the Odo Island Monster (client/harness/ShapeScenes).
+  # It doesn't hold anything up if Modrinth or one of those mods misbehaves.
+  client-shapes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Virtual display
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq xvfb libgl1-mesa-dri libglx-mesa0 mesa-utils libxrandr2 libxinerama1 libxcursor1 libxi6 libxxf86vm1 >/dev/null
+
+      - name: Walkers, ReMorphed and CraftedCore versions (Modrinth)
+        id: mods
+        shell: bash
+        run: |
+          python3 - <<'PY' | tee -a "$GITHUB_OUTPUT"
+          import json, urllib.request
+          q = '?loaders=%5B%22forge%22%5D&game_versions=%5B%221.20.1%22%5D'
+          def get(path):
+              return json.load(urllib.request.urlopen('https://api.modrinth.com/v2/' + path))
+          walkers = get('project/woodwalkers/version' + q)[0]
+          remorphed = get('project/remorphed/version' + q)[0]
+          core = None
+          for dep in walkers['dependencies'] + remorphed['dependencies']:
+              if dep.get('dependency_type') != 'required' or not dep.get('project_id'):
+                  continue
+              slug = get('project/' + dep['project_id'])['slug']
+              if slug in ('woodwalkers', 'remorphed'):
+                  continue
+              core = (slug, dep.get('version_id') or get('project/' + dep['project_id'] + '/version' + q)[0]['id'])
+              break
+          print('walkers=' + walkers['id'])
+          print('remorphed=' + remorphed['id'])
+          print('core_project=' + core[0])
+          print('core=' + core[1])
+          PY
+
+      - name: In-game checks with Walkers and ReMorphed
+        shell: bash
+        env:
+          LIBGL_ALWAYS_SOFTWARE: '1'
+          ALSOFT_DRIVERS: 'null'
+        run: |
+          timeout 45m xvfb-run -a -s "-screen 0 1280x720x24" ./gradlew runClient -Pshots -Pshapes \
+            -Pwalkers_version=${{ steps.mods.outputs.walkers }} -Premorphed_version=${{ steps.mods.outputs.remorphed }} \
+            -Pcraftedcore_project=${{ steps.mods.outputs.core_project }} -Pcraftedcore_version=${{ steps.mods.outputs.core }} \
+            --no-daemon 2>&1 | tee client.log | grep -v "GMO-IMG" | tail -n 400 || true
+          echo "===== checks"
+          grep -E "GMO-CHECK|GMO-CHECKS|GMO-LOG" client.log || true
+          grep -q "GMO-CHECKS" client.log || { echo "the harness never finished"; exit 1; }
+          if grep -q "GMO-CHECK FAIL" client.log; then exit 1; fi
+
+      - name: Screenshots
+        if: always()
+        shell: bash
+        run: grep -o "GMO-IMG shape.*" client.log || true
+
+      - name: Upload screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: in-game-screenshots-with-walkers
           path: |
             run/screenshots/*.png
             run/gmo-checks.txt

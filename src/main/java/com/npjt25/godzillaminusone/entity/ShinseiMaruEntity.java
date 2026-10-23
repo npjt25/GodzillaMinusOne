@@ -90,6 +90,8 @@ public class ShinseiMaruEntity extends Entity implements GeoEntity {
     public static final double MAX_SPEED = GodzillaEntity.SWIM_TOP_SPEED;
     private static final double REVERSE_SPEED = MAX_SPEED * 0.3;
     private static final double ACCELERATION = 0.01;
+    /** The most she turns in a tick (degrees: flat out, the wheel hard over); more is her being put somewhere else. */
+    private static final float MAX_TURN = 10.0F;
     /** Her keel sits this far below the waterline. */
     public static final double DRAFT = 0.9;
 
@@ -564,7 +566,13 @@ public class ShinseiMaruEntity extends Entity implements GeoEntity {
         placeParts();
         float turned = Mth.wrapDegrees(getYRot() - yawBefore);
         Vec3 moved = position().subtract(before);
-        carry(standing, before, turned);
+        // put somewhere else altogether (a command, say): that's not her moving, and nobody is carried along
+        boolean jumped = moved.lengthSqr() > 16.0 || Math.abs(turned) > MAX_TURN;
+        if (jumped) {
+            turned = 0.0F;
+            moved = Vec3.ZERO;
+        }
+        carry(standing, before, turned, moved);
         for (Entity entity : around()) {
             pushOut(entity);
             climbLadder(entity);
@@ -574,8 +582,7 @@ public class ShinseiMaruEntity extends Entity implements GeoEntity {
         if (!level().isClientSide) {
             this.entityData.set(DATA_YAW, getYRot());
             this.entityData.set(DATA_TURN, turned);
-            Vec3 motion = moved.lengthSqr() > 16.0 ? Vec3.ZERO : moved; // (put somewhere else: that's not her motion)
-            this.entityData.set(DATA_MOTION, new Vector3f((float) motion.x, (float) motion.y, (float) motion.z));
+            this.entityData.set(DATA_MOTION, new Vector3f((float) moved.x, (float) moved.y, (float) moved.z));
             this.entityData.set(DATA_ENGINE, throttle() != 0.0F);
             if (getWobble() > 0) {
                 this.entityData.set(DATA_WOBBLE, getWobble() - 1);
@@ -623,16 +630,16 @@ public class ShinseiMaruEntity extends Entity implements GeoEntity {
     }
 
     /**
-     * Moves those standing on her decks along with her: as far as she went, and round as far as she turned (not when
-     * she's put somewhere else altogether, say by a command).
+     * Moves those standing on her decks along with her: as far as she went, and round her middle ({@code before}) as
+     * far as she turned. (A yaw a degrees greater turns (x, z) to (x cos a - z sin a, x sin a + z cos a): Minecraft's
+     * yaw goes clockwise seen from above, from +z towards -x.)
      */
-    private void carry(List<Entity> standing, Vec3 before, float turned) {
-        Vec3 moved = position().subtract(before);
-        if (standing.isEmpty() || moved.lengthSqr() < 1.0E-8 && Math.abs(turned) < 1.0E-4F || moved.lengthSqr() > 16.0) {
+    private void carry(List<Entity> standing, Vec3 before, float turned, Vec3 moved) {
+        if (standing.isEmpty() || moved.lengthSqr() < 1.0E-8 && Math.abs(turned) < 1.0E-4F) {
             return;
         }
-        double cos = Math.cos(-turned * Mth.DEG_TO_RAD);
-        double sin = Math.sin(-turned * Mth.DEG_TO_RAD);
+        double cos = Math.cos(turned * Mth.DEG_TO_RAD);
+        double sin = Math.sin(turned * Mth.DEG_TO_RAD);
         for (Entity entity : standing) {
             double rx = entity.getX() - before.x;
             double rz = entity.getZ() - before.z;
@@ -868,8 +875,9 @@ public class ShinseiMaruEntity extends Entity implements GeoEntity {
         } else if (motion.lengthSquared() > 0.0F) {
             setPos(getX() + motion.x(), getY() + motion.y(), getZ() + motion.z());
         }
+        // (not turning, she's held to the heading the server has: nothing to drift from)
         float turn = this.entityData.get(DATA_TURN);
-        setYRot((this.yawPending ? this.entityData.get(DATA_YAW) : getYRot()) + turn);
+        setYRot((this.yawPending || turn == 0.0F ? this.entityData.get(DATA_YAW) : getYRot()) + turn);
         this.lerpPending = false;
         this.yawPending = false;
     }

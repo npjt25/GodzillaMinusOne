@@ -53,6 +53,7 @@ import static com.npjt25.godzillaminusone.client.harness.ShotsHarness.server;
 import static com.npjt25.godzillaminusone.client.harness.ShotsHarness.serverPlayer;
 import static com.npjt25.godzillaminusone.client.harness.ShotsHarness.shot;
 import static com.npjt25.godzillaminusone.client.harness.ShotsHarness.until;
+import static com.npjt25.godzillaminusone.client.harness.ShotsHarness.view;
 import static com.npjt25.godzillaminusone.client.harness.ShotsHarness.waitTicks;
 
 /**
@@ -75,6 +76,7 @@ final class Scenes {
         boat();
         shinden();
         godzilla();
+        ShapeScenes.script(); // (with Walkers in the game: -Pshapes)
     }
 
     private static Minecraft mc() {
@@ -275,6 +277,18 @@ final class Scenes {
         return new Vec3(rel.dot(starboard), rel.y, rel.dot(forward));
     }
 
+    /** Looks from a point in her frame (to starboard, up from the keel, forward) at another, the player left where they are. */
+    private static void viewOnBoat(String label, Vec3 eye, Vec3 target) {
+        once(label, () -> {
+            ShinseiMaruEntity boat = find(ShinseiMaruEntity.class);
+            if (boat != null) {
+                view(boat.at(eye), boat.at(target));
+                mc().options.fov().set(60);
+            }
+        });
+        waitTicks(10);
+    }
+
     /** Puts the player (creative, walking) on her at a point in her frame, facing {@code yawOffset} from her heading. */
     private static void onBoat(String label, double side, double up, double forward, float yawOffset) {
         server(label, level -> {
@@ -469,12 +483,19 @@ final class Scenes {
                     : String.format("feet %.2f above her keel (platform at %.2f), sitting %b", feet, ShinseiMaruEntity.GUNNER.y,
                     boat.shouldRiderSit());
         });
-        once("boat: look at the gunner", () -> mc().options.setCameraType(CameraType.THIRD_PERSON_FRONT));
+        once("boat: the gunner looks astern", () -> {
+            ShinseiMaruEntity boat = find(ShinseiMaruEntity.class);
+            if (boat != null && mc().player != null) {
+                mc().player.setYRot(boat.getYRot() + 180.0F);
+                mc().player.setXRot(-5.0F);
+            }
+        });
         waitTicks(10);
+        viewOnBoat("boat: the gunner from her starboard quarter", new Vec3(6.0, 6.0, -12.0), new Vec3(0.0, 3.4, -5.3));
         shot("boat_gunner_standing");
-        once("boat: from behind", () -> mc().options.setCameraType(CameraType.THIRD_PERSON_BACK));
-        waitTicks(10);
-        shot("boat_gunner_standing_back");
+        viewOnBoat("boat: the gunner from abeam", new Vec3(-7.0, 4.0, -5.0), new Vec3(0.0, 3.2, -5.3));
+        shot("boat_gunner_standing_abeam");
+        once("boat: camera back", () -> view(null, null));
         server("boat: take the wheel", level -> {
             ShinseiMaruEntity boat = serverBoat(level);
             ServerPlayer player = serverPlayer(level);
@@ -492,9 +513,9 @@ final class Scenes {
             return Math.abs(feet - ShinseiMaruEntity.HELM.y) < 0.2 ? null
                     : String.format("feet %.2f above her keel (roof at %.2f)", feet, ShinseiMaruEntity.HELM.y);
         });
-        once("boat: look at the helmsman", () -> mc().options.setCameraType(CameraType.THIRD_PERSON_FRONT));
-        waitTicks(10);
+        viewOnBoat("boat: the helmsman from her starboard bow", new Vec3(7.0, 8.0, 8.0), new Vec3(0.0, 5.4, -0.1));
         shot("boat_helmsman_standing");
+        once("boat: camera back", () -> view(null, null));
         Vec3[] start = {null};
         once("boat: throttle", () -> {
             ShinseiMaruEntity boat = find(ShinseiMaruEntity.class);

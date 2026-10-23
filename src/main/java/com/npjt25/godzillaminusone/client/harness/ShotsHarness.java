@@ -2,6 +2,7 @@ package com.npjt25.godzillaminusone.client.harness;
 
 import com.mojang.blaze3d.platform.NativeImage;
 import com.npjt25.godzillaminusone.GodzillaMinusOne;
+import com.npjt25.godzillaminusone.client.CameraPlacement;
 import net.minecraft.client.CameraType;
 import net.minecraft.client.GraphicsStatus;
 import net.minecraft.client.Minecraft;
@@ -10,6 +11,7 @@ import net.minecraft.client.gui.screens.AccessibilityOnboardingScreen;
 import net.minecraft.client.gui.screens.TitleScreen;
 import net.minecraft.client.resources.sounds.SoundInstance;
 import net.minecraft.client.server.IntegratedServer;
+import net.minecraft.client.tutorial.TutorialSteps;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceLocation;
@@ -27,8 +29,10 @@ import net.minecraft.world.level.levelgen.WorldOptions;
 import net.minecraft.world.level.levelgen.presets.WorldPresets;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.client.event.ViewportEvent;
 import net.minecraftforge.client.event.sound.PlaySoundEvent;
 import net.minecraftforge.event.TickEvent;
+import net.minecraftforge.eventbus.api.EventPriority;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 import org.jetbrains.annotations.Nullable;
@@ -195,6 +199,8 @@ public final class ShotsHarness {
     private static void setUpOptions(Minecraft mc) {
         mc.options.pauseOnLostFocus = false; // (the virtual display's window never has the focus)
         mc.options.onboardAccessibility = false;
+        mc.options.tutorialStep = TutorialSteps.NONE; // (no "move with W, A, S and D" toast in the pictures)
+        mc.getTutorial().setStep(TutorialSteps.NONE);
         mc.options.renderDistance().set(8);
         mc.options.simulationDistance().set(8);
         mc.options.fovEffectScale().set(0.0);
@@ -444,9 +450,37 @@ public final class ShotsHarness {
         return new float[] {yaw, pitch};
     }
 
+    /** Where {@link #view} puts the camera, and which way it looks (yaw, pitch); null: where the game puts it. */
+    @Nullable
+    private static Vec3 viewEye;
+    private static float[] viewAngles = new float[2];
+
+    /**
+     * From a step: puts the camera at {@code eye} looking at {@code target} (third person, so the player is drawn), the
+     * player staying where they are (at a gun, at a wheel). {@code view(null, null)} gives the camera back to the game.
+     */
+    static void view(@Nullable Vec3 eye, @Nullable Vec3 target) {
+        viewEye = eye;
+        if (eye != null && target != null) {
+            viewAngles = look(eye, target);
+            Minecraft.getInstance().options.setCameraType(CameraType.THIRD_PERSON_BACK);
+        }
+    }
+
+    @SubscribeEvent(priority = EventPriority.LOWEST)
+    public static void onCameraAngles(ViewportEvent.ComputeCameraAngles event) {
+        if (ENABLED && viewEye != null) {
+            event.setYaw(viewAngles[0]);
+            event.setPitch(viewAngles[1]);
+            event.setRoll(0.0F);
+            CameraPlacement.place(event.getCamera(), viewEye);
+        }
+    }
+
     /** A camera: the player as a spectator, eyes at {@code eye}, looking at {@code target}, with this vertical field of view. */
     static void camera(String label, Vec3 eye, Vec3 target, int fov) {
         float[] angles = look(eye, target);
+        once("camera " + label + ": the game's", () -> view(null, null));
         server("camera " + label, level -> {
             ServerPlayer player = serverPlayer(level);
             player.setGameMode(GameType.SPECTATOR);

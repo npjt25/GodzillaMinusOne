@@ -32,6 +32,7 @@ import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.util.Mth;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.MobSpawnType;
 import net.minecraft.world.entity.animal.Pig;
@@ -975,6 +976,50 @@ public final class ModGameTests {
         }
         remove(boat);
         helper.succeed();
+    }
+
+    /**
+     * Turning, she takes whoever stands on her round with her: a pig on her foredeck is still on her foredeck after she
+     * has swung through 50 degrees or so (the wheel hard over, no way on). (She used to swing them round the other way,
+     * which only those near her middle got away with.)
+     */
+    @GameTest(template = FLOOR, batch = "gmo_boat_carry", timeoutTicks = 200)
+    public static void theShinseiMaruTakesHerCrewRoundAsSheTurns(GameTestHelper helper) {
+        int floor = floorY(helper);
+        Runnable release = room(helper, floor, -6, -6, 14, 14, 7);
+        for (int x = -6; x <= 14; x++) {
+            for (int z = -6; z <= 14; z++) {
+                for (int y = floor + 1; y <= floor + 4; y++) {
+                    helper.setBlock(new BlockPos(x, y, z), Blocks.WATER.defaultBlockState());
+                }
+            }
+        }
+        ShinseiMaruEntity boat = helper.spawn(ModEntities.SHINSEI_MARU.get(), new Vec3(4.5, floor + 2, 4.5));
+        Pig[] pig = {null};
+        float[] heading = {0.0F};
+        helper.runAtTickTime(40, () -> {
+            Vec3 at = boat.at(new Vec3(0.0, ShinseiMaruEntity.DECK + 0.05, 4.5));
+            pig[0] = EntityType.PIG.create(helper.getLevel());
+            pig[0].moveTo(at.x, at.y, at.z, 0.0F, 0.0F);
+            pig[0].setNoAi(true);
+            helper.getLevel().addFreshEntity(pig[0]);
+            heading[0] = boat.getYRot();
+            boat.autopilot(0.0F, 1.0F);
+        });
+        helper.runAtTickTime(130, () -> {
+            float turned = Math.abs(Mth.wrapDegrees(boat.getYRot() - heading[0]));
+            Vec3 rel = pig[0].position().subtract(boat.position());
+            Vec3 forward = Vec3.directionFromRotation(0.0F, boat.getYRot());
+            double side = -rel.x * forward.z + rel.z * forward.x;
+            double ahead = rel.x * forward.x + rel.z * forward.z;
+            helper.assertTrue(turned > 30.0F, "she should have turned, turned " + turned);
+            helper.assertTrue(Math.abs(side) < 1.0 && Math.abs(ahead - 4.5) < 1.0 && rel.y > ShinseiMaruEntity.DECK - 0.3,
+                    String.format("the pig should still be on her foredeck after she turned %.0f degrees: %.2f to starboard, %.2f forward, %.2f up",
+                            turned, side, ahead, rel.y));
+            remove(pig[0], boat);
+            release.run();
+            helper.succeed();
+        });
     }
 
     /** Whether a player's feet (0.6 wide) at (forward, to starboard) on her, at {@code top} above her keel, rest on a deck tile. */

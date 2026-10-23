@@ -320,13 +320,20 @@ hurt. Hit it in creative mode, or `/kill` it, to remove it.
 | Hunched snarl: almost square on, leaning forward, shoulders hunched up and forward and his head lowered between them, snout a little down, jaw slightly open; his right arm (on your left) bent with the claw forward at the bottom of his chest, his left (on your right) lower and further out with the claw open and angled down; left foot forward, knees bent (unlit) | `/summon godzillaminusone:godzilla_pose_hunched_snarl` |
 
 **Screenshotting the hunched snarl** (`docs/hunched_snarl_preview.png` is the model as the mod draws it, from the
-mod's files): summon it on open ground, stand about 45 blocks in front of it (it turns to face you as it appears),
-crouch or stand a block or two lower than its feet so you look up at it, F1 to hide the HUD, field of view about 40
-(Options), and frame from the top of its spikes to its hips in a 16:9 window, the head a little above the middle.
-It holds perfectly still (no idle, no AI, no head turning).
+mod's files, and the in-game check below takes the same picture in the game): below his chest, almost square on,
+looking up, tight on his head, shoulders, chest and both claws. In creative mode, on open flat ground:
+
+1. `/summon godzillaminusone:godzilla_pose_hunched_snarl ~ ~ ~ {Rotation:[0f,0f]}` (he faces south)
+2. Double-tap jump to fly, then, without moving from where you summoned him:
+   `/tp @s ~-2.4 ~13.1 ~35.2 facing ~ ~29.8 ~` (your eyes 35 blocks in front of him, 15 up, a little to his right,
+   looking at the middle of his chest)
+3. Options: FOV **45**, and in Accessibility Settings **FOV Effects 0%** (flying widens the view otherwise); a 16:9
+   window (1280×720, say); **F1** to hide the HUD, **F2** for the screenshot.
+
+He holds perfectly still (no idle, no AI, no head turning), so you can take your time.
 
 To face a statue a given way, give it a rotation, e.g. `/summon godzillaminusone:godzilla_pose_sky_roar ~ ~ ~ {Rotation:[180f,0f]}`.
-The last two already stand turned within themselves (30 and 55 degrees), so that a statue facing you shows you
+The poster snarl and the tail hook already stand turned within themselves (30 and 55 degrees), so that facing you they show you
 the poster's angle: get down low in front of them and look up, as the posters' cameras do. Their feet, the poster
 statue's fingers and tail tip, and the tail hook's far arm and where its tail joins him aren't in the pictures,
 so those are made up to match.

@@ -17,7 +17,7 @@ import java.util.Arrays;
  * shape, a Shinden and its pilot) fits in the picture: it looks at {@code middle} from {@code distance} away, along
  * the way the camera already faces, coming in closer if the ground or a wall is in the way.
  */
-final class CameraPlacement {
+public final class CameraPlacement {
     @Nullable
     private static Method setPosition;
     private static boolean lookedUp;
@@ -36,7 +36,7 @@ final class CameraPlacement {
      * Camera#setPosition(Vec3) is protected, and its name differs between the development and the released game, so
      * it's found by its signature: the only method of Camera taking just a Vec3 and returning nothing.
      */
-    static void place(Camera camera, Vec3 at) {
+    public static void place(Camera camera, Vec3 at) {
         if (!lookedUp) {
             lookedUp = true;
             for (Method method : Camera.class.getDeclaredMethods()) {
