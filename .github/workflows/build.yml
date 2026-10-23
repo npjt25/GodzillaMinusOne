@@ -140,14 +140,22 @@ jobs:
           if-no-files-found: warn
 
   # The same in-game checks in the real, released game: Minecraft 1.20.1 with Forge 47.3.0 installed by a launcher
-  # (portablemc), this mod's built (reobfuscated) jar in its mods folder with GeckoLib and the latest Walkers, ReMorphed
-  # and CraftedCore for Forge 1.20.1 (Walkers only runs in a released game: its mixins name the game's released
-  # methods). Adds playing as Godzilla and the Odo Island Monster (client/harness/ShapeScenes). It doesn't hold anything
-  # up if a download or one of those mods misbehaves.
-  client-shapes:
+  # (portablemc), this mod's built (reobfuscated) jar in its mods folder with GeckoLib, and the latest Forge 1.20.1
+  # release of other mods: Walkers, ReMorphed and CraftedCore (playing as Godzilla and the Odo Island Monster:
+  # client/harness/ShapeScenes; Walkers only runs in a released game, its mixins name the game's released methods), or
+  # Physics Mod (its waves and the Shinsei Maru). It doesn't hold anything up if a download or one of those misbehaves.
+  client-release:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     continue-on-error: true
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - with: walkers
+            mods: woodwalkers remorphed crafted-core
+          - with: physicsmod
+            mods: physicsmod
     steps:
       - uses: actions/checkout@v4
 
@@ -166,6 +174,8 @@ jobs:
 
       - name: The game, Forge and the mods
         shell: bash
+        env:
+          MODS: ${{ matrix.mods }}
         run: |
           pip install --quiet 'portablemc>=4.3,<5'
           mkdir -p mc/mods
@@ -173,20 +183,20 @@ jobs:
           curl -sSfL -o mc/mods/geckolib.jar \
             "https://dl.cloudsmith.io/public/geckolib3/geckolib/maven/software/bernie/geckolib/geckolib-forge-1.20.1/4.8.4/geckolib-forge-1.20.1-4.8.4.jar"
           python3 - <<'PY'
-          import json, urllib.request
+          import json, os, urllib.request
           q = '?loaders=%5B%22forge%22%5D&game_versions=%5B%221.20.1%22%5D'
           def get(path):
               return json.load(urllib.request.urlopen('https://api.modrinth.com/v2/' + path))
-          for slug in ('woodwalkers', 'remorphed', 'crafted-core'):
+          for slug in os.environ['MODS'].split():
               version = get('project/' + slug + '/version' + q)[0]
-              file = next(f for f in version['files'] if f['primary']) if any(f['primary'] for f in version['files']) else version['files'][0]
+              file = next((f for f in version['files'] if f['primary']), version['files'][0])
               print(slug, version['version_number'], file['filename'])
               urllib.request.urlretrieve(file['url'], 'mc/mods/' + file['filename'])
           PY
           ls -la mc/mods
           portablemc --output human --main-dir mc --work-dir mc start --dry forge:1.20.1-47.3.0
 
-      - name: In-game checks with Walkers and ReMorphed
+      - name: In-game checks with ${{ matrix.with }}
         shell: bash
         env:
           LIBGL_ALWAYS_SOFTWARE: '1'
@@ -194,8 +204,9 @@ jobs:
         run: |
           timeout 45m xvfb-run -a -s "-screen 0 1280x720x24" portablemc --output human --main-dir mc --work-dir mc \
             start --jvm "$JAVA_HOME/bin/java" --jvm-args="-Xmx3G -Dgodzillaminusone.shots=true" --resolution 1280x720 \
-            -u Dev forge:1.20.1-47.3.0 2>&1 | tee client.log | grep -v "GMO-IMG" | tail -n 400 || true
+            -u Dev forge:1.20.1-47.3.0 2>&1 | tee client.log | grep -v "GMO-IMG" | tail -n 300 || true
           echo "===== checks"
+          cat mc/gmo-checks.txt || true
           grep -E "GMO-CHECK|GMO-CHECKS|GMO-LOG" client.log || true
           grep -q "GMO-CHECKS" client.log || { echo "the harness never finished"; exit 1; }
           if grep -q "GMO-CHECK FAIL" client.log; then exit 1; fi
@@ -203,13 +214,13 @@ jobs:
       - name: Screenshots
         if: always()
         shell: bash
-        run: grep -o "GMO-IMG shape.*" client.log || true
+        run: grep -o "GMO-IMG \(shape\|boat\).*" client.log || true
 
       - name: Upload screenshots
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: in-game-screenshots-with-walkers
+          name: in-game-screenshots-with-${{ matrix.with }}
           path: |
             mc/screenshots/*.png
             mc/gmo-checks.txt

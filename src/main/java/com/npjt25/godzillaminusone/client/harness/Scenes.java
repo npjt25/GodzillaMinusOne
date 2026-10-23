@@ -20,13 +20,16 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.util.Mth;
 import net.minecraft.world.InteractionHand;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.animal.Pig;
 import net.minecraft.world.entity.decoration.ArmorStand;
+import net.minecraft.world.entity.vehicle.Boat;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.GameType;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
+import net.minecraftforge.fml.ModList;
 import org.jetbrains.annotations.Nullable;
 import org.lwjgl.glfw.GLFW;
 import software.bernie.geckolib.core.animatable.model.CoreGeoBone;
@@ -387,6 +390,9 @@ final class Scenes {
             ShinseiMaruEntity boat = find(ShinseiMaruEntity.class);
             return boat != null && boat.isAfloat() ? null : "not afloat";
         });
+        if (ModList.get().isLoaded("physicsmod")) {
+            physicsModWaves();
+        }
         camera("boat: from her starboard quarter", new Vec3(-82.0, -50.0, -14.0), new Vec3(-70.0, -55.0, 0.5), 60);
         waitTicks(60);
         shot("boat_starboard_quarter");
@@ -548,6 +554,64 @@ final class Scenes {
             player.setGameMode(GameType.SPECTATOR);
         });
         once("boat: first person", () -> mc().options.setCameraType(CameraType.FIRST_PERSON));
+    }
+
+    /**
+     * With Physics Mod in the game: how far its waves lift the Shinsei Maru as it draws her, beside a vanilla boat (its
+     * EntityOcean, mixed into every entity: getPhysicsYOffset), and its ocean settings. Where they lift the vanilla boat,
+     * they have to lift her too.
+     */
+    private static void physicsModWaves() {
+        once("physics mod: its ocean settings", () -> {
+            try {
+                StringBuilder settings = new StringBuilder();
+                for (java.lang.reflect.Field field : Class.forName("net.diebuddies.config.ConfigClient").getFields()) {
+                    if (java.lang.reflect.Modifier.isStatic(field.getModifiers()) && field.getName().toLowerCase(java.util.Locale.ROOT).contains("ocean")) {
+                        settings.append(' ').append(field.getName()).append('=').append(field.get(null));
+                    }
+                }
+                log("physics mod: ocean settings:" + settings);
+            } catch (ReflectiveOperationException | LinkageError e) {
+                log("physics mod: its settings: " + e);
+            }
+        });
+        server("physics mod: a vanilla boat beside her", level -> {
+            Boat boat = EntityType.BOAT.create(level);
+            boat.moveTo(-70.5, -56.0, 16.5, 0.0F, 0.0F);
+            level.addFreshEntity(boat);
+        });
+        waitTicks(60);
+        double[] ours = {Double.MAX_VALUE, -Double.MAX_VALUE};
+        double[] theirs = {Double.MAX_VALUE, -Double.MAX_VALUE};
+        during("physics mod: its waves", 100, () -> {
+            ShinseiMaruEntity maru = find(ShinseiMaruEntity.class);
+            Boat boat = find(Boat.class);
+            double a = waveOffset(maru);
+            double b = waveOffset(boat);
+            ours[0] = Math.min(ours[0], a);
+            ours[1] = Math.max(ours[1], a);
+            theirs[0] = Math.min(theirs[0], b);
+            theirs[1] = Math.max(theirs[1], b);
+            return Double.isNaN(a) || Double.isNaN(b) ? "can't read its wave offset" : null;
+        }, () -> String.format("lifted by its waves: the Shinsei Maru %.3f to %.3f, a vanilla boat %.3f to %.3f blocks",
+                ours[0], ours[1], theirs[0], theirs[1]));
+        check("physics mod: where its waves lift a boat, they lift her", () -> theirs[1] - theirs[0] < 0.02 || ours[1] - ours[0] > 0.02 ? null
+                : "they lift the vanilla boat, not her");
+        commands("kill @e[type=minecraft:boat]");
+    }
+
+    /** Physics Mod's wave offset of {@code entity} as it's drawn (blocks), or NaN. */
+    private static double waveOffset(@Nullable Entity entity) {
+        if (entity == null) {
+            return Double.NaN;
+        }
+        try {
+            Object offset = Class.forName("net.diebuddies.physics.ocean.EntityOcean").getMethod("getPhysicsYOffset", float.class)
+                    .invoke(entity, 1.0F);
+            return offset instanceof Double d ? d : Double.NaN;
+        } catch (ReflectiveOperationException | LinkageError | ClassCastException e) {
+            return Double.NaN;
+        }
     }
 
     // ------------------------------------------------------------------ a Shinden

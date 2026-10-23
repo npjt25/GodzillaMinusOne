@@ -568,7 +568,7 @@ public class OdoIslandMonsterEntity extends Monster implements GeoEntity {
         }
         if (hunted != null && this.tickCount % 5 == 0 && !inReachOfLight(hunted) && ForgeEventFactory.getMobGriefingEvent(level, this)
                 && (stuck || hunted.position().distanceTo(position()) < TEAR_DOWN_RANGE)) {
-            tearDownTowards(level, hunted);
+            tearDownTowards(level, hunted, stuck);
         }
         if (this.huntedLight != null && !this.huntedLight.isAlive()) {
             // someone else broke it (or knocked it back into its item): straight on to whoever was working it
@@ -620,7 +620,7 @@ public class OdoIslandMonsterEntity extends Monster implements GeoEntity {
      * it, whatever it's made of (but not the ground), and once he's under it, the building it stands on comes down, and
      * the light with it.
      */
-    private void tearDownTowards(ServerLevel level, SearchlightEntity light) {
+    private void tearDownTowards(ServerLevel level, SearchlightEntity light, boolean stuck) {
         Vec3 to = light.position().subtract(position());
         double horizontal = Math.sqrt(to.x * to.x + to.z * to.z);
         AABB box = getBoundingBox().expandTowards(Mth.clamp(to.x, -4.0, 4.0), 0.0, Mth.clamp(to.z, -4.0, 4.0)).inflate(0.5, 0.0, 0.5);
@@ -630,7 +630,11 @@ public class OdoIslandMonsterEntity extends Monster implements GeoEntity {
         }
         BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
         int broken = 0;
-        for (int y = Mth.floor(box.maxY); y >= Mth.floor(getY()) + 1; y--) {
+        // from the top down to where his feet are (not a row above them: that left the bottom of every wall standing,
+        // and coming at one at an angle he'd climb onto the stubs until one was too tall to climb or reach); stuck,
+        // whatever's built under him too, so he comes back down to the ground rather than staying perched on rubble
+        int bottom = feetRow() - (stuck ? 3 : 0);
+        for (int y = Mth.floor(box.maxY); y >= bottom; y--) {
             for (int x = Mth.floor(box.minX); x <= Mth.floor(box.maxX); x++) {
                 for (int z = Mth.floor(box.minZ); z <= Mth.floor(box.maxZ); z++) {
                     BlockState state = level.getBlockState(pos.set(x, y, z));
@@ -656,13 +660,18 @@ public class OdoIslandMonsterEntity extends Monster implements GeoEntity {
         }
     }
 
+    /** The row of blocks his feet are in (not the one he stands on). */
+    private int feetRow() {
+        return Mth.floor(getY() + 1.0E-3);
+    }
+
     /** Trees, plants, fences and glass in his way give; stone and earth don't. */
     private void crashThrough(ServerLevel level) {
         Vec3 fwd = Vec3.directionFromRotation(0.0F, getYRot());
         AABB box = getBoundingBox().expandTowards(fwd.x * 2.0, 0.0, fwd.z * 2.0).inflate(0.5, 0.0, 0.5);
         BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
         int broken = 0;
-        for (int y = Mth.floor(getY()) + 1; y <= Mth.floor(box.maxY); y++) {
+        for (int y = feetRow(); y <= Mth.floor(box.maxY); y++) {
             for (int x = Mth.floor(box.minX); x <= Mth.floor(box.maxX); x++) {
                 for (int z = Mth.floor(box.minZ); z <= Mth.floor(box.maxZ); z++) {
                     BlockState state = level.getBlockState(pos.set(x, y, z));

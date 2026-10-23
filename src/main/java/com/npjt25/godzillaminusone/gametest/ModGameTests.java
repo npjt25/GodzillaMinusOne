@@ -659,13 +659,17 @@ public final class ModGameTests {
     }
 
     private static OdoIslandMonsterEntity spawnOdo(GameTestHelper helper, int floor, int z) {
+        return spawnOdo(helper, floor, 4.5, z);
+    }
+
+    private static OdoIslandMonsterEntity spawnOdo(GameTestHelper helper, int floor, double x, int z) {
         for (GodzillaEntity leftover : helper.getLevel().getEntities(ModEntities.GODZILLA.get(), e -> true)) {
             leftover.discard();
         }
         for (OdoIslandMonsterEntity leftover : helper.getLevel().getEntities(ModEntities.ODO_ISLAND_MONSTER.get(), e -> true)) {
             leftover.discard();
         }
-        return helper.spawn(ModEntities.ODO_ISLAND_MONSTER.get(), new Vec3(4.5, floor + 1, z + 0.5));
+        return helper.spawn(ModEntities.ODO_ISLAND_MONSTER.get(), new Vec3(x, floor + 1, z + 0.5));
     }
 
     @GameTest(template = FLOOR, batch = "gmo_odo_burnt", timeoutTicks = 120)
@@ -755,31 +759,29 @@ public final class ModGameTests {
      */
     @GameTest(template = FLOOR, batch = "gmo_odo_tower", timeoutTicks = 900)
     public static void theOdoMonsterTearsDownTheBuildingHoldingASearchlight(GameTestHelper helper) {
-        odoTower(helper, "1");
+        odoTower(helper, "straight on", 4.5);
     }
 
-    // (the same, again: it once failed where it had passed, so it runs five times, each logging how it went)
-    @GameTest(template = FLOOR, batch = "gmo_odo_tower_2", timeoutTicks = 900)
-    public static void theOdoMonsterTearsDownTheBuildingHoldingASearchlight2(GameTestHelper helper) {
-        odoTower(helper, "2");
+    /**
+     * The same, coming at the wall at an angle from either side: he used to climb onto the stubs of wall he'd left
+     * (his breaking stopped a row above his feet) until he was wedged against one too tall to climb, and gave up.
+     */
+    @GameTest(template = FLOOR, batch = "gmo_odo_tower_right", timeoutTicks = 900)
+    public static void theOdoMonsterTearsDownTheBuildingHoldingASearchlightFromTheRight(GameTestHelper helper) {
+        odoTower(helper, "from the right", 9.5);
     }
 
-    @GameTest(template = FLOOR, batch = "gmo_odo_tower_3", timeoutTicks = 900)
-    public static void theOdoMonsterTearsDownTheBuildingHoldingASearchlight3(GameTestHelper helper) {
-        odoTower(helper, "3");
+    @GameTest(template = FLOOR, batch = "gmo_odo_tower_left", timeoutTicks = 900)
+    public static void theOdoMonsterTearsDownTheBuildingHoldingASearchlightFromTheLeft(GameTestHelper helper) {
+        odoTower(helper, "from the left", 0.5);
     }
 
-    @GameTest(template = FLOOR, batch = "gmo_odo_tower_4", timeoutTicks = 900)
-    public static void theOdoMonsterTearsDownTheBuildingHoldingASearchlight4(GameTestHelper helper) {
-        odoTower(helper, "4");
+    @GameTest(template = FLOOR, batch = "gmo_odo_tower_far_right", timeoutTicks = 900)
+    public static void theOdoMonsterTearsDownTheBuildingHoldingASearchlightFromFarRight(GameTestHelper helper) {
+        odoTower(helper, "from far right", 11.0);
     }
 
-    @GameTest(template = FLOOR, batch = "gmo_odo_tower_5", timeoutTicks = 900)
-    public static void theOdoMonsterTearsDownTheBuildingHoldingASearchlight5(GameTestHelper helper) {
-        odoTower(helper, "5");
-    }
-
-    private static void odoTower(GameTestHelper helper, String run) {
+    private static void odoTower(GameTestHelper helper, String run, double x) {
         int floor = floorY(helper);
         // room to move: he's 9 wide and 14 tall, and the rock round the test's pocket is ground he doesn't break
         for (int x = -7; x <= 15; x++) {
@@ -814,9 +816,10 @@ public final class ModGameTests {
                 }
             }
         }
-        OdoIslandMonsterEntity odo = spawnOdo(helper, floor, 4);
+        OdoIslandMonsterEntity odo = spawnOdo(helper, floor, x, 4);
         SearchlightEntity light = helper.spawn(ModEntities.SEARCHLIGHT.get(), new Vec3(4.5, floor + 9, 27.5));
-        Pig operator = helper.spawn(EntityType.PIG, new Vec3(4.5, floor + 1, 0.5));
+        // (behind him, clear of him: one inside his box shoved him aside, a different way every time)
+        Pig operator = helper.spawn(EntityType.PIG, new Vec3(x, floor + 1, -3.0));
         operator.setNoAi(true);
         odo.spottedBy(light, operator);
         helper.assertTrue(odo.getHuntedLight() == light, "caught in its beam he should go for the searchlight");
@@ -840,7 +843,7 @@ public final class ModGameTests {
 
     private static final java.util.Set<String> ODO_TOWERS_DONE = new java.util.HashSet<>();
 
-    /** (logs the tick the light went once per run) */
+    /** (logs the tick the light went, once per run) */
     private static boolean odoTowerDone(String run) {
         return !ODO_TOWERS_DONE.add(run);
     }

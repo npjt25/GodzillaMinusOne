@@ -102,6 +102,7 @@ public final class ShotsHarness {
     private static Labelled current;
     private static int ticks;
     private static int loadingTicks;
+    private static int startWait;
     private static int passed;
     private static int failed;
     private static final List<String> RESULTS = new ArrayList<>();
@@ -120,8 +121,13 @@ public final class ShotsHarness {
         Minecraft mc = Minecraft.getInstance();
         switch (state) {
             case START -> {
-                if (mc.level == null && mc.getOverlay() == null
-                        && (mc.screen instanceof TitleScreen || mc.screen instanceof AccessibilityOnboardingScreen)) {
+                // (from the title screen; or, after 10 s on some other screen, from that: a mod's notice, say)
+                boolean waiting = mc.level == null && mc.getOverlay() == null && mc.screen != null;
+                startWait = waiting ? startWait + 1 : 0;
+                if (waiting && (mc.screen instanceof TitleScreen || mc.screen instanceof AccessibilityOnboardingScreen || startWait > 200)) {
+                    if (!(mc.screen instanceof TitleScreen)) {
+                        log("starting from " + mc.screen.getClass().getName());
+                    }
                     setUpOptions(mc);
                     createWorld(mc);
                     state = State.LOADING;
@@ -239,22 +245,30 @@ public final class ShotsHarness {
 
     // ------------------------------------------------------------------ results
 
+    /**
+     * A line of the results, through the mod's logger (a launcher shows the game's log, not what it prints: the
+     * released game's run in CI goes through one).
+     */
+    private static void out(String line) {
+        GodzillaMinusOne.LOGGER.info(line);
+    }
+
     static void log(String line) {
-        System.out.println("GMO-LOG " + line);
+        out("GMO-LOG " + line);
     }
 
     static void pass(String name, String detail) {
         passed++;
         String line = "GMO-CHECK PASS " + name + (detail.isEmpty() ? "" : ": " + detail);
         RESULTS.add(line);
-        System.out.println(line);
+        out(line);
     }
 
     static void fail(String name, String detail) {
         failed++;
         String line = "GMO-CHECK FAIL " + name + ": " + detail;
         RESULTS.add(line);
-        System.out.println(line);
+        out(line);
     }
 
     /** A check's result: no problem (null) passes, anything else fails with it. */
@@ -555,7 +569,7 @@ public final class ShotsHarness {
             String b64 = Base64.getEncoder().encodeToString(bytes.toByteArray());
             int n = (b64.length() + CHUNK - 1) / CHUNK;
             for (int i = 0; i < n; i++) {
-                System.out.println("GMO-IMG " + name + " " + (i + 1) + "/" + n + " "
+                out("GMO-IMG " + name + " " + (i + 1) + "/" + n + " "
                         + b64.substring(i * CHUNK, Math.min(b64.length(), (i + 1) * CHUNK)));
             }
             log("screenshot " + name + " " + w + "x" + h);
