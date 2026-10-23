@@ -1,9 +1,9 @@
 package com.npjt25.godzillaminusone.client.harness;
 
 import com.mojang.blaze3d.platform.InputConstants;
+import com.npjt25.godzillaminusone.client.ModKeyMappings;
 import com.npjt25.godzillaminusone.client.PlayerGodzillaControls;
 import com.npjt25.godzillaminusone.client.SearchlightGlow;
-import com.npjt25.godzillaminusone.client.ShindenControls;
 import com.npjt25.godzillaminusone.client.ShinseiMaruSounds;
 import com.npjt25.godzillaminusone.entity.GodzillaEntity;
 import com.npjt25.godzillaminusone.entity.GodzillaStatueEntity;
@@ -106,15 +106,17 @@ final class Scenes {
      * him, with Walkers: ShapeScenes.)
      */
     private static void controls() {
-        check("controls: Godzilla's moves and the Shinden's free look are among the game's key bindings", () -> {
-            List<String> missing = new ArrayList<>();
-            for (KeyMapping key : new KeyMapping[] {PlayerGodzillaControls.TAIL_WHIP, PlayerGodzillaControls.SCRATCH, PlayerGodzillaControls.BITE,
-                    PlayerGodzillaControls.ROAR, PlayerGodzillaControls.ATOMIC_BREATH, ShindenControls.FREE_LOOK}) {
-                if (!java.util.Arrays.asList(mc().options.keyMappings).contains(key)) {
-                    missing.add(key.getName());
+        check("controls: each of the mod's keys is in Controls, once", () -> {
+            List<String> wrong = new ArrayList<>();
+            for (KeyMapping key : ModKeyMappings.all()) {
+                long times = java.util.Arrays.stream(mc().options.keyMappings).filter(k -> k == key).count();
+                if (times != 1) {
+                    wrong.add(key.getName() + " x" + times);
                 }
             }
-            return missing.isEmpty() ? null : "not in Controls: " + missing;
+            log("controls: the mod's keys: " + java.util.Arrays.stream(ModKeyMappings.all())
+                    .map(k -> k.getName() + "=" + k.getTranslatedKeyMessage().getString()).toList());
+            return wrong.isEmpty() ? null : "in Controls other than once: " + wrong;
         });
         once("controls: Roar rebound to N", () -> ShotsHarness.rebind(PlayerGodzillaControls.ROAR, InputConstants.getKey(GLFW.GLFW_KEY_N, 0)));
         check("controls: the new key is saved in options.txt", () -> ShotsHarness.saved(PlayerGodzillaControls.ROAR, "key.keyboard.n"));

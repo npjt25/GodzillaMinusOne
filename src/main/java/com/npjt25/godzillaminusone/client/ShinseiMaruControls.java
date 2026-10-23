@@ -11,7 +11,6 @@ import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.InputEvent;
-import net.minecraftforge.client.event.RegisterKeyMappingsEvent;
 import net.minecraftforge.client.settings.KeyConflictContext;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
@@ -29,16 +28,6 @@ public final class ShinseiMaruControls {
     public static final KeyMapping VEHICLE_ACTION = new KeyMapping("key.godzillaminusone.vehicle_action", KeyConflictContext.IN_GAME,
             InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_R, "key.categories.godzillaminusone");
 
-    @Mod.EventBusSubscriber(modid = GodzillaMinusOne.MODID, bus = Mod.EventBusSubscriber.Bus.MOD, value = Dist.CLIENT)
-    public static final class Keys {
-        @SubscribeEvent
-        public static void register(RegisterKeyMappingsEvent event) {
-            event.register(VEHICLE_ACTION);
-        }
-
-        private Keys() {
-        }
-    }
 
     @SubscribeEvent
     public static void onUseKey(InputEvent.InteractionKeyMappingTriggered event) {

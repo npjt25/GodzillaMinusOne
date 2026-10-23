@@ -20,7 +20,6 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.ClientPlayerNetworkEvent;
-import net.minecraftforge.client.event.RegisterKeyMappingsEvent;
 import net.minecraftforge.client.event.RenderGuiEvent;
 import net.minecraftforge.client.event.RenderPlayerEvent;
 import net.minecraftforge.client.event.ViewportEvent;
@@ -71,18 +70,6 @@ public final class PlayerGodzillaControls {
         return new KeyMapping(KEY + name, ModKeyContexts.GODZILLA_SHAPE, InputConstants.Type.KEYSYM, key, CATEGORY);
     }
 
-    @Mod.EventBusSubscriber(modid = GodzillaMinusOne.MODID, bus = Mod.EventBusSubscriber.Bus.MOD, value = Dist.CLIENT)
-    public static final class Keys {
-        @SubscribeEvent
-        public static void register(RegisterKeyMappingsEvent event) {
-            for (KeyMapping key : KEYS) {
-                event.register(key);
-            }
-        }
-
-        private Keys() {
-        }
-    }
 
     @SubscribeEvent
     public static void onClientTick(TickEvent.ClientTickEvent event) {

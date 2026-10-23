@@ -14,7 +14,6 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.InputEvent;
-import net.minecraftforge.client.event.RegisterKeyMappingsEvent;
 import net.minecraftforge.client.event.RenderPlayerEvent;
 import net.minecraftforge.client.event.ViewportEvent;
 import net.minecraftforge.event.TickEvent;
@@ -36,16 +35,6 @@ public final class PlayerOdoControls {
     private static final double RUNNING = 0.2;
     private static boolean sentRunning;
 
-    @Mod.EventBusSubscriber(modid = GodzillaMinusOne.MODID, bus = Mod.EventBusSubscriber.Bus.MOD, value = Dist.CLIENT)
-    public static final class Keys {
-        @SubscribeEvent
-        public static void register(RegisterKeyMappingsEvent event) {
-            event.register(RUN);
-        }
-
-        private Keys() {
-        }
-    }
 
     private static boolean isOdo(Player player) {
         return Shapes.shapeOf(player) instanceof OdoIslandMonsterEntity;
