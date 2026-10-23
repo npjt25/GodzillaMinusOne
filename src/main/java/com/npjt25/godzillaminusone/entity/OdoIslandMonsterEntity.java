@@ -282,6 +282,11 @@ public class OdoIslandMonsterEntity extends Monster implements GeoEntity {
         startRoar(ModSounds.ODO_SPOTTED.get()); // caught in the light: once, as he turns on it
     }
 
+    /** For the game tests: for how many ticks he's made no headway towards the light he's after. */
+    public int getLightStuckTicks() {
+        return this.lightStuckTicks;
+    }
+
     /** The searchlight he's going to smash, if any. */
     @Nullable
     public SearchlightEntity getHuntedLight() {

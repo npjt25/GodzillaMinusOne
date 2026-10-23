@@ -86,10 +86,19 @@ jobs:
               echo "OPTIONAL --- $c"
               javap -p -cp pm "$c" 2>&1 | head -70 | sed 's/^/OPTIONAL     /'
             done
-            for c in net.diebuddies.mixins.ocean.MixinBoat net.diebuddies.mixins.ocean.MixinEntity; do
-              echo "OPTIONAL --- $c: what it hooks"
-              javap -v -cp pm "$c" 2>/dev/null | grep -E "= Utf8 " | grep -vE "Ljava|^\s*#[0-9]+ = Utf8 (Code|LineNumberTable|LocalVariableTable|this|StackMapTable|SourceFile|RuntimeVisible)" \
-                | sed 's/.*= Utf8 //' | head -60 | sed 's/^/OPTIONAL       /'
+            # which entities its waves move, and how: the bytecode of the ocean mixins' hooks, and its mixin lists
+            for c in net.diebuddies.mixins.ocean.MixinEntity net.diebuddies.mixins.ocean.MixinEntityRenderDispatcher; do
+              echo "OPTIONAL --- $c, bytecode"
+              javap -c -p -cp pm "$c" 2>/dev/null | grep -vE "^\s+[0-9]+: (aload|dload|fload|iload|astore|dstore|fstore|istore|dup|pop|return|areturn|dreturn|ireturn|freturn)\b" \
+                | head -260 | sed 's/^/OPTIONAL     /'
+            done
+            for c in net.diebuddies.mixins.ocean.MixinEntity net.diebuddies.mixins.ocean.MixinEntityRenderDispatcher net.diebuddies.mixins.ocean.MixinBoat; do
+              echo "OPTIONAL --- $c, its injections"
+              javap -v -p -cp pm "$c" 2>/dev/null | grep -E "spongepowered\.asm\.mixin\.[A-Za-z.]+\(" | sed 's/^ */OPTIONAL     /' | head -40
+            done
+            for j in $(ls pm/*.json 2>/dev/null); do
+              echo "OPTIONAL --- $j"
+              head -c 3000 "$j" | sed 's/^/OPTIONAL     /'
             done
           fi
           if [ -f woodwalkers.jar ]; then
@@ -130,9 +139,11 @@ jobs:
             client.log
           if-no-files-found: warn
 
-  # The same in-game checks with the real Walkers, ReMorphed and CraftedCore (latest for Forge 1.20.1 on Modrinth) in
-  # the development game (-Pshapes), adding playing as Godzilla and the Odo Island Monster (client/harness/ShapeScenes).
-  # It doesn't hold anything up if Modrinth or one of those mods misbehaves.
+  # The same in-game checks in the real, released game: Minecraft 1.20.1 with Forge 47.3.0 installed by a launcher
+  # (portablemc), this mod's built (reobfuscated) jar in its mods folder with GeckoLib and the latest Walkers, ReMorphed
+  # and CraftedCore for Forge 1.20.1 (Walkers only runs in a released game: its mixins name the game's released
+  # methods). Adds playing as Godzilla and the Odo Island Monster (client/harness/ShapeScenes). It doesn't hold anything
+  # up if a download or one of those mods misbehaves.
   client-shapes:
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -150,31 +161,30 @@ jobs:
       - name: Virtual display
         run: sudo apt-get update -qq && sudo apt-get install -y -qq xvfb libgl1-mesa-dri libglx-mesa0 mesa-utils libxrandr2 libxinerama1 libxcursor1 libxi6 libxxf86vm1 >/dev/null
 
-      - name: Walkers, ReMorphed and CraftedCore versions (Modrinth)
-        id: mods
+      - name: Build the mod
+        run: ./gradlew build --no-daemon
+
+      - name: The game, Forge and the mods
         shell: bash
         run: |
-          python3 - <<'PY' | tee -a "$GITHUB_OUTPUT"
+          pip install --quiet 'portablemc>=4.3,<5'
+          mkdir -p mc/mods
+          cp $(ls build/libs/*.jar | grep -v -- '-sources' | head -1) mc/mods/
+          curl -sSfL -o mc/mods/geckolib.jar \
+            "https://dl.cloudsmith.io/public/geckolib3/geckolib/maven/software/bernie/geckolib/geckolib-forge-1.20.1/4.8.4/geckolib-forge-1.20.1-4.8.4.jar"
+          python3 - <<'PY'
           import json, urllib.request
           q = '?loaders=%5B%22forge%22%5D&game_versions=%5B%221.20.1%22%5D'
           def get(path):
               return json.load(urllib.request.urlopen('https://api.modrinth.com/v2/' + path))
-          walkers = get('project/woodwalkers/version' + q)[0]
-          remorphed = get('project/remorphed/version' + q)[0]
-          core = None
-          for dep in walkers['dependencies'] + remorphed['dependencies']:
-              if dep.get('dependency_type') != 'required' or not dep.get('project_id'):
-                  continue
-              slug = get('project/' + dep['project_id'])['slug']
-              if slug in ('woodwalkers', 'remorphed'):
-                  continue
-              core = (slug, dep.get('version_id') or get('project/' + dep['project_id'] + '/version' + q)[0]['id'])
-              break
-          print('walkers=' + walkers['id'])
-          print('remorphed=' + remorphed['id'])
-          print('core_project=' + core[0])
-          print('core=' + core[1])
+          for slug in ('woodwalkers', 'remorphed', 'crafted-core'):
+              version = get('project/' + slug + '/version' + q)[0]
+              file = next(f for f in version['files'] if f['primary']) if any(f['primary'] for f in version['files']) else version['files'][0]
+              print(slug, version['version_number'], file['filename'])
+              urllib.request.urlretrieve(file['url'], 'mc/mods/' + file['filename'])
           PY
+          ls -la mc/mods
+          portablemc --output human --main-dir mc --work-dir mc start --dry forge:1.20.1-47.3.0
 
       - name: In-game checks with Walkers and ReMorphed
         shell: bash
@@ -182,10 +192,9 @@ jobs:
           LIBGL_ALWAYS_SOFTWARE: '1'
           ALSOFT_DRIVERS: 'null'
         run: |
-          timeout 45m xvfb-run -a -s "-screen 0 1280x720x24" ./gradlew runClient -Pshots -Pshapes \
-            -Pwalkers_version=${{ steps.mods.outputs.walkers }} -Premorphed_version=${{ steps.mods.outputs.remorphed }} \
-            -Pcraftedcore_project=${{ steps.mods.outputs.core_project }} -Pcraftedcore_version=${{ steps.mods.outputs.core }} \
-            --no-daemon 2>&1 | tee client.log | grep -v "GMO-IMG" | tail -n 400 || true
+          timeout 45m xvfb-run -a -s "-screen 0 1280x720x24" portablemc --output human --main-dir mc --work-dir mc \
+            start --jvm "$JAVA_HOME/bin/java" --jvm-args="-Xmx3G -Dgodzillaminusone.shots=true" --resolution 1280x720 \
+            -u Dev forge:1.20.1-47.3.0 2>&1 | tee client.log | grep -v "GMO-IMG" | tail -n 400 || true
           echo "===== checks"
           grep -E "GMO-CHECK|GMO-CHECKS|GMO-LOG" client.log || true
           grep -q "GMO-CHECKS" client.log || { echo "the harness never finished"; exit 1; }
@@ -202,7 +211,7 @@ jobs:
         with:
           name: in-game-screenshots-with-walkers
           path: |
-            run/screenshots/*.png
-            run/gmo-checks.txt
+            mc/screenshots/*.png
+            mc/gmo-checks.txt
             client.log
           if-no-files-found: warn

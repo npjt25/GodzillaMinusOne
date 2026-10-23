@@ -41,7 +41,8 @@ import static com.npjt25.godzillaminusone.client.harness.ShotsHarness.waitTicks;
 
 /**
  * The in-game checks of playing as Godzilla and the Odo Island Monster, with the real Walkers (and ReMorphed) in the
- * game (./gradlew runClient -Pshots -Pshapes; CI's "client-shapes" job). Skipped when Walkers isn't there. The player
+ * game (CI's "client-shapes" job: the released game with this mod's built jar and theirs; Walkers can't run in the
+ * development game). Skipped when Walkers isn't there. The player
  * takes a shape through Walkers' own API (as its commands and menus do) and plays it with the keys a player would
  * press: J bites, B breathes (rooted from the charge to the end of the roar after the beam, then free again), walking
  * breaks through what's built; as the Odo, Left Control runs (6 blocks a second) and a left click bites.

@@ -76,7 +76,7 @@ final class Scenes {
         boat();
         shinden();
         godzilla();
-        ShapeScenes.script(); // (with Walkers in the game: -Pshapes)
+        ShapeScenes.script(); // (with Walkers installed: CI's client-shapes job)
     }
 
     private static Minecraft mc() {
@@ -279,6 +279,11 @@ final class Scenes {
 
     /** Looks from a point in her frame (to starboard, up from the keel, forward) at another, the player left where they are. */
     private static void viewOnBoat(String label, Vec3 eye, Vec3 target) {
+        viewOnBoat(label, eye, target, 10);
+    }
+
+    /** The same, the picture taken {@code ticks} later (she may be moving: a tick, and she's still in the frame). */
+    private static void viewOnBoat(String label, Vec3 eye, Vec3 target, int ticks) {
         once(label, () -> {
             ShinseiMaruEntity boat = find(ShinseiMaruEntity.class);
             if (boat != null) {
@@ -286,7 +291,7 @@ final class Scenes {
                 mc().options.fov().set(60);
             }
         });
-        waitTicks(10);
+        waitTicks(ticks);
     }
 
     /** Puts the player (creative, walking) on her at a point in her frame, facing {@code yawOffset} from her heading. */
@@ -404,7 +409,9 @@ final class Scenes {
             ShinseiMaruEntity boat = find(ShinseiMaruEntity.class);
             return boat != null && ShinseiMaruSounds.isPlayingFor(boat) ? null : "no motor sound playing";
         });
+        viewOnBoat("boat: the player on her foredeck, from abeam", new Vec3(9.0, 7.0, 2.0), new Vec3(0.0, 3.0, 4.0), 1);
         shot("boat_on_deck_under_way");
+        once("boat: camera back to the player", () -> view(null, null));
         stayOnDeck("boat: still on her foredeck", 120, ShinseiMaruEntity.DECK);
         check("boat: one motor loop, not a new sound every tick", () -> {
             int n = heard(motorSince[0], "shinsei_maru.motor").size();
@@ -414,7 +421,9 @@ final class Scenes {
         waitTicks(30);
         server("boat: ahead, turning to starboard", level -> serverBoat(level).autopilot(1.0F, -0.6F));
         stayOnDeck("boat: on her wheelhouse roof while she moves and turns", 200, ShinseiMaruEntity.HELM.y);
+        viewOnBoat("boat: the player on her roof, from abeam", new Vec3(-10.0, 9.0, -2.0), new Vec3(0.0, 5.0, -0.5), 1);
         shot("boat_on_roof_under_way");
+        once("boat: camera back to the player, again", () -> view(null, null));
         server("boat: stop", level -> serverBoat(level).autopilot(0.0F, 0.0F));
         waitTicks(120);
         check("boat: her motor dies away when she stops", () -> {

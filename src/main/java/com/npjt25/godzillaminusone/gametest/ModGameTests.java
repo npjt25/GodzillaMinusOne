@@ -755,6 +755,31 @@ public final class ModGameTests {
      */
     @GameTest(template = FLOOR, batch = "gmo_odo_tower", timeoutTicks = 900)
     public static void theOdoMonsterTearsDownTheBuildingHoldingASearchlight(GameTestHelper helper) {
+        odoTower(helper, "1");
+    }
+
+    // (the same, again: it once failed where it had passed, so it runs five times, each logging how it went)
+    @GameTest(template = FLOOR, batch = "gmo_odo_tower_2", timeoutTicks = 900)
+    public static void theOdoMonsterTearsDownTheBuildingHoldingASearchlight2(GameTestHelper helper) {
+        odoTower(helper, "2");
+    }
+
+    @GameTest(template = FLOOR, batch = "gmo_odo_tower_3", timeoutTicks = 900)
+    public static void theOdoMonsterTearsDownTheBuildingHoldingASearchlight3(GameTestHelper helper) {
+        odoTower(helper, "3");
+    }
+
+    @GameTest(template = FLOOR, batch = "gmo_odo_tower_4", timeoutTicks = 900)
+    public static void theOdoMonsterTearsDownTheBuildingHoldingASearchlight4(GameTestHelper helper) {
+        odoTower(helper, "4");
+    }
+
+    @GameTest(template = FLOOR, batch = "gmo_odo_tower_5", timeoutTicks = 900)
+    public static void theOdoMonsterTearsDownTheBuildingHoldingASearchlight5(GameTestHelper helper) {
+        odoTower(helper, "5");
+    }
+
+    private static void odoTower(GameTestHelper helper, String run) {
         int floor = floorY(helper);
         // room to move: he's 9 wide and 14 tall, and the rock round the test's pocket is ground he doesn't break
         for (int x = -7; x <= 15; x++) {
@@ -795,11 +820,39 @@ public final class ModGameTests {
         operator.setNoAi(true);
         odo.spottedBy(light, operator);
         helper.assertTrue(odo.getHuntedLight() == light, "caught in its beam he should go for the searchlight");
+        BlockPos origin = helper.absolutePos(BlockPos.ZERO);
+        helper.onEachTick(() -> {
+            if (helper.getTick() % 100 == 0 || light.isRemoved() && !odoTowerDone(run)) {
+                BlockPos at = BlockPos.containing(odo.position()).subtract(origin);
+                GodzillaMinusOne.LOGGER.info("odo tower {} tick {}: odo at {} (yaw {}), hunting the light {}, stuck {}, target {}, light {} at y {}, tower {} blocks",
+                        run, helper.getTick(), at.toShortString(), Math.round(odo.getYRot()), odo.getHuntedLight() != null,
+                        odo.getLightStuckTicks(), odo.getTarget() == null ? "none" : odo.getTarget().getType().toShortString(),
+                        light.isRemoved() ? "smashed" : "standing", String.format("%.1f", light.getY() - origin.getY()),
+                        countBlocks(helper, Blocks.BRICKS, 4, floor + 1, 27, 4, floor + 8, 27));
+            }
+        });
         helper.succeedWhen(() -> {
             helper.assertTrue(light.isRemoved(), "he should bring the building down and smash the searchlight");
             remove(odo, operator);
             release.forEach(Runnable::run);
         });
+    }
+
+    private static final java.util.Set<String> ODO_TOWERS_DONE = new java.util.HashSet<>();
+
+    /** (logs the tick the light went once per run) */
+    private static boolean odoTowerDone(String run) {
+        return !ODO_TOWERS_DONE.add(run);
+    }
+
+    private static int countBlocks(GameTestHelper helper, net.minecraft.world.level.block.Block block, int x0, int y0, int z0, int x1, int y1, int z1) {
+        int n = 0;
+        for (BlockPos pos : BlockPos.betweenClosed(x0, y0, z0, x1, y1, z1)) {
+            if (helper.getBlockState(pos).is(block)) {
+                n++;
+            }
+        }
+        return n;
     }
 
     /**
