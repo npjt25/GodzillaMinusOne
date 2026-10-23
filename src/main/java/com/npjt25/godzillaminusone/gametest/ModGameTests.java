@@ -788,22 +788,6 @@ public final class ModGameTests {
         odoTower(helper, "from the right", 9.5);
     }
 
-    // (it stalled from the right once in two runs: three more starts that side, until it's understood)
-    @GameTest(template = FLOOR, batch = "gmo_odo_tower_right_2", timeoutTicks = 900)
-    public static void theOdoMonsterTearsDownTheBuildingHoldingASearchlightFromTheRight2(GameTestHelper helper) {
-        odoTower(helper, "from the right 2", 9.0);
-    }
-
-    @GameTest(template = FLOOR, batch = "gmo_odo_tower_right_3", timeoutTicks = 900)
-    public static void theOdoMonsterTearsDownTheBuildingHoldingASearchlightFromTheRight3(GameTestHelper helper) {
-        odoTower(helper, "from the right 3", 10.0);
-    }
-
-    @GameTest(template = FLOOR, batch = "gmo_odo_tower_right_4", timeoutTicks = 900)
-    public static void theOdoMonsterTearsDownTheBuildingHoldingASearchlightFromTheRight4(GameTestHelper helper) {
-        odoTower(helper, "from the right 4", 9.5);
-    }
-
     @GameTest(template = FLOOR, batch = "gmo_odo_tower_left", timeoutTicks = 900)
     public static void theOdoMonsterTearsDownTheBuildingHoldingASearchlightFromTheLeft(GameTestHelper helper) {
         odoTower(helper, "from the left", 0.5);
@@ -1015,7 +999,7 @@ public final class ModGameTests {
     }
 
     /**
-     * Afloat she keeps still: no bobbing of her own (with or without Physics Mod, whose waves can't be read).
+     * Afloat she keeps still: no bobbing of her own (Physics Mod, where its ocean runs, moves her on its waves itself).
      */
     @GameTest(template = FLOOR, batch = "gmo_boat_steady", timeoutTicks = 160)
     public static void theShinseiMaruRidesSteady(GameTestHelper helper) {

@@ -76,9 +76,9 @@ import java.util.List;
  *   <li>Boarding ladders on both sides, just aft of the wheelhouse, and one up the back of the wheelhouse to its roof
  *       (the helm): walk (or swim) into one to climb it, sneak to hold on.</li>
  *   <li>Her crew stand at their stations: the helmsman at the wheel, the gunner on the stern platform behind the gun.</li>
- *   <li>Afloat she sits steady at the surface: no bobbing of her own. (Physics Mod's ocean waves are drawn on its
- *       client side and it has no API to read their height from, so she can't follow them; rather than bob out of
- *       step with them, she keeps still.)</li>
+ *   <li>Afloat she sits steady at the surface: no bobbing of her own. (Physics Mod moves every entity it draws on its
+ *       own waves, client side: its EntityOcean, mixed into all entities, applied as they're drawn. So where its ocean
+ *       runs she's carried on them as a vanilla boat is, on screen, and nothing here fights it; her decks stay level.)</li>
  *   <li>Under way her motor runs (client.ShinseiMaruSounds): quiet, a little louder and higher as she picks up
  *       speed, fading out as she stops.</li>
  *   <li>Hit her like a boat to knock her back into her item (with her mines); explosions and Godzilla wreck her.</li>

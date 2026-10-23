@@ -6,14 +6,17 @@ import com.npjt25.godzillaminusone.entity.OdoIslandMonsterEntity;
 import com.npjt25.godzillaminusone.network.ModNetwork;
 import com.npjt25.godzillaminusone.network.OdoMoveRequestPacket;
 import com.npjt25.godzillaminusone.network.ShapeAnimPacket;
+import net.minecraft.client.Camera;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.InputEvent;
 import net.minecraftforge.client.event.RegisterKeyMappingsEvent;
 import net.minecraftforge.client.event.RenderPlayerEvent;
+import net.minecraftforge.client.event.ViewportEvent;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
@@ -71,6 +74,21 @@ public final class PlayerOdoControls {
         event.setCanceled(true);
         event.setSwingHand(false);
         ModNetwork.CHANNEL.sendToServer(new OdoMoveRequestPacket(OdoMoveRequestPacket.BITE, true));
+    }
+
+    /**
+     * As him, in third person: the camera looks at the middle of him from far enough back for all of him (instead of
+     * Minecraft's 4 blocks from the eyes, which is inside the plates on his back), closer if the ground or a wall is in
+     * the way.
+     */
+    @SubscribeEvent
+    public static void onCameraSetup(ViewportEvent.ComputeCameraAngles event) {
+        Camera camera = event.getCamera();
+        if (!camera.isDetached() || !(camera.getEntity() instanceof Player player) || !isOdo(player)) {
+            return;
+        }
+        Vec3 middle = player.getPosition((float) event.getPartialTick()).add(0.0, player.getBbHeight() * 0.55, 0.0);
+        CameraPlacement.pullBack(camera, player, middle, PlayerGodzillaControls.cameraDistance(player));
     }
 
     /** Before a player is drawn: if they're him, his shape is put where they are, running if they're going fast. */

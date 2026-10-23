@@ -249,6 +249,14 @@ final class ShapeScenes {
                 GLFW.GLFW_KEY_LEFT_CONTROL, 0, GLFW.GLFW_PRESS, GLFW.GLFW_MOD_CONTROL));
         once("shapes: third person", () -> mc().options.setCameraType(CameraType.THIRD_PERSON_BACK));
         speed("shapes: running", run);
+        check("shapes: as the Odo, third person stands back to show all of him", () -> {
+            LocalPlayer player = mc().player;
+            if (player == null) {
+                return "no player";
+            }
+            double d = mc().gameRenderer.getMainCamera().getPosition().distanceTo(player.getEyePosition());
+            return d > 15.0 ? null : String.format("camera %.1f blocks from his eyes", d);
+        });
         shot("shape_odo_running");
         once("shapes: first person", () -> mc().options.setCameraType(CameraType.FIRST_PERSON));
         once("shapes: Left Control up", () -> mc().keyboardHandler.keyPress(mc().getWindow().getWindow(),

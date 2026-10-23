@@ -33,7 +33,7 @@ WWII searchlight, mountable. Rider aims it by looking; **R** toggles the lamp. U
 - The film's run-down minesweeper, **16.3 × 5.6 blocks**, heavily weathered (rust streaks, flaking paint, tyre fenders, nets, rigging).
 - **Walkable solid decks** (overlapping small tiles: support at any heading, incl. the wheelhouse roof), you're carried as she moves; **ladders** on both sides and up the wheelhouse to the roof helm.
 - **Two seats:** driver (wheel on wheelhouse roof; W/S/A/D; **R** drops naval mines from her 9-slot hold) and gunner (Type 93 machine gun at the stern, **automatic while holding right-click**). Both crew stand at their stations.
-- Sits steady (no artificial bobbing; Physics Mod waves can't be read). Quiet synthesized diesel motor loop while under way. Godzilla prioritises her in water.
+- Sits steady (no bobbing of her own). Physics Mod 3.0.20 moves every entity it draws on its own waves (EntityOcean, mixed into all entities, applied in EntityRenderDispatcher), so she should ride them where its ocean runs; not seen working (its ocean never came up in CI's software-rendered game). Quiet synthesized diesel motor loop while under way. Godzilla prioritises her in water.
 
 ## Other items/entities
 - **Kyushu J7W1 Shinden** fighter plane: flyable, hold right-click for cannons, explodes near Godzilla (film ending) or on crash. Automatic third person framing the plane while piloting; engine silent while parked on the ground; hold Left Ctrl to free-look without steering.
@@ -50,12 +50,13 @@ WWII searchlight, mountable. Rider aims it by looking; **R** toggles the lamp. U
 ## Playing as the Odo Island Monster (optional)
 - Hold Left Ctrl (rebindable, only active as Odo) to run at 6 blocks/s; left click bites.
 - Note: Walkers' ability key is also R (conflicts with the mod's "Vehicle Action"). Shinden: hold Left Ctrl for free look.
+- Checked in the released game with Walkers 5.8.13, ReMorphed 4.2, CraftedCore 5.8.2 (mod ids walkers, remorphed, craftedcore): Godzilla's J bite, rooted through B's charge and roar then free, breaking through a building, changing back; the Odo's run (6.00 blocks/s measured) and left-click bite.
 
 ## Config
 In-game config screen (health bar, breath/roar intervals, blast visuals) plus `godzillaminusone-common.toml` (kill/radiation radius, `craterRadius` 48, `scorchRadius` 60, `ruinRadius` 100, `flattenRadius` 60, `flattenDownToY` 65, building demolition (`demolishFromHeight`/`demolishDownToHeight` -1 = auto, `demolitionIntervalSeconds`), `downedSeconds`, `minTargetDistance`, playable-shape options, block breaking, mortality, etc.).
 
 ## Physics Mod
-No Physics Mod API is used (only its presence is detected). Building toppling is the mod's own falling-block simulation; other breaking uses vanilla block breaking, which Physics Mod shatters by itself (with it installed, all demolition breaks go that way and the mod adds no extra particles). The boat stays steady.
+No Physics Mod API is called (only its presence is detected). Building toppling is the mod's own falling-block simulation; other breaking uses vanilla block breaking, which Physics Mod shatters by itself (with it installed, all demolition breaks go that way and the mod adds no extra particles). Its waves are its own client-side business for every entity (see the boat above). All in-game checks pass in the released game with Physics Mod 3.0.20 installed.
 
 ## Credits
 GojiDraw (original add-on assets), Monster122 (Odo/Godzillasaurus), Alex's Caves by AlexModGuy (LGPL, cloud textures), Walkers/ReMorphed by To_Craft (MIT, optional API). Godzilla is a trademark of Toho Co., Ltd. Personal-use port.

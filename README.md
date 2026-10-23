@@ -265,9 +265,10 @@ the blue one a player.*
   with a naval mine in hand to load it. Up to three show in the rack on deck. The helmsman presses **R** ("Vehicle
   Action" in Controls) to **drop one over the stern**: it floats there, and goes off when Godzilla comes near
   (his radiation sets it off), like the film's mine dragged into his mouth.
-- **She sits steady on the water**: no bobbing of her own. Physics Mod's ocean waves are drawn on its own (client)
-  side and it has no API another mod can read their height from, so she can't follow them; rather than bob out of
-  step with them she keeps still, with or without it.
+- **She sits steady on the water**: no bobbing of her own, with or without Physics Mod. Physics Mod moves entities on
+  its waves itself, as it draws them (see **Physics Mod** below): she's drawn like any other entity, so wherever its
+  ocean is running it should carry her as it does a vanilla boat; her decks (what you stand on) stay level, as a
+  vanilla boat's do. That last part hasn't been seen working: in CI's game its ocean never came up (see below).
 - **Her motor**: under way you hear her old diesel chug, quietly, a little louder and higher as she picks up speed;
   it fades in as she gets going and out as she stops, one seamless loop per boat (a sound made for this mod by
   `tools/make_sounds.py`, not a recording).
@@ -376,6 +377,7 @@ Take his shape as you would Godzilla's (`godzillaminusone:odo_island_monster`):
   never clashes with the Shinden's Free Look on the same key.
 - **Left click bites** (his bite animation, seen by everyone; the jaws close 0.75 s in, `playerOdoBiteDamage`) instead
   of a punch.
+- In third person (F5) the camera stands far enough back to show all of him (Minecraft's own is inside his back).
 
 **Checked in the released game** (CI's `client-release` run: Minecraft 1.20.1, Forge 47.3.0, this mod's built jar with
 **Walkers 5.8.13, ReMorphed 4.2 and CraftedCore 5.8.2**, the same versions as the jars supplied with this request; mod
@@ -388,8 +390,8 @@ menu and unlock by defeating him.
 
 ### Physics Mod
 
-**What's real integration and what's this mod's own**: there is no Physics Mod API that this mod calls (its mod id,
-`physicsmod`, is only checked to see whether it's installed). Physics Mod turns a block broken the vanilla way
+**What's real integration and what's this mod's own**: this mod calls no Physics Mod API (its mod id, `physicsmod`,
+is only checked to see whether it's installed). Physics Mod turns a block broken the vanilla way
 (Minecraft's own breaking, with its break sound and particles) into pieces flying under physics, by itself. This
 mod's part:
 
@@ -398,8 +400,21 @@ mod's part:
 - The rest of what he breaks is broken the vanilla way, so Physics Mod can shatter it. **With Physics Mod installed,
   every block he knocks off a building he's demolishing is broken that way**, and the mod adds no particles of its
   own on top (without it, only a share are, to keep it light), so the debris isn't doubled.
-- The Shinsei Maru sits steady: Physics Mod's waves can't be read, so she doesn't follow them.
-- None of this has been tried in game with Physics Mod itself.
+- **Its waves and the Shinsei Maru.** What its current Forge 1.20.1 release (**Physics Mod 3.0.20**, the free one on
+  Modrinth) actually has, read from its classes: its ocean is client-side only, and it mixes an `EntityOcean`
+  interface into **every** entity (a wave height offset, pitch and roll, with their own spring motion:
+  `getPhysicsYOffset`, `getPhysicsPitch`, `getPhysicsRoll`), moves each entity's drawing box by it, and wraps the
+  drawing of every entity (`EntityRenderDispatcher.render`). So nothing needs calling for her to ride its waves on
+  screen: it does that to whatever it draws in its ocean, vanilla boats included. This mod adds no bobbing of its own
+  that could fight it, and her collision decks stay level (the server knows nothing of its waves).
+- **Tried in the released game with it installed** (CI's `client-release` runs: Minecraft 1.20.1, Forge 47.3.0, this
+  mod's jar and Physics Mod 3.0.20): every in-game check passes with it (the boat's decks, ladders, crew and motor,
+  the Shinden, the searchlight, Godzilla, the Odo). Its settings there: `oceanPhysics=true`, wave height by weather
+  `oceanWeatherClear=0.0` (flat in clear weather), `oceanWeatherRain=0.75`, `oceanWeatherThunder=0.25`. But its ocean
+  never came up there: reading `getPhysicsYOffset` on the Shinsei Maru and on a vanilla boat beside her gave 0.000 for
+  both, in a pool in clear weather, in the rain, and on a real ocean in a thunderstorm, and the water was drawn as
+  vanilla's (that game draws with Mesa's software OpenGL, which may be why). So **whether its waves move her has not
+  been seen**: in your game, with its ocean showing, she should ride them as the vanilla boat does.
 
 ## Configuration
 
@@ -459,6 +474,12 @@ the Shinsei Maru's decks and climbing her ladders while she turns, her motor, th
 Look, and Godzilla getting over his breath. Each check is logged as `GMO-CHECK PASS`/`FAIL` (the job fails on any
 `FAIL`), and the screenshots are uploaded as the `screenshots` artifact (and printed into the log as base64 JPEG
 lines, `GMO-IMG`). The harness does nothing unless the game is started with `-Dgodzillaminusone.shots=true`.
+
+The `client-release` job runs the same checks in the **released game**: a launcher (portablemc) installs Minecraft
+1.20.1 and Forge 47.3.0, and the built jar goes in its mods folder with GeckoLib and, in turn, Walkers + ReMorphed +
+CraftedCore (adding playing as Godzilla and the Odo Island Monster, `client/harness/ShapeScenes.java`) and Physics
+Mod (adding a reading of its waves on the Shinsei Maru, in a pool and on a real ocean). It's informational: it doesn't
+fail the build if a download misbehaves.
 
 ## Re-converting the add-on assets
 
