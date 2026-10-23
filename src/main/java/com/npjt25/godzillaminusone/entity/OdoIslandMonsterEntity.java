@@ -980,7 +980,10 @@ public class OdoIslandMonsterEntity extends Monster implements GeoEntity {
             }
             this.odo.getLookControl().setLookAt(light.getX(), light.getY() + SearchlightEntity.LENS_HEIGHT, light.getZ(), 30.0F, 30.0F);
             Vec3 to = light.position().subtract(this.odo.position());
-            Vec3 goal = to.lengthSqr() > 100.0 ? light.position().subtract(to.normalize().scale(8.0)) : light.position();
+            // he stops short of a light at his head's height (his jaws reach out in front of him); one up on or in a
+            // building he goes right up to, tearing his way in and bringing down what it stands on
+            boolean raised = light.getY() > this.odo.getY() + 5.0;
+            Vec3 goal = to.lengthSqr() > 100.0 && !raised ? light.position().subtract(to.normalize().scale(8.0)) : light.position();
             this.odo.getMoveControl().setWantedPosition(goal.x, goal.y, goal.z, RUN_SPEED);
         }
     }

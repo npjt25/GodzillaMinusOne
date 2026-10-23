@@ -1043,7 +1043,7 @@ public class GodzillaEntity extends Monster implements GeoEntity {
         Vec3 forward = Vec3.directionFromRotation(0.0F, this.yBodyRot);
         Vec3 from = box.getCenter();
         boolean inFront = from.subtract(face).dot(forward) > -2.0;
-        boolean towards = motion.dot(face.subtract(from)) > 0.0 || nearest.distanceToSqr(face) < 1.0;
+        boolean towards = motion.dot(face.subtract(from)) > 0.0;
         if (!inFront || !towards) {
             return false;
         }
@@ -1840,6 +1840,7 @@ public class GodzillaEntity extends Monster implements GeoEntity {
             }
         }
         this.demolishing = new Building(base.getX(), base.getZ(), base.getY() - 1, top);
+        this.demolitionRest = 0; // (told to: no waiting)
     }
 
     /** For the game tests: ticks until he'll look for another building to knock down. */
