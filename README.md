@@ -151,11 +151,16 @@ the blue one a player.*
 
 ### Kyushu J7W1 Shinden
 
-- Right-click to climb in. **W** accelerates, **S** brakes, the mouse steers: look up to climb, down to dive.
+- Right-click to climb in. **The view switches to third person**, pulled back 11 blocks so the whole plane (13
+  blocks wingspan) is in frame, and back to first person when you get out (F5 turns the view round to the front
+  and back while you fly).
+  **W** accelerates, **S** brakes, the mouse steers: look up to climb, down to dive.
   The plane noses up as it climbs and down as it dives, stays level in level flight, and banks into turns.
 - **Hold Left Control to look around** (Free Look, rebindable): the plane flies on the way it was heading while you
   look; let go and your view swings smoothly back to the nose before the mouse steers again (no sudden turn). The
   cannons fire along the nose.
+- **Its engine is silent while it sits still on the ground**, even with you in it; you hear it once it's rolling or
+  in the air.
 - You stay in the cockpit however it pitches and banks. **Hold right-click to fire the plane's cannons**
   straight ahead: they keep firing for as long as you hold it, five rounds a second (a bang and a flash from
   each gun every round), whatever you're holding.
@@ -175,8 +180,11 @@ the blue one a player.*
 - Hitting it by hand (or with a tool) doesn't hurt it: it rocks with a clank, and **four hits knock it loose**
   into its item so you can pick it back up (one hit in creative).
 - Anything else that damages it sets it off: arrows, explosions, fire, Godzilla's footsteps, his radiation.
-- **Found in chests**: end city treasure (25% of chests, 1–2 mines), nether fortress (15%, 1) and ancient city
-  (20%, 1–2), on top of their usual loot (a global loot modifier: nothing is taken out). It can still be crafted.
+- **Found in chests**: end city treasure (25% of chests), nether fortress (15%) and ancient city (20%), on top of
+  their usual loot (a global loot modifier: nothing is taken out). A chest that has them holds **1 to 3**, 3 the
+  rarest: 1 six times in ten, 2 three times, 3 once (so a 3 is in 2.5% of end city chests, 1.5% of fortress chests
+  and 2% of ancient city chests). The chances and the 6:3:1 weights are in
+  `data/godzillaminusone/loot_modifiers/*.json` (a datapack can override them). It can still be crafted.
 - **Remote Detonator** (a lightning rod on top as the antenna / iron ingot, redstone, iron ingot / iron ingot,
   stone button, iron ingot): point it at a naval mine up to 160 blocks away and right-click, and it goes off.
   Blast radius 30: stand well back.
@@ -204,7 +212,8 @@ the blue one a player.*
   doesn't let up for 90 seconds, even when they're out of sight.
 - **His sounds** (each played once per event, from the server so everyone in range hears the right one): his roar
   (`odo.roar`), his shriek when a searchlight catches him (`odo.spotted`, in place of that roar), his arrival cry when
-  he spawns (`odo.spawn`, heard ~64 blocks round), his bite (`odo.bite`, as the jaws close), his cry when the nuclear
+  he spawns (`odo.spawn`, heard ~64 blocks round, on its own: the old vanilla-timed growl straight after spawning is
+  gone, and he doesn't roar over it for its first 4 seconds), his bite (`odo.bite`, as the jaws close), his cry when the nuclear
   bomb burns him (`odo.nuked`), and a distant roar (`odo.roar_far`) for anyone 100 blocks or more away when he roars
   or shrieks (out to 400 blocks).
 - His spawn egg is an ordinary vanilla-style egg in his grey-brown and dark brown.
@@ -425,6 +434,15 @@ mod's part:
 The jar ends up in `build/libs/`. GitHub Actions builds it on every push (see the *Actions* tab, artifact
 `godzillaminusone-jar`) and then runs the server-side game tests (`./gradlew runGameTestServer`, see
 `src/main/java/com/npjt25/godzillaminusone/gametest`).
+
+A second job starts the real game client on a virtual display (`xvfb-run ./gradlew runClient -Pshots`, software
+OpenGL, no sound device) and plays a script of scenes in a fresh flat creative world
+(`client/harness/Scenes.java`): the statue from the poster camera, the Odo Island Monster's spawn sounds, Godzilla's
+roar heard from either side of 200 blocks, the searchlight over water and ice (Fancy and Fabulous graphics), walking
+the Shinsei Maru's decks and climbing her ladders while she turns, her motor, the Shinden's camera, engine and Free
+Look, and Godzilla getting over his breath. Each check is logged as `GMO-CHECK PASS`/`FAIL` (the job fails on any
+`FAIL`), and the screenshots are uploaded as the `screenshots` artifact (and printed into the log as base64 JPEG
+lines, `GMO-IMG`). The harness does nothing unless the game is started with `-Dgodzillaminusone.shots=true`.
 
 ## Re-converting the add-on assets
 

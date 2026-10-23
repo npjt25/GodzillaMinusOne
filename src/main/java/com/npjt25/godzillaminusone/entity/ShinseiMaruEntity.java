@@ -45,6 +45,7 @@ import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.network.NetworkHooks;
 import org.jetbrains.annotations.Nullable;
+import org.joml.Vector3f;
 import software.bernie.geckolib.animatable.GeoEntity;
 import software.bernie.geckolib.core.animatable.instance.AnimatableInstanceCache;
 import software.bernie.geckolib.core.animation.AnimatableManager;
@@ -105,8 +106,8 @@ public class ShinseiMaruEntity extends Entity implements GeoEntity {
     public static final double DECK = 2.2;
     /** The boarding ladders, port and starboard: how far forward of her middle. */
     public static final double LADDER = -3.6;
-    /** The ladder up the back of the wheelhouse to its roof: how far to starboard (it's to port of the door). */
-    public static final double ROOF_LADDER = -1.2;
+    /** The ladder up the back of the wheelhouse to its roof: how far to starboard (it's to starboard of the door). */
+    public static final double ROOF_LADDER = 1.2;
     public static final double WHEELHOUSE_AFT = -2.94;
 
     /** How far the gun swings either side of dead astern, and up and down (degrees). */
@@ -124,6 +125,15 @@ public class ShinseiMaruEntity extends Entity implements GeoEntity {
     private static final EntityDataAccessor<Float> DATA_DAMAGE = SynchedEntityData.defineId(ShinseiMaruEntity.class, EntityDataSerializers.FLOAT);
     /** The entity id of whoever took the gun (-1: nobody chose it). */
     private static final EntityDataAccessor<Integer> DATA_GUNNER = SynchedEntityData.defineId(ShinseiMaruEntity.class, EntityDataSerializers.INT);
+    /**
+     * Her heading, exactly (the game's own packets send it to 1.4 degrees, which would shift her decks a little on
+     * everyone's screen), and how far she turned and moved in her last tick (to keep her where the server has her).
+     */
+    private static final EntityDataAccessor<Float> DATA_YAW = SynchedEntityData.defineId(ShinseiMaruEntity.class, EntityDataSerializers.FLOAT);
+    private static final EntityDataAccessor<Float> DATA_TURN = SynchedEntityData.defineId(ShinseiMaruEntity.class, EntityDataSerializers.FLOAT);
+    private static final EntityDataAccessor<Vector3f> DATA_MOTION = SynchedEntityData.defineId(ShinseiMaruEntity.class, EntityDataSerializers.VECTOR3);
+    /** Whether her engine is running: the helm (or the autopilot) asking for way, ahead or astern. */
+    private static final EntityDataAccessor<Boolean> DATA_ENGINE = SynchedEntityData.defineId(ShinseiMaruEntity.class, EntityDataSerializers.BOOLEAN);
     /** A click this far astern of her middle (or from there) takes the gun. */
     private static final double GUN_STATION = -4.6;
 
@@ -143,12 +153,16 @@ public class ShinseiMaruEntity extends Entity implements GeoEntity {
     private float autoTurn;
     private int lastShot = -GUN_COOLDOWN;
 
-    // (smooth movement for everyone but the helmsman, as a boat does it)
-    private int lerpSteps;
+    // where the server last said she was (everyone but the helmsman: see tickLerp)
+    private boolean lerpPending;
+    private boolean yawPending;
     private double lerpX;
     private double lerpY;
     private double lerpZ;
-    private double lerpYRot;
+    // where she was at the end of her last tick
+    @Nullable
+    private Vec3 lastTickPos;
+    private float lastTickYaw;
 
     /**
      * Her decks as tiles, bow to stern: the forecastle, the main deck, the wheelhouse (up to its roof) and the stern
@@ -200,6 +214,18 @@ public class ShinseiMaruEntity extends Entity implements GeoEntity {
         this.entityData.define(DATA_WOBBLE, 0);
         this.entityData.define(DATA_DAMAGE, 0.0F);
         this.entityData.define(DATA_GUNNER, -1);
+        this.entityData.define(DATA_YAW, 0.0F);
+        this.entityData.define(DATA_TURN, 0.0F);
+        this.entityData.define(DATA_MOTION, new Vector3f());
+        this.entityData.define(DATA_ENGINE, false);
+    }
+
+    @Override
+    public void onSyncedDataUpdated(EntityDataAccessor<?> key) {
+        super.onSyncedDataUpdated(key);
+        if (DATA_YAW.equals(key)) {
+            this.yawPending = true;
+        }
     }
 
     @Override
@@ -519,8 +545,9 @@ public class ShinseiMaruEntity extends Entity implements GeoEntity {
     @Override
     public void tick() {
         super.tick();
-        Vec3 before = position();
-        float yawBefore = getYRot();
+        // (from where she was at the end of her last tick: a helmsman's moves reach the server between its ticks)
+        Vec3 before = this.lastTickPos != null ? this.lastTickPos : position();
+        float yawBefore = this.lastTickPos != null ? this.lastTickYaw : getYRot();
         List<Entity> standing = standingOnDeck();
         tickLerp();
         this.deltaRotation = 0.0F;
@@ -535,12 +562,21 @@ public class ShinseiMaruEntity extends Entity implements GeoEntity {
             setDeltaMovement(Vec3.ZERO);
         }
         placeParts();
-        carry(standing, before, getYRot() - yawBefore);
+        float turned = Mth.wrapDegrees(getYRot() - yawBefore);
+        Vec3 moved = position().subtract(before);
+        carry(standing, before, turned);
         for (Entity entity : around()) {
             pushOut(entity);
             climbLadder(entity);
         }
+        this.lastTickPos = position();
+        this.lastTickYaw = getYRot();
         if (!level().isClientSide) {
+            this.entityData.set(DATA_YAW, getYRot());
+            this.entityData.set(DATA_TURN, turned);
+            Vec3 motion = moved.lengthSqr() > 16.0 ? Vec3.ZERO : moved; // (put somewhere else: that's not her motion)
+            this.entityData.set(DATA_MOTION, new Vector3f((float) motion.x, (float) motion.y, (float) motion.z));
+            this.entityData.set(DATA_ENGINE, throttle() != 0.0F);
             if (getWobble() > 0) {
                 this.entityData.set(DATA_WOBBLE, getWobble() - 1);
             }
@@ -586,10 +622,13 @@ public class ShinseiMaruEntity extends Entity implements GeoEntity {
         return standing;
     }
 
-    /** Moves those standing on her decks along with her: as far as she went, and round as far as she turned. */
+    /**
+     * Moves those standing on her decks along with her: as far as she went, and round as far as she turned (not when
+     * she's put somewhere else altogether, say by a command).
+     */
     private void carry(List<Entity> standing, Vec3 before, float turned) {
         Vec3 moved = position().subtract(before);
-        if (standing.isEmpty() || moved.lengthSqr() < 1.0E-8 && Math.abs(turned) < 1.0E-4F) {
+        if (standing.isEmpty() || moved.lengthSqr() < 1.0E-8 && Math.abs(turned) < 1.0E-4F || moved.lengthSqr() > 16.0) {
             return;
         }
         double cos = Math.cos(-turned * Mth.DEG_TO_RAD);
@@ -725,10 +764,25 @@ public class ShinseiMaruEntity extends Entity implements GeoEntity {
         return !shape.isEmpty() && shape.max(net.minecraft.core.Direction.Axis.Y) > 0.25;  // (lily pads and carpets don't count)
     }
 
+    /** The helmsman's throttle (W ahead, S astern; the autopilot's with nobody at the wheel), as on the server. */
+    private float throttle() {
+        LivingEntity helmsman = getControllingPassenger();
+        return helmsman != null ? helmsman.zza : this.autoThrottle;
+    }
+
+    /**
+     * Whether her engine is running (the helm asking for way, ahead or astern), for her motor's sound: at once for the
+     * helmsman, as the server has it for everyone else.
+     */
+    public boolean isEngineRunning() {
+        return getControllingPassenger() instanceof Player helmsman && helmsman.isLocalPlayer()
+                ? helmsman.zza != 0.0F : this.entityData.get(DATA_ENGINE);
+    }
+
     /** The helmsman's throttle (W/S) and wheel (A/D). */
     private void steer() {
         LivingEntity helmsman = getControllingPassenger();
-        float forward = helmsman != null ? helmsman.zza : this.autoThrottle;
+        float forward = throttle();
         float turn = helmsman != null ? helmsman.xxa : this.autoTurn;
         double wanted = forward > 0.0F ? MAX_SPEED : forward < 0.0F ? -REVERSE_SPEED : 0.0;
         this.speed = forward != 0.0F ? approach(this.speed, wanted, ACCELERATION) : this.speed * 0.985;
@@ -788,23 +842,36 @@ public class ShinseiMaruEntity extends Entity implements GeoEntity {
         this.lerpX = x;
         this.lerpY = y;
         this.lerpZ = z;
-        this.lerpYRot = yRot;
-        this.lerpSteps = 10;
+        this.lerpPending = true;
     }
 
+    /**
+     * Everyone but the helmsman: she goes where the server has her, not easing towards it as a boat does (which would
+     * leave her blocks behind at speed). The server sends where she was at the end of its last tick, every tick, so
+     * she's put a tick's worth of her motion on from there (and carries on so between updates): where she is on the
+     * server, as near as can be told. Whoever walks her decks here has to be where the server has them on its deck,
+     * or it takes them for walking into her and puts them back.
+     */
     private void tickLerp() {
         if (isControlledByLocalInstance()) {
-            this.lerpSteps = 0;
+            this.lerpPending = false;
+            this.yawPending = false;
             syncPacketPositionCodec(getX(), getY(), getZ());
+            return;
         }
-        if (this.lerpSteps > 0) {
-            double x = getX() + (this.lerpX - getX()) / this.lerpSteps;
-            double y = getY() + (this.lerpY - getY()) / this.lerpSteps;
-            double z = getZ() + (this.lerpZ - getZ()) / this.lerpSteps;
-            setYRot(getYRot() + (float) Mth.wrapDegrees(this.lerpYRot - getYRot()) / this.lerpSteps);
-            this.lerpSteps--;
-            setPos(x, y, z);
+        if (!level().isClientSide) {
+            return; // (the server, her helmsman steering her: his moves put her where she is)
         }
+        Vector3f motion = this.entityData.get(DATA_MOTION);
+        if (this.lerpPending) {
+            setPos(this.lerpX + motion.x(), this.lerpY + motion.y(), this.lerpZ + motion.z());
+        } else if (motion.lengthSquared() > 0.0F) {
+            setPos(getX() + motion.x(), getY() + motion.y(), getZ() + motion.z());
+        }
+        float turn = this.entityData.get(DATA_TURN);
+        setYRot((this.yawPending ? this.entityData.get(DATA_YAW) : getYRot()) + turn);
+        this.lerpPending = false;
+        this.yawPending = false;
     }
 
     // ------------------------------------------------------------------ damage

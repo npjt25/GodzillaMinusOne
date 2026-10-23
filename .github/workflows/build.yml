@@ -57,12 +57,16 @@ jobs:
         shell: bash
         continue-on-error: true
         run: |
+          set +e  # (only looking: nothing found is no failure)
           mkdir -p optional && cd optional
           for slug in physicsmod woodwalkers remorphed craftedcore; do
             url=$(curl -sS "https://api.modrinth.com/v2/project/$slug/version?loaders=%5B%22forge%22%5D&game_versions=%5B%221.20.1%22%5D" \
-              | python3 -c "import json,sys; v=json.load(sys.stdin); print(v[0]['files'][0]['url'] if v else '')")
+              | python3 -c "import json,sys
+          try: v=json.load(sys.stdin)
+          except ValueError: v=[]
+          print(v[0]['files'][0]['url'] if v else '')" || true)
             echo "OPTIONAL $slug latest forge 1.20.1 file: $url"
-            [ -n "$url" ] && curl -sSL -o "$slug.jar" "$url"
+            if [ -n "$url" ]; then curl -sSL -o "$slug.jar" "$url" || true; fi
           done
           ls -la
           for jar in *.jar; do

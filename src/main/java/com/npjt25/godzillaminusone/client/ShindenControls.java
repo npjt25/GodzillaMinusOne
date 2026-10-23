@@ -1,6 +1,5 @@
 package com.npjt25.godzillaminusone.client;
 
-import com.mojang.blaze3d.platform.InputConstants;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.math.Axis;
 import com.npjt25.godzillaminusone.GodzillaMinusOne;
@@ -41,8 +40,8 @@ public final class ShindenControls {
     /** Ticks between "fire" requests while the button is held (the plane fires as fast as its guns allow). */
     private static final int REQUEST_INTERVAL = 2;
     private static int requestCooldown;
-    public static final KeyMapping FREE_LOOK = new KeyMapping("key.godzillaminusone.shinden_free_look", ModKeyContexts.SHINDEN_PILOT,
-            InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_LEFT_CONTROL, "key.categories.godzillaminusone");
+    public static final KeyMapping FREE_LOOK = new ContextKeyMapping("key.godzillaminusone.shinden_free_look", ModKeyContexts.SHINDEN_PILOT,
+            GLFW.GLFW_KEY_LEFT_CONTROL, "key.categories.godzillaminusone");
     /** Each tick after Free Look is let go, the view turns this much of the way back to the nose. */
     private static final float EASE_BACK = 0.35F;
     /** The plane we're free-looking from (to hand its steering back if we leave it). */

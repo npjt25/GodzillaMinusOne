@@ -1,6 +1,5 @@
 package com.npjt25.godzillaminusone.client;
 
-import com.mojang.blaze3d.platform.InputConstants;
 import com.npjt25.godzillaminusone.GodzillaMinusOne;
 import com.npjt25.godzillaminusone.compat.Shapes;
 import com.npjt25.godzillaminusone.entity.OdoIslandMonsterEntity;
@@ -28,8 +27,8 @@ import software.bernie.geckolib.animatable.GeoEntity;
  */
 @Mod.EventBusSubscriber(modid = GodzillaMinusOne.MODID, bus = Mod.EventBusSubscriber.Bus.FORGE, value = Dist.CLIENT)
 public final class PlayerOdoControls {
-    public static final KeyMapping RUN = new KeyMapping("key.godzillaminusone.odo_run", ModKeyContexts.ODO_SHAPE,
-            InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_LEFT_CONTROL, "key.categories.godzillaminusone");
+    public static final KeyMapping RUN = new ContextKeyMapping("key.godzillaminusone.odo_run", ModKeyContexts.ODO_SHAPE,
+            GLFW.GLFW_KEY_LEFT_CONTROL, "key.categories.godzillaminusone");
     /** Faster than this (blocks a tick, over the ground) his shape is shown running. */
     private static final double RUNNING = 0.2;
     private static boolean sentRunning;

@@ -27,13 +27,20 @@ public class ShinseiMaruPart extends PartEntity<ShinseiMaruEntity> {
     /** The height of its top (the deck or roof there) above her keel. */
     final double top;
     private final EntityDimensions size;
+    /**
+     * On players' screens each section is this much bigger all round (blocks) than on the server, so whoever stands on
+     * it or against it there is a hair clear of it on the server, which would otherwise take the smallest difference
+     * in where the two have her for walking into her, and put them back.
+     */
+    private static final float CLIENT_MARGIN = 0.02F;
 
     public ShinseiMaruPart(ShinseiMaruEntity boat, double side, double forward, float width, double top) {
         super(boat);
         this.side = side;
         this.forward = forward;
         this.top = top;
-        this.size = EntityDimensions.scalable(width, (float) top);
+        float margin = boat.level().isClientSide ? CLIENT_MARGIN : 0.0F;
+        this.size = EntityDimensions.scalable(width + 2.0F * margin, (float) top + margin);
         refreshDimensions();
     }
 

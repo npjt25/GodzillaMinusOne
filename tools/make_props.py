@@ -459,7 +459,8 @@ def nuclear_bomb():
 
 
 # ---------------------------------------------------------------- the Shinsei Maru
-# Designed in blocks at full size (x to starboard, y up, z aft: the bow is at -z), built at half size (8 model pixels
+# Designed in blocks at full size (x to port as the game draws it: GeckoLib mirrors x, so the roof ladder at x -1.2 is
+# to starboard; y up, z aft: the bow is at -z), built at half size (8 model pixels
 # to a block; the renderer draws it twice as big). ShinseiMaruEntity uses the same numbers for its seats, gun, stern,
 # ladders and decks.
 HALF = 8.0

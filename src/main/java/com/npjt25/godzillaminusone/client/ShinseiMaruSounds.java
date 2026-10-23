@@ -18,9 +18,10 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * The Shinsei Maru's motor, client side: while she's under way her diesel chugs (shinsei_maru.motor, a 2 s loop made by
- * tools/make_sounds.py), quietly, a little louder and higher the faster she goes; it fades in as she gets going and
- * out as she stops, then stops altogether. One loop per boat, started once (not every tick).
+ * The Shinsei Maru's motor, client side: while her engine runs (the helm asking for way) or she's still under way, her
+ * diesel chugs (shinsei_maru.motor, a 2 s loop made by tools/make_sounds.py), quietly, a little louder and higher the
+ * faster she goes; it fades in as she gets going and out as she stops, then stops altogether. One loop per boat,
+ * started once (not every tick), and kept going while the engine runs, even pushing against a quay.
  */
 @Mod.EventBusSubscriber(modid = GodzillaMinusOne.MODID, bus = Mod.EventBusSubscriber.Bus.FORGE, value = Dist.CLIENT)
 public final class ShinseiMaruSounds {
@@ -42,7 +43,7 @@ public final class ShinseiMaruSounds {
             return;
         }
         for (Entity entity : mc.level.entitiesForRendering()) {
-            if (entity instanceof ShinseiMaruEntity boat && !MOTORS.containsKey(boat.getId()) && speed(boat) > UNDER_WAY
+            if (entity instanceof ShinseiMaruEntity boat && !MOTORS.containsKey(boat.getId()) && running(boat, speed(boat))
                     && boat.distanceToSqr(mc.player) < HEARD_WITHIN * HEARD_WITHIN) {
                 Motor motor = new Motor(boat);
                 MOTORS.put(boat.getId(), motor);
@@ -55,6 +56,11 @@ public final class ShinseiMaruSounds {
     public static boolean isPlayingFor(ShinseiMaruEntity boat) {
         Motor motor = MOTORS.get(boat.getId());
         return motor != null && !motor.isStopped();
+    }
+
+    /** Whether her motor is heard: her engine running, or her still going {@code speed} blocks a tick. */
+    static boolean running(ShinseiMaruEntity boat, double speed) {
+        return boat.isEngineRunning() || speed > UNDER_WAY;
     }
 
     /** How fast she's going (blocks a tick, over the ground), as this client sees her move. */
@@ -101,7 +107,7 @@ public final class ShinseiMaruSounds {
             follow();
             this.smoothed += (speed(this.boat) - this.smoothed) * 0.15;
             double fraction = Mth.clamp(this.smoothed / ShinseiMaruEntity.MAX_SPEED, 0.0, 1.0);
-            boolean running = this.smoothed > UNDER_WAY * 0.5;
+            boolean running = running(this.boat, this.smoothed * 2.0);
             // fade in over ~1 s, out over ~1.5 s
             this.level = running ? Math.min(1.0F, this.level + 0.05F) : Math.max(0.0F, this.level - 0.035F);
             if (this.level <= 0.0F && !running) {

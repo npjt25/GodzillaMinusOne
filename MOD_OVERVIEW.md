@@ -1,6 +1,6 @@
 # Godzilla Minus One — Minecraft Forge mod (overview for context)
 
-**What it is:** A Minecraft Java Edition mod for **Forge 1.20.1 (47.x)**, using **GeckoLib 4.x** for animated models. It ports GojiDraw's Bedrock add-on "Godzilla Minus One" V3 to Java and adds a lot of new content from the film *Godzilla Minus One* (2023). Optional support for **Walkers / ReMorphed** (play as Godzilla). Built and tested with GitHub Actions (build + server-side game tests). Source: github.com/npjt25/GodzillaMinusOne (branch `claude/admiring-euler-xygs92`).
+**What it is:** A Minecraft Java Edition mod for **Forge 1.20.1 (47.x)**, using **GeckoLib 4.x** for animated models. It ports GojiDraw's Bedrock add-on "Godzilla Minus One" V3 to Java and adds a lot of new content from the film *Godzilla Minus One* (2023). Optional support for **Walkers / ReMorphed** (play as Godzilla). Built and tested with GitHub Actions (build + server-side game tests + a scripted run of the real client on a virtual display, with checks and screenshots). Source: github.com/npjt25/GodzillaMinusOne (branch `claude/admiring-euler-xygs92`).
 
 ## Godzilla (`godzillaminusone:godzilla`)
 - Boss mob, GojiDraw's model scaled to ~45 blocks tall, ~76 long. Phases: emerge from ground → roar → active → collapse → dead → regenerate.
@@ -24,7 +24,7 @@ Film-accurate "Ginza blast" sequence: flash, fireball, dust ring/shockwave, risi
 - Charges players within ~16 blocks; frenzies when seen/hurt (faster, harder bites/stomps, breaks wooden things).
 - **Spotlight reaction:** caught by a manned searchlight's beam he stares into it, roars, charges and smashes it, then hunts its operator. If the light is on/in a building he **tears the building down** to get it. A player coming within 12 blocks distracts him onto them.
 - Hit by a nuclear bomb he's burnt, lies dormant 3 minutes, then **rises as Godzilla**.
-- Sounds: roar, searchlight-spotted shriek, spawn cry, bite, nuked cry, distant roar (100+ blocks). Vanilla-style spawn egg. Never gets stuck going for a light (tears through obstacles; gives up after 30 s and hunts the operator).
+- Sounds: roar, searchlight-spotted shriek, spawn cry (alone: no vanilla ambient growl or roar over it), bite, nuked cry, distant roar (100+ blocks). Vanilla-style spawn egg. Never gets stuck going for a light (tears through obstacles; gives up after 30 s and hunts the operator).
 
 ## Searchlight
 WWII searchlight, mountable. Rider aims it by looking; **R** toggles the lamp. Unmanned it **sweeps automatically like a clock** (doesn't anger Odo). Beam is slightly blocky (stepped square sections + soft core) with a block-by-block lit pool; drawn after water/ice so it no longer x-rays through them.
@@ -36,8 +36,8 @@ WWII searchlight, mountable. Rider aims it by looking; **R** toggles the lamp. U
 - Sits steady (no artificial bobbing; Physics Mod waves can't be read). Quiet synthesized diesel motor loop while under way. Godzilla prioritises her in water.
 
 ## Other items/entities
-- **Kyushu J7W1 Shinden** fighter plane: flyable, hold right-click for cannons, explodes near Godzilla (film ending) or on crash.
-- **Naval Mine** (craftable; also in end city 25%, nether fortress 15%, ancient city 20% chests) + **Remote Detonator**. Only thing that damages Godzilla.
+- **Kyushu J7W1 Shinden** fighter plane: flyable, hold right-click for cannons, explodes near Godzilla (film ending) or on crash. Automatic third person framing the plane while piloting; engine silent while parked on the ground; hold Left Ctrl to free-look without steering.
+- **Naval Mine** (craftable; also in end city 25%, nether fortress 15%, ancient city 20% chests, 1–3 per chest weighted 6:3:1, 3 rarest) + **Remote Detonator**. Only thing that damages Godzilla.
 - **Nuclear Bomb** item: called down at a target, 20 s air-raid siren, same blast as the atomic breath.
 - **Godzilla statues** (summon only, for thumbnails): `godzilla_pose_charging_roar`, `_tail_whip`, `_sky_roar`, `_poster_snarl` (70th anniversary poster, glowing mouth and plates), `_tail_hook`, `_hunched_snarl` (square-on, hunched, head low between the shoulders).
 

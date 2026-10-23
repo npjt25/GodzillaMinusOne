@@ -1,6 +1,5 @@
 package com.npjt25.godzillaminusone.client.harness;
 
-import com.npjt25.godzillaminusone.client.ShindenControls;
 import com.npjt25.godzillaminusone.client.ShinseiMaruSounds;
 import com.npjt25.godzillaminusone.entity.GodzillaEntity;
 import com.npjt25.godzillaminusone.entity.GodzillaStatueEntity;
@@ -29,12 +28,14 @@ import net.minecraft.world.level.GameType;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import org.jetbrains.annotations.Nullable;
+import org.lwjgl.glfw.GLFW;
 import software.bernie.geckolib.core.animatable.model.CoreGeoBone;
 import software.bernie.geckolib.renderer.GeoEntityRenderer;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.function.Supplier;
 
 import static com.npjt25.godzillaminusone.client.harness.ShotsHarness.camera;
 import static com.npjt25.godzillaminusone.client.harness.ShotsHarness.check;
@@ -248,7 +249,13 @@ final class Scenes {
             mc().options.graphicsMode().set(GraphicsStatus.FANCY);
             mc().levelRenderer.allChanged();
         });
-        waitTicks(60);
+        // the same view with the lamp off: through the water and ice where the beam was, you should see just what you
+        // see with it on (no deeper)
+        camera("searchlight: looking down, lamp off", new Vec3(61.5, -49.0, 7.5), new Vec3(52.0, -56.0, 0.5), 70);
+        server("searchlight: off", level -> level.getEntitiesOfClass(SearchlightEntity.class, new AABB(60, -70, -10, 80, -40, 10))
+                .forEach(light -> light.setSwitchedOn(false)));
+        waitTicks(80);
+        shot("searchlight_water_ice_off_b");
         commands("time set 6000", "kill @e[type=minecraft:armor_stand]", "kill @e[type=godzillaminusone:searchlight]");
     }
 
@@ -256,7 +263,7 @@ final class Scenes {
 
     @Nullable
     private static ShinseiMaruEntity serverBoat(ServerLevel level) {
-        List<ShinseiMaruEntity> boats = level.getEntitiesOfClass(ShinseiMaruEntity.class, new AABB(-110, -70, -40, -30, -40, 40));
+        List<ShinseiMaruEntity> boats = level.getEntitiesOfClass(ShinseiMaruEntity.class, new AABB(-140, -70, -60, 0, -40, 60));
         return boats.isEmpty() ? null : boats.get(0);
     }
 
@@ -322,14 +329,22 @@ final class Scenes {
     /** Walks the player forward ({@code keys}) for a while: the highest their feet get above her keel. */
     private static void climb(String name, int ticks, double need) {
         double[] highest = {-Double.MAX_VALUE};
+        StringBuilder trace = new StringBuilder();
+        int[] tick = {0};
         once(name + ": walk forward", () -> mc().options.keyUp.setDown(true));
         during(name, ticks, () -> {
             ShinseiMaruEntity boat = find(ShinseiMaruEntity.class);
-            if (boat != null && mc().player != null) {
-                highest[0] = Math.max(highest[0], local(boat, mc().player.position()).y);
+            LocalPlayer player = mc().player;
+            if (boat != null && player != null) {
+                Vec3 l = local(boat, player.position());
+                highest[0] = Math.max(highest[0], l.y);
+                if (tick[0]++ % 5 == 0) { // (where they are in her frame: to starboard, up, forward; walking into something; on the ground)
+                    trace.append(String.format(" [%d: %.2f %.2f %.2f%s%s]", tick[0] - 1, l.x, l.y, l.z,
+                            player.horizontalCollision ? " hc" : "", player.onGround() ? " og" : ""));
+                }
             }
             return null;
-        }, () -> String.format("highest: %.2f above her keel (need %.2f)", highest[0], need));
+        }, () -> String.format("highest: %.2f above her keel (need %.2f); trace:%s", highest[0], need, trace));
         once(name + ": stop", () -> mc().options.keyUp.setDown(false));
         check(name + ": got up there", () -> highest[0] >= need - 0.05 ? null
                 : String.format("only got %.2f above her keel, needed %.2f", highest[0], need));
@@ -338,9 +353,15 @@ final class Scenes {
     private static void boat() {
         camera("boat: pool", new Vec3(-50.0, -48.0, -30.0), new Vec3(-70.0, -55.0, 0.0), 70);
         waitTicks(80);
+        // a pool 118 by 98 (room for her to circle twice either way), filled in strips (a fill is at most 32768 blocks)
         commands("time set 6000",
-                "fill -101 -61 -31 -39 -56 31 minecraft:stone_bricks",
-                "fill -100 -60 -30 -40 -56 30 minecraft:water",
+                "fill -130 -61 -50 -101 -56 50 minecraft:stone_bricks",
+                "fill -100 -61 -50 -71 -56 50 minecraft:stone_bricks",
+                "fill -70 -61 -50 -41 -56 50 minecraft:stone_bricks",
+                "fill -40 -61 -50 -11 -56 50 minecraft:stone_bricks",
+                "fill -129 -60 -49 -90 -56 49 minecraft:water",
+                "fill -89 -60 -49 -50 -56 49 minecraft:water",
+                "fill -49 -60 -49 -12 -56 49 minecraft:water",
                 "summon godzillaminusone:shinsei_maru -70 -57 0 {Rotation:[0f,0f]}");
         waitTicks(100);
         check("boat: afloat and steady", () -> {
@@ -387,7 +408,14 @@ final class Scenes {
             return boat != null && !ShinseiMaruSounds.isPlayingFor(boat) ? null : "still playing";
         });
 
-        // her ladders: up the side from the water, and up the back of the wheelhouse to the roof
+        // her ladders: up the side from the water, and up the back of the wheelhouse to the roof (her back in the middle
+        // of the pool, heading south, so nothing's in the way)
+        server("boat: back to the middle of the pool", level -> {
+            ShinseiMaruEntity boat = serverBoat(level);
+            boat.autopilot(0.0F, 0.0F);
+            boat.moveTo(-70.0, boat.getY(), 0.0, 0.0F, 0.0F);
+        });
+        waitTicks(40);
         for (int side : new int[] {1, -1}) {
             String which = side > 0 ? "starboard" : "port";
             onBoat("boat: in the water by her " + which + " ladder", side * (ShinseiMaruEntity.BEAM + 0.75), 0.5,
@@ -395,18 +423,31 @@ final class Scenes {
             waitTicks(20);
             climb("boat: up her " + which + " ladder", 100, ShinseiMaruEntity.DECK);
         }
-        for (double s : new double[] {ShinseiMaruEntity.ROOF_LADDER, -ShinseiMaruEntity.ROOF_LADDER}) {
-            String which = s == ShinseiMaruEntity.ROOF_LADDER ? "at ROOF_LADDER" : "the other side";
-            onBoat("boat: on deck behind the wheelhouse (" + which + ")", s, ShinseiMaruEntity.DECK + 0.1,
-                    ShinseiMaruEntity.WHEELHOUSE_AFT - 0.75, 0.0F);
-            waitTicks(20);
-            if (s == ShinseiMaruEntity.ROOF_LADDER) {
-                once("boat: third person, from behind", () -> mc().options.setCameraType(CameraType.THIRD_PERSON_BACK));
-                waitTicks(10);
-                shot("boat_at_roof_ladder");
+        // the roof ladder is drawn to starboard of the door (seen from astern, on the right); the wall to port of the
+        // door has no ladder, and can't be climbed
+        onBoat("boat: on deck behind the wheelhouse, at the roof ladder", ShinseiMaruEntity.ROOF_LADDER, ShinseiMaruEntity.DECK + 0.1,
+                ShinseiMaruEntity.WHEELHOUSE_AFT - 0.75, 0.0F);
+        waitTicks(20);
+        once("boat: third person, from behind", () -> mc().options.setCameraType(CameraType.THIRD_PERSON_BACK));
+        waitTicks(10);
+        shot("boat_at_roof_ladder");
+        climb("boat: up the roof ladder", 100, ShinseiMaruEntity.HELM.y);
+        shot("boat_up_the_roof_ladder");
+        onBoat("boat: on deck behind the wheelhouse, to port of the door", -ShinseiMaruEntity.ROOF_LADDER, ShinseiMaruEntity.DECK + 0.1,
+                ShinseiMaruEntity.WHEELHOUSE_AFT - 0.75, 0.0F);
+        waitTicks(20);
+        double[] highestThere = {-Double.MAX_VALUE};
+        once("boat: walk into the wall", () -> mc().options.keyUp.setDown(true));
+        during("boat: no ladder to port of the door", 60, () -> {
+            ShinseiMaruEntity boat = find(ShinseiMaruEntity.class);
+            if (boat != null && mc().player != null) {
+                highestThere[0] = Math.max(highestThere[0], local(boat, mc().player.position()).y);
             }
-            climb("boat: up the roof ladder (" + which + ")", 100, ShinseiMaruEntity.HELM.y);
-        }
+            return null;
+        }, () -> String.format("highest: %.2f above her keel", highestThere[0]));
+        once("boat: stop walking", () -> mc().options.keyUp.setDown(false));
+        check("boat: can't climb the wall to port of the door", () -> highestThere[0] < ShinseiMaruEntity.HELM.y - 0.5 ? null
+                : String.format("got %.2f above her keel", highestThere[0]));
 
         // her crew stand at their stations
         server("boat: take the gun", level -> {
@@ -536,11 +577,17 @@ final class Scenes {
         waitTicks(20);
         shot("shinden_flying");
         float[] heading = {0.0F};
-        once("shinden: free look on", () -> {
+        // (as the keyboard sends it: Left Control down, with the Ctrl modifier)
+        once("shinden: free look on", () -> mc().keyboardHandler.keyPress(mc().getWindow().getWindow(),
+                GLFW.GLFW_KEY_LEFT_CONTROL, 0, GLFW.GLFW_PRESS, GLFW.GLFW_MOD_CONTROL));
+        until("shinden: free look takes hold", () -> {
             ShindenEntity plane = find(ShindenEntity.class);
-            heading[0] = plane != null ? plane.getYRot() : 0.0F;
-            ShindenControls.FREE_LOOK.setDown(true);
-        });
+            if (plane != null && plane.isFreeLooking()) {
+                heading[0] = plane.getYRot();
+                return true;
+            }
+            return false;
+        }, 10);
         float[] lookedOff = {0.0F};
         during("shinden: free look: the plane holds its heading while the pilot looks round", 30, () -> {
             ShindenEntity plane = find(ShindenEntity.class);
@@ -554,7 +601,8 @@ final class Scenes {
             return Math.abs(drift) < 2.0F ? null : String.format("the plane turned %.1f degrees", drift);
         }, () -> String.format("looking %.0f degrees off the nose", lookedOff[0]));
         shot("shinden_free_look");
-        once("shinden: free look off", () -> ShindenControls.FREE_LOOK.setDown(false));
+        once("shinden: free look off", () -> mc().keyboardHandler.keyPress(mc().getWindow().getWindow(),
+                GLFW.GLFW_KEY_LEFT_CONTROL, 0, GLFW.GLFW_RELEASE, 0));
         float[] previous = {Float.NaN};
         float[] biggest = {0.0F};
         during("shinden: letting go doesn't snap the plane round", 40, () -> {
@@ -647,21 +695,33 @@ final class Scenes {
         }, 400);
         check("godzilla: his roar played out (not cut short)", () -> now() - cooling[0] >= GodzillaEntity.ROAR_TICKS - 5 ? null
                 : "the charge ended " + (now() - cooling[0]) + " ticks after the beam");
-        float[] widest = {0.0F};
-        during("godzilla: jaw shut again (idle at most 7.5 degrees), standing normally", 60, () -> {
-            GodzillaEntity g = find(GodzillaEntity.class);
-            if (g == null) {
-                return "gone";
+        // His roar closes his jaw over its last half second, here a tick or two behind the server: from a second after
+        // the charge ends his jaw has to be shut (idle at most 7.5 degrees) and stay shut, not stuck open.
+        float[] jaws = new float[80];
+        during("godzilla: jaw shuts as his roar ends and stays shut, standing normally", jaws.length, new Supplier<>() {
+            private int tick;
+
+            @Override
+            public String get() {
+                GodzillaEntity g = find(GodzillaEntity.class);
+                if (g == null) {
+                    return "gone";
+                }
+                float angle = jaw(g);
+                jaws[this.tick] = angle;
+                int t = this.tick++;
+                if (g.getChargeState() != GodzillaEntity.CHARGE_NONE) {
+                    return "still charging";
+                }
+                return t < 20 || Float.isNaN(angle) || angle <= 10.0F ? null : String.format("jaw open %.1f degrees", angle);
             }
-            float angle = jaw(g);
-            if (!Float.isNaN(angle)) {
-                widest[0] = Math.max(widest[0], angle);
+        }, () -> {
+            StringBuilder curve = new StringBuilder("jaw every 5 ticks:");
+            for (int i = 0; i < jaws.length; i += 5) {
+                curve.append(String.format(" %.0f", jaws[i]));
             }
-            if (g.getChargeState() != GodzillaEntity.CHARGE_NONE) {
-                return "still charging";
-            }
-            return Float.isNaN(angle) || angle <= 10.0F ? null : String.format("jaw open %.1f degrees", angle);
-        }, () -> String.format("widest jaw: %.1f degrees", widest[0]));
+            return curve.toString();
+        });
         checkServer("godzilla: not roaring, not rooted", level -> {
             GodzillaEntity g = serverGodzilla(level);
             return g == null ? "gone" : g.isRoaring() || g.isCharging() ? "roaring " + g.isRoaring() + ", charging " + g.isCharging() : null;

@@ -94,6 +94,9 @@ public class ShindenEntity extends Mob implements GeoEntity {
     private float bankYaw;
     private float pitch;
     private float pitchO;
+    /** Client side: whether its engine is running, and for how many ticks it has wanted to start or stop. */
+    private boolean engineRunning;
+    private int engineChange;
 
     public ShindenEntity(EntityType<? extends ShindenEntity> type, Level level) {
         super(type, level);
@@ -142,6 +145,7 @@ public class ShindenEntity extends Mob implements GeoEntity {
                 wantedPitch = Mth.clamp((float) (Mth.atan2(dy, horizontal) * Mth.RAD_TO_DEG), -60.0F, 60.0F);
             }
             this.pitch += (wantedPitch - this.pitch) * 0.2F;
+            tickEngine(horizontal);
             return;
         }
         Vec3 here = position();
@@ -267,7 +271,8 @@ public class ShindenEntity extends Mob implements GeoEntity {
             wanted = new Vec3(wanted.x, Math.min(wanted.y, -0.3 * (1.0 - this.flightSpeed / STALL_SPEED)), wanted.z);
         }
         if (onGround() && this.flightSpeed < STALL_SPEED) {
-            wanted = new Vec3(wanted.x, Math.max(wanted.y, 0.0), wanted.z);
+            // (pressing down a little, so it stays on the ground rather than losing touch with it every other tick)
+            wanted = new Vec3(wanted.x, Math.max(wanted.y, -0.04), wanted.z);
         }
         Vec3 motion = getDeltaMovement().lerp(wanted, 0.2);
         setDeltaMovement(motion);
@@ -494,16 +499,29 @@ public class ShindenEntity extends Mob implements GeoEntity {
      * the air, or rolling along the ground under its own power (taking off, landing); not parked.
      */
     public boolean isEngineRunning() {
-        if (!isVehicle()) {
-            return false;
+        return this.engineRunning;
+    }
+
+    /**
+     * Starts or stops its engine (client side), {@code horizontal} its speed over the ground this tick. Whether it's
+     * on the ground is whether there's something solid just under it, not {@link #onGround()}, which a parked plane
+     * loses every other tick (it hasn't moved down into the ground); and it takes a few ticks either way, so a bump
+     * doesn't start it, nor a moment's pause stop it.
+     */
+    private void tickEngine(double horizontal) {
+        boolean grounded = !level().noCollision(this, getBoundingBox().move(0.0, -ENGINE_GROUND_GAP, 0.0));
+        boolean wanted = isVehicle() && (!grounded || horizontal > ENGINE_GROUND_SPEED);
+        this.engineChange = wanted == this.engineRunning ? 0 : this.engineChange + 1;
+        if (this.engineChange >= (wanted ? 3 : 10)) {
+            this.engineRunning = wanted;
+            this.engineChange = 0;
         }
-        double dx = getX() - this.xo;
-        double dz = getZ() - this.zo;
-        return !onGround() || dx * dx + dz * dz > ENGINE_GROUND_SPEED * ENGINE_GROUND_SPEED;
     }
 
     /** On the ground, it has to be rolling at least this fast (blocks a tick) for its engine to be heard. */
     private static final double ENGINE_GROUND_SPEED = 0.1;
+    /** Up to this far above the ground (blocks), it's on the ground. */
+    private static final double ENGINE_GROUND_GAP = 0.2;
 
     private void onSoundKeyframe(SoundKeyframeEvent<ShindenEntity> event) {
         String name = event.getKeyframeData().getSound();
