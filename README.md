@@ -481,6 +481,14 @@ CraftedCore (adding playing as Godzilla and the Odo Island Monster, `client/harn
 Mod (adding a reading of its waves on the Shinsei Maru, in a pool and on a real ocean). It's informational: it doesn't
 fail the build if a download misbehaves.
 
+![In-game checks](docs/in_game_checks.jpg)
+
+*From those runs (game captures, not offline renders): the hunched snarl statue from the poster camera beside the
+reference; the searchlight over water and ice with its lamp on and off (the floor shows through equally: no x-ray);
+the Shinsei Maru's gunner standing at the gun, and the player after climbing the roof ladder; a parked Shinden
+(third person, engine silent); Godzilla standing with his mouth shut after his breath; and, in the released game with
+Walkers, playing as Godzilla (his moves listed top left) and as the Odo Island Monster, running.*
+
 ## Re-converting the add-on assets
 
 `tools/convert_addon.py` regenerates everything under `src/main/resources/assets` from the extracted
