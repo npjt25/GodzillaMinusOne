@@ -1029,8 +1029,10 @@ public final class ModGameTests {
         helper.assertTrue(pilot.isAlive() && pilot.getHealth() == pilot.getMaxHealth(), "the pilot should be spared");
         helper.assertFalse(bystander.isAlive(), "a 3x TNT blast should kill a pig 4 blocks away");
         helper.assertTrue(helper.getBlockState(new BlockPos(4, floor, 4)).isAir(), "the blast should blow a hole in the floor");
+        // (the game test framework's own start buttons, on neighbouring tests' structure blocks, pop off when the blast
+        // shakes their support and drop as items: they aren't blocks the blast broke)
         List<ItemEntity> drops = helper.getLevel().getEntitiesOfClass(ItemEntity.class, plane.getBoundingBox().inflate(16.0),
-                item -> item.getItem().getItem() instanceof BlockItem);
+                item -> item.getItem().getItem() instanceof BlockItem && !item.getItem().is(Items.STONE_BUTTON));
         helper.assertTrue(drops.isEmpty(), "the blocks it breaks should vanish, not drop: " + drops);
         remove(pilot);
         helper.succeed();
