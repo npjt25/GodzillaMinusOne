@@ -158,6 +158,14 @@ public final class Destruction {
         WAVES.clear();
     }
 
+    /**
+     * For the game tests, as each one ends: the blast waves still spreading through {@code level} stop. (A blast's
+     * ruins run out 100 blocks over a few seconds, on their own: left to it, it wrecks whichever test comes next nearby.)
+     */
+    public static void stopBlasts(ServerLevel level) {
+        WAVES.removeIf(wave -> wave.level == level);
+    }
+
     private static final class BlastWave {
         /** Blocks the wave front advances per tick. */
         private static final double SPEED = 4.0;

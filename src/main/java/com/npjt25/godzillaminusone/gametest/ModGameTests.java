@@ -34,6 +34,7 @@ import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.item.FallingBlockEntity;
 import net.minecraft.world.entity.MobSpawnType;
 import net.minecraft.world.entity.animal.Pig;
 import net.minecraft.world.entity.item.ItemEntity;
@@ -123,9 +124,25 @@ public final class ModGameTests {
         return () -> chunks.forEach(c -> helper.getLevel().setChunkForced((int) c[0], (int) c[1], false));
     }
 
+    /**
+     * At the end of a test: its entities go, and so does whatever its blasts set going that would carry on into the
+     * next test's ground (the tests run one after another, on ground near each other): blast waves still spreading, and
+     * blocks still flying as rubble. (An atomic breath test's ruins once buried the Odo Island Monster of the test after
+     * it, in the corridor it had just cleared.)
+     */
     private static void remove(Entity... entities) {
         for (Entity entity : entities) {
             entity.discard();
+        }
+        if (entities.length > 0 && entities[0].level() instanceof ServerLevel level) {
+            Destruction.stopBlasts(level);
+            List<Entity> flying = new ArrayList<>();
+            level.getAllEntities().forEach(e -> {
+                if (e instanceof FallingBlockEntity) {
+                    flying.add(e);
+                }
+            });
+            flying.forEach(Entity::discard);
         }
     }
 
@@ -769,6 +786,22 @@ public final class ModGameTests {
     @GameTest(template = FLOOR, batch = "gmo_odo_tower_right", timeoutTicks = 900)
     public static void theOdoMonsterTearsDownTheBuildingHoldingASearchlightFromTheRight(GameTestHelper helper) {
         odoTower(helper, "from the right", 9.5);
+    }
+
+    // (it stalled from the right once in two runs: three more starts that side, until it's understood)
+    @GameTest(template = FLOOR, batch = "gmo_odo_tower_right_2", timeoutTicks = 900)
+    public static void theOdoMonsterTearsDownTheBuildingHoldingASearchlightFromTheRight2(GameTestHelper helper) {
+        odoTower(helper, "from the right 2", 9.0);
+    }
+
+    @GameTest(template = FLOOR, batch = "gmo_odo_tower_right_3", timeoutTicks = 900)
+    public static void theOdoMonsterTearsDownTheBuildingHoldingASearchlightFromTheRight3(GameTestHelper helper) {
+        odoTower(helper, "from the right 3", 10.0);
+    }
+
+    @GameTest(template = FLOOR, batch = "gmo_odo_tower_right_4", timeoutTicks = 900)
+    public static void theOdoMonsterTearsDownTheBuildingHoldingASearchlightFromTheRight4(GameTestHelper helper) {
+        odoTower(helper, "from the right 4", 9.5);
     }
 
     @GameTest(template = FLOOR, batch = "gmo_odo_tower_left", timeoutTicks = 900)

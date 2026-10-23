@@ -296,10 +296,16 @@ public class OdoIslandMonsterEntity extends Monster implements GeoEntity {
                 inside++;
             }
         }
-        return String.format("goals [%s], move %s to (%.1f, %.1f, %.1f), collision h %b v %b, on ground %b, motion (%.2f, %.2f, %.2f), roar %d, blocks in his box %d",
+        StringBuilder solid = new StringBuilder();
+        for (Entity entity : level().getEntities(this, getBoundingBox().inflate(1.0), Entity::canBeCollidedWith)) {
+            solid.append(entity.getType().toShortString()).append(' ');
+        }
+        return String.format("goals [%s], move %s to (%.1f, %.1f, %.1f), collision h %b v %b, on ground %b, motion (%.2f, %.2f, %.2f), roar %d, "
+                        + "blocks in his box %d, solid entities against him [%s], attack cooldown %d, pending hit %d",
                 goals.toString().trim(), getMoveControl().hasWanted() ? "wanted" : "idle", getMoveControl().getWantedX(),
                 getMoveControl().getWantedY(), getMoveControl().getWantedZ(), this.horizontalCollision, this.verticalCollision, onGround(),
-                getDeltaMovement().x, getDeltaMovement().y, getDeltaMovement().z, this.roarTicks, inside);
+                getDeltaMovement().x, getDeltaMovement().y, getDeltaMovement().z, this.roarTicks, inside, solid.toString().trim(),
+                this.attackCooldown, this.pendingHitTicks);
     }
 
     /** For the game tests: for how many ticks he's made no headway towards the light he's after. */
