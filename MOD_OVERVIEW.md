@@ -51,7 +51,8 @@ WWII searchlight, mountable. Rider aims it by looking; **R** toggles the lamp. U
 ## Playing as the Odo Island Monster (optional)
 - Hold Left Ctrl (rebindable, only active as Odo) to run at 12 blocks/s (`playerOdoRunBlocksPerSecond`); left click bites.
 - Note: Walkers' ability key is also R (conflicts with the mod's "Vehicle Action"). Shinden: hold Left Ctrl for free look.
-- Checked in the released game with Walkers 5.8.13, ReMorphed 4.2, CraftedCore 5.8.2 (mod ids walkers, remorphed, craftedcore): Godzilla's J bite, rooted through B's charge and roar then free, breaking through a building, changing back; the Odo's run (6.00 blocks/s measured) and left-click bite.
+- Checked in the released game with Walkers 5.8.13, ReMorphed 4.2, CraftedCore 5.8.2 (mod ids walkers, remorphed, craftedcore): all eight mod keys in Controls once; Godzilla's Z/H/J/K/B each making its move, Roar rebound to N working and saved in options.txt, rooted through B's charge and roar then free, breaking through a building, changing back; the Odo (taken through ReMorphed's morph request) running 12.00 blocks/s in three 20-tick stretches with one speed modifier, removed on letting go, speed back to 0.1 (4.32 blocks/s walking) after changing back; left-click bite.
+- Note: before this version the keys were registered by four same-named `Keys.register` handlers that Forge's event bus merged into one, so only Vehicle Action was in Controls; `client.ModKeyMappings` now registers all of them.
 
 ## Config
 In-game config screen (health bar, breath/roar intervals, blast visuals) plus `godzillaminusone-common.toml` (kill/radiation radius, `craterRadius` 48, `scorchRadius` 60, `ruinRadius` 100, `flattenRadius` 60, `flattenDownToY` 65, building demolition (`demolishFromHeight`/`demolishDownToHeight` -1 = auto, `demolitionIntervalSeconds`), `downedSeconds`, `minTargetDistance`, playable-shape options, block breaking, mortality, etc.).

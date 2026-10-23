@@ -387,7 +387,9 @@ With [Walkers](https://www.curseforge.com/minecraft/mc-mods/woodwalkers) install
   "Godzilla: Atomic Breath"). They're saved with the rest of your controls (`options.txt`), there's no other key
   setting anywhere, and the list on screen shows whatever they're bound to. They only count while you're playing as
   Godzilla (whether Walkers or ReMorphed made you him), so as yourself those keys are free for anything else; and
-  Controls marks one red if it shares a key with one of the game's own.
+  Controls marks one red if it shares a key with one of the game's own. (Before this version these five, the
+  Shinden's Free Look and the Odo's Run worked on their default keys but weren't listed in Controls, so they couldn't
+  be changed: they're all there now.)
 - Moves are seen by everyone near you (multiplayer). Whatever interrupts you (changing back, dying, respawning,
   changing dimension, logging out) frees you: you're never left rooted.
 - Walkers' own keys are G, U, V and R (its shape's ability). **R is also this mod's "Vehicle Action"** (the Shinsei
@@ -503,7 +505,8 @@ The jar ends up in `build/libs/`. GitHub Actions builds it on every push (see th
 
 A second job starts the real game client on a virtual display (`xvfb-run ./gradlew runClient -Pshots`, software
 OpenGL, no sound device) and plays a script of scenes in a fresh flat creative world
-(`client/harness/Scenes.java`): the statue from the poster camera, the Odo Island Monster's spawn sounds, Godzilla's
+(`client/harness/Scenes.java`): the mod's keys among the game's key bindings (each once) and a rebound key saved in
+`options.txt`, the statue from the poster camera, the Odo Island Monster's spawn sounds, Godzilla's
 roar heard from either side of 200 blocks, the searchlight over water and ice (Fancy and Fabulous graphics), working a
 searchlight at night in first and third person (the middle of the view measured lamp on against lamp off, looking up
 into the empty sky; zombies in the beam, beside it and behind the wall it lands on, then the beam turned away and the
@@ -522,10 +525,13 @@ fail the build if a download misbehaves.
 ![In-game checks](docs/in_game_checks.jpg)
 
 *From those runs (game captures, not offline renders): the hunched snarl statue from the poster camera beside the
-reference; the searchlight over water and ice with its lamp on and off (the floor shows through equally: no x-ray);
-the Shinsei Maru's gunner standing at the gun, and the player after climbing the roof ladder; a parked Shinden
-(third person, engine silent); Godzilla standing with his mouth shut after his breath; and, in the released game with
-Walkers, playing as Godzilla (his moves listed top left) and as the Odo Island Monster, running.*
+reference; the searchlight's beam over water and ice (no square shells round it); working a searchlight at night in
+first person (the zombie in the beam lit, the one beside it dark, the pool of light on the wall it lands on), from the
+side with the lamp on and off, aimed at the empty sky (the middle of the view stays clear) and in third person; the
+Shinsei Maru's gunner standing at the gun, and the player after climbing the roof ladder; a parked Shinden (third
+person, engine silent); Godzilla standing with his mouth shut after his breath; and, in the released game with Walkers
+and ReMorphed, playing as Godzilla with his Roar rebound to N (the list top left shows it) and as the Odo Island
+Monster, running at 12 blocks a second.*
 
 ## Re-converting the add-on assets
 
