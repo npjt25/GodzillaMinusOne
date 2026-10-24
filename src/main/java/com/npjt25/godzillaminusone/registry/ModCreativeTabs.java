@@ -23,6 +23,10 @@ public final class ModCreativeTabs {
                 output.accept(ModItems.REMOTE_DETONATOR.get());
                 output.accept(ModItems.SEARCHLIGHT.get());
                 output.accept(ModItems.NUCLEAR_BOMB.get());
+                output.accept(ModItems.HAZMAT_HOOD.get());
+                output.accept(ModItems.HAZMAT_SUIT.get());
+                output.accept(ModItems.HAZMAT_TROUSERS.get());
+                output.accept(ModItems.HAZMAT_BOOTS.get());
             })
             .build());
 

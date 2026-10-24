@@ -10,6 +10,7 @@ import com.npjt25.godzillaminusone.loot.AddItemModifier;
 import com.npjt25.godzillaminusone.network.ModNetwork;
 import com.npjt25.godzillaminusone.registry.ModCreativeTabs;
 import com.npjt25.godzillaminusone.registry.ModEntities;
+import com.npjt25.godzillaminusone.registry.ModEffects;
 import com.npjt25.godzillaminusone.registry.ModItems;
 import com.npjt25.godzillaminusone.registry.ModMenus;
 import com.npjt25.godzillaminusone.registry.ModParticles;
@@ -36,6 +37,7 @@ public class GodzillaMinusOne {
 
         ModEntities.ENTITIES.register(modBus);
         ModItems.ITEMS.register(modBus);
+        ModEffects.EFFECTS.register(modBus);
         ModSounds.SOUNDS.register(modBus);
         ModParticles.PARTICLES.register(modBus);
         ModCreativeTabs.TABS.register(modBus);

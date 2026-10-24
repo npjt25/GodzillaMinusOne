@@ -1,11 +1,13 @@
 package com.npjt25.godzillaminusone.registry;
 
 import com.npjt25.godzillaminusone.GodzillaMinusOne;
+import com.npjt25.godzillaminusone.item.HazmatSuitItem;
 import com.npjt25.godzillaminusone.item.NuclearBombItem;
 import com.npjt25.godzillaminusone.item.RemoteDetonatorItem;
 import com.npjt25.godzillaminusone.item.SearchlightItem;
 import com.npjt25.godzillaminusone.item.ShinseiMaruItem;
 import com.npjt25.godzillaminusone.item.TorridItem;
+import net.minecraft.world.item.ArmorItem;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.Rarity;
 import net.minecraftforge.common.ForgeSpawnEggItem;
@@ -26,6 +28,14 @@ public final class ModItems {
             () -> new RemoteDetonatorItem(new Item.Properties().stacksTo(1)));
     public static final RegistryObject<Item> SHINSEI_MARU = ITEMS.register("shinsei_maru",
             () -> new ShinseiMaruItem(new Item.Properties().stacksTo(1).rarity(Rarity.RARE)));
+    public static final RegistryObject<Item> HAZMAT_HOOD = ITEMS.register("hazmat_hood",
+            () -> new HazmatSuitItem(ArmorItem.Type.HELMET, new Item.Properties()));
+    public static final RegistryObject<Item> HAZMAT_SUIT = ITEMS.register("hazmat_suit",
+            () -> new HazmatSuitItem(ArmorItem.Type.CHESTPLATE, new Item.Properties()));
+    public static final RegistryObject<Item> HAZMAT_TROUSERS = ITEMS.register("hazmat_trousers",
+            () -> new HazmatSuitItem(ArmorItem.Type.LEGGINGS, new Item.Properties()));
+    public static final RegistryObject<Item> HAZMAT_BOOTS = ITEMS.register("hazmat_boots",
+            () -> new HazmatSuitItem(ArmorItem.Type.BOOTS, new Item.Properties()));
 
     // Godzilla's, the Shinden's and the naval mine's eggs use their own textures from the add-on, so both tint colours
     // are white (no tint); the Odo Island Monster's is a vanilla-style egg (item/template_spawn_egg) in his colours.

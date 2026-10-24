@@ -92,10 +92,10 @@ public final class Config {
                         "Shinden fighters, iron golems and hostile mobs.")
                 .define("targetsAllMobs", true);
         AURA_RADIUS = BUILDER
-                .comment("Radius of his radiation aura (Wither + \"RADIATION POISONING\"). Add-on: 16.")
+                .comment("Radius of his radiation aura: everything in it gets Radiation (a whole hazmat suit keeps it off). Add-on: 16.")
                 .defineInRange("auraRadius", 16, 0, 256);
         AURA_WITHER_AMPLIFIER = BUILDER
-                .comment("Wither amplifier of the radiation aura (0 = Wither I). Add-on: 25, which kills in seconds.")
+                .comment("Strength of the aura's Radiation (0 = Radiation I, which hurts like Wither I). Add-on: 25, which kills in seconds.")
                 .defineInRange("auraWitherAmplifier", 3, 0, 255);
         STEP_DAMAGE = BUILDER
                 .comment("Damage dealt every second to everything near him while he walks. Add-on: 150.")
@@ -157,10 +157,10 @@ public final class Config {
                 .comment("Everything within this many blocks of the blast is killed, except Shinden pilots (add-on: 2000 around Godzilla).")
                 .defineInRange("killRadius", 64, 0, 2000);
         ATOMIC_BLAST_RADIATION_RADIUS = BUILDER
-                .comment("Radius of the radiation (Wither) cloud after the blast (add-on: 300).")
+                .comment("Radius of the fallout after the blast: everything in it gets Radiation (a whole hazmat suit keeps it off; add-on: 300).")
                 .defineInRange("radiationRadius", 96, 0, 2000);
         ATOMIC_BLAST_RADIATION_AMPLIFIER = BUILDER
-                .comment("Wither amplifier of the blast's radiation (add-on: 25).")
+                .comment("Strength of the fallout's Radiation (0 = Radiation I; add-on: 25).")
                 .defineInRange("radiationAmplifier", 3, 0, 255);
         ATOMIC_BLAST_CRATER_RADIUS = BUILDER
                 .comment("Radius of the crater blasted out where the atomic breath lands: a bowl about half as deep as it is",

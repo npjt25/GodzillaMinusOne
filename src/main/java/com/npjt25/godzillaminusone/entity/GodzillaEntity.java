@@ -89,7 +89,8 @@ import java.util.List;
  *
  * <ul>
  *   <li>Spawning plays the emerge + roar sequence before he becomes active.</li>
- *   <li>Radiation aura: "RADIATION POISONING", Wither, and any Shinden that gets too close blows up.</li>
+ *   <li>Radiation aura: Radiation (entity.Radiation; a hazmat suit keeps it off), and any Shinden that gets too close
+ *       blows up.</li>
  *   <li>Every footfall shakes the camera, hurts everything around him and crushes a footprint into the ground.</li>
  *   <li>In deep water he swims at the surface, dorsal plates out of the water, and bites at boats.</li>
  *   <li>With a target he charges his atomic breath (the plates light up from the tail to the neck), breathes
@@ -703,20 +704,17 @@ public class GodzillaEntity extends Monster implements GeoEntity {
         }
     }
 
-    /** animation.gojira.idle timeline: radiation poisoning, Wither, and planes that fly too close explode. */
+    /**
+     * animation.gojira.idle timeline: everything near him gets Radiation (unless it's in a hazmat suit), and planes
+     * that fly too close explode.
+     */
     private void radiationAura(ServerLevel level) {
         int radius = Config.AURA_RADIUS.get();
         if (radius > 0) {
-            Component warning = Component.translatable("message." + GodzillaMinusOne.MODID + ".radiation")
-                    .withStyle(ChatFormatting.DARK_RED, ChatFormatting.BOLD);
             int amplifier = Config.AURA_WITHER_AMPLIFIER.get();
             for (LivingEntity entity : nearby(radius)) {
-                if (entity instanceof GodzillaEntity) {
-                    continue;
-                }
-                entity.addEffect(new MobEffectInstance(MobEffects.WITHER, 600, amplifier), this);
-                if (entity instanceof Player player) {
-                    player.displayClientMessage(warning, true);
+                if (!(entity instanceof GodzillaEntity)) {
+                    Radiation.irradiate(entity, 600, amplifier, this);
                 }
             }
             if (this.tickCount % 80 == 0) {

@@ -51,8 +51,12 @@
   "item.godzillaminusone.remote_detonator.no_target": "No naval mine in sight",
   "item.godzillaminusone.torrid": "Torrid",
   "item.godzillaminusone.torrid.desc": "The Shinden's cannon. Use it while flying.",
+  "item.godzillaminusone.hazmat_hood": "Hazmat Hood",
+  "item.godzillaminusone.hazmat_suit": "Hazmat Suit",
+  "item.godzillaminusone.hazmat_trousers": "Hazmat Trousers",
+  "item.godzillaminusone.hazmat_boots": "Hazmat Boots",
+  "item.godzillaminusone.hazmat.desc": "Wear all four pieces and Godzilla's radiation can't touch you.",
 
-  "message.godzillaminusone.radiation": "RADIATION POISONING",
   "message.godzillaminusone.black_rain": "Black Rain?",
   "message.godzillaminusone.nuke_incoming": "☢ Nuclear bomb incoming! Detonation in %s s",
 
@@ -68,6 +72,8 @@
   "death.attack.godzillaminusone.stomp.player": "%1$s was crushed under %2$s's feet",
   "death.attack.godzillaminusone.torrid": "%1$s was shot down by %2$s",
   "death.attack.godzillaminusone.torrid.player": "%1$s was shot down by %2$s",
+
+  "effect.godzillaminusone.radiation": "Radiation",
 
   "subtitles.godzillaminusone.godzilla.ambient": "Godzilla growls",
   "subtitles.godzillaminusone.godzilla.roar": "Godzilla roars",

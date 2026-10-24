@@ -1,0 +1,23 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "equipment",
+  "pattern": [
+    "B B",
+    "IKI",
+    "BBB"
+  ],
+  "key": {
+    "B": {
+      "item": "minecraft:blue_wool"
+    },
+    "I": {
+      "item": "minecraft:iron_ingot"
+    },
+    "K": {
+      "item": "minecraft:black_wool"
+    }
+  },
+  "result": {
+    "item": "godzillaminusone:hazmat_suit"
+  }
+}

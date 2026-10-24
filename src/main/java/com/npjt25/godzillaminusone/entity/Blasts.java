@@ -11,8 +11,6 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.Mth;
 import net.minecraft.world.damagesource.DamageSource;
-import net.minecraft.world.effect.MobEffectInstance;
-import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.item.ItemEntity;
@@ -135,7 +133,7 @@ public final class Blasts {
         int amplifier = Config.ATOMIC_BLAST_RADIATION_AMPLIFIER.get();
         for (LivingEntity entity : livingNear(level, impact, Config.ATOMIC_BLAST_RADIATION_RADIUS.get(), except)) {
             if (!(entity instanceof GodzillaEntity) && !(entity instanceof OdoIslandMonsterEntity odo && odo.isBurnt())) {
-                entity.addEffect(new MobEffectInstance(MobEffects.WITHER, 600, amplifier), source.getEntity());
+                Radiation.irradiate(entity, 600, amplifier, source.getEntity());
             }
         }
         // Ground zero: the ground under the impact, not the tree top or roof that happened to be hit.
