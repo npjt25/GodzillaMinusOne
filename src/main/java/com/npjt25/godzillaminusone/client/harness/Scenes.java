@@ -540,17 +540,33 @@ final class Scenes {
 
         // up into the empty sky: whatever is drawn in the middle of the view, lamp on, should be what's there lamp off
         double[] middle = new double[2];
+        int[][] whole = new int[2][];
         operatorLooks("searchlight operator: look up", 180.0F, -20.0F);
         waitTicks(20);
-        probe("searchlight operator: the middle of the view, lamp on", image -> middle[0] = ShotsHarness.middleBrightness(image));
+        probe("searchlight operator: the middle of the view, lamp on", image -> {
+            middle[0] = ShotsHarness.middleBrightness(image);
+            whole[0] = ShotsHarness.brightness(image);
+        });
         shot("searchlight_operator_sky_first_person");
         switchOperated("searchlight operator: lamp off", false);
         waitTicks(20);
-        probe("searchlight operator: the middle of the view, lamp off", image -> middle[1] = ShotsHarness.middleBrightness(image));
+        probe("searchlight operator: the middle of the view, lamp off", image -> {
+            middle[1] = ShotsHarness.middleBrightness(image);
+            whole[1] = ShotsHarness.brightness(image);
+        });
+        shot("searchlight_operator_sky_first_person_off");
         check("searchlight operator: nothing of the beam in the middle of the view", () -> {
             String detail = String.format("brightness in the middle %.1f lamp on, %.1f lamp off", middle[0], middle[1]);
             log("searchlight operator: " + detail);
             return Math.abs(middle[0] - middle[1]) < 3.0 ? null : detail;
+        });
+        check("searchlight operator: nothing of the beam anywhere in the view", () -> {
+            if (whole[0] == null || whole[1] == null) {
+                return "no pictures";
+            }
+            int n = ShotsHarness.brighter(whole[0], whole[1], 20);
+            log("searchlight operator: pixels brighter by more than 20 with the lamp on: " + n + " of " + whole[0].length);
+            return n < whole[0].length / 2000 ? null : n + " pixels brighter with the lamp on";
         });
         switchOperated("searchlight operator: lamp on", true);
         waitTicks(20);

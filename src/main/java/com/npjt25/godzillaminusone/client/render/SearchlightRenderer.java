@@ -137,6 +137,14 @@ public class SearchlightRenderer extends GeoEntityRenderer<SearchlightEntity> {
             return;
         }
         Vec3 from = lens.subtract(entity.position());
+        Minecraft mc = Minecraft.getInstance();
+        if (eye.distanceTo(from) < AT_THE_LAMP || mc.player != null && mc.player.getVehicle() == entity) {
+            // at the lamp (working it, in first or third person, or standing by it) the whole beam is seen down its
+            // length: nothing of it is drawn but where it lands (a shader pack lights up even its faintest stretch, a
+            // line into the middle of the view)
+            renderSpot(entity, hit, length, eye, buffer, poseStack.last().pose());
+            return;
+        }
         // across the beam (for when it's seen exactly end-on)
         Vec3 fallback = dir.cross(Math.abs(dir.y) > 0.95 ? new Vec3(1, 0, 0) : new Vec3(0, 1, 0)).normalize();
         Matrix4f pose = poseStack.last().pose();
@@ -223,12 +231,14 @@ public class SearchlightRenderer extends GeoEntityRenderer<SearchlightEntity> {
     private static final float GLOW = 0.16F;
     private static final float CORE = 0.22F;
     private static final double CORE_WIDTH = 0.3;
+    /** From this close to the lens (blocks) the beam is seen down its length: only where it lands is drawn. */
+    private static final double AT_THE_LAMP = 8.0;
     /** A stretch of the beam closer to the camera than this (blocks) fades out (it would fill the view). */
     private static final double NEAR = 2.0;
 
     /**
-     * How much of a stretch of the beam shows, seen from {@code toEye} away: all of it seen more than about 15 degrees
-     * off its line, none of it seen end-on (within about 3 degrees), nor right by the camera.
+     * How much of a stretch of the beam shows, seen from {@code toEye} away: all of it seen more than about 25 degrees
+     * off its line, none of it seen within about 8 degrees of end-on, nor right by the camera.
      */
     private static double sideOn(Vec3 dir, Vec3 toEye) {
         double distance = toEye.length();
@@ -236,7 +246,7 @@ public class SearchlightRenderer extends GeoEntityRenderer<SearchlightEntity> {
             return 0.0;
         }
         double sine = dir.cross(toEye).length() / distance;
-        double side = Mth.clamp((sine - 0.05) / 0.2, 0.0, 1.0);
+        double side = Mth.clamp((sine - 0.14) / 0.28, 0.0, 1.0);
         double near = Mth.clamp((distance - 0.5) / (NEAR - 0.5), 0.0, 1.0);
         return side * side * (3.0 - 2.0 * side) * near;
     }

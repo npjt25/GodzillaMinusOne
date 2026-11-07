@@ -524,6 +524,29 @@ public final class ShotsHarness {
         return sum / (side * side);
     }
 
+    /** Each pixel's brightness (0 to 255), row by row. */
+    static int[] brightness(NativeImage image) {
+        int[] out = new int[image.getWidth() * image.getHeight()];
+        for (int y = 0; y < image.getHeight(); y++) {
+            for (int x = 0; x < image.getWidth(); x++) {
+                int p = image.getPixelRGBA(x, y); // (ABGR)
+                out[y * image.getWidth() + x] = (int) (0.299 * (p & 0xFF) + 0.587 * (p >> 8 & 0xFF) + 0.114 * (p >> 16 & 0xFF));
+            }
+        }
+        return out;
+    }
+
+    /** How many pixels are brighter in {@code on} than in {@code off} by more than {@code by}. */
+    static int brighter(int[] on, int[] off, int by) {
+        int n = 0;
+        for (int i = 0; i < Math.min(on.length, off.length); i++) {
+            if (on[i] - off[i] > by) {
+                n++;
+            }
+        }
+        return n;
+    }
+
     static int now() {
         return ticks;
     }
