@@ -483,6 +483,12 @@ public final class ModGameTests {
         Player player = helper.makeMockPlayer();
         player.setItemInHand(InteractionHand.MAIN_HAND, found.copyWithCount(1));
         BlockPos ground = helper.absolutePos(new BlockPos(4, floorY(helper), 4));
+        // (its own bit of floor, clear above: the tests run on ground near each other, and a crash or a blast next door
+        // can have holed this one)
+        level.setBlockAndUpdate(ground, Blocks.STONE.defaultBlockState());
+        for (int up = 1; up <= 3; up++) {
+            level.setBlockAndUpdate(ground.above(up), Blocks.AIR.defaultBlockState());
+        }
         found.copyWithCount(1).useOn(new UseOnContext(player, InteractionHand.MAIN_HAND,
                 new BlockHitResult(Vec3.atCenterOf(ground).add(0.0, 0.5, 0.0), Direction.UP, ground, false)));
         List<NavalMineEntity> placed = level.getEntitiesOfClass(NavalMineEntity.class, new AABB(ground).inflate(2.0));
