@@ -459,11 +459,14 @@ have him; the camera pulls back to show all of him; **J** bites (a pig in his ja
 **K** each make their own move (the server sees a tail whip, a scratch, a roar); his Roar rebound from K to N as
 Controls does it: N roars, K does nothing, the list on screen shows N, and the binding is saved in `options.txt` (then
 put back on K); **B** roots him from the charge to the end of the roar after the beam (he can't walk meanwhile), then
-he's free and walks again; walking, he breaks through a building in his way; changing back frees him, and his keys stop
-counting. As the Odo, taken through **ReMorphed** (the request its morph menu sends): Left Control (sent as the
-keyboard sends it) runs at **12.00 blocks a second** in each of three stretches of 20 ticks, measured by the distance
-he covers (walking: 4.32), with one speed-up on him and no more; letting go takes it off; a left click bites; changed
-back, his speed attribute is the player's own again (0.1, both sides) and he walks 4.32 blocks a second. What wasn't
+he's free and walks again; walking, he breaks through a building in his way; **climbing (as he starts out) he walks up
+onto a 6-block rock ledge**; **M switches him to Walk Through and he walks through a 21-block-high bedrock wall** on the
+ground, the server agreeing where he is (no snapping back); M again, back to climbing; changing back frees him, and his
+keys stop counting. As the Odo, taken through **ReMorphed** (the request its morph menu sends): **third person on its
+own** (first person asked for, it's back in third at once), the camera standing back to show all of him; **12.00 blocks a
+second with no key held** in each of three stretches of 20 ticks, measured by the distance he covers, and 12.00
+sprinting too, with one speed-up on him and no more; a left click bites; changed back, his speed attribute is the
+player's own again (0.1, both sides) and he walks 4.32 blocks a second. What wasn't
 checked: two players (what one sees of the other's moves), ReMorphed's menu screen itself and unlocking by defeating
 him, and a key held with Shift or Ctrl down (the test presses keys as the keyboard sends them, but can't hold real
 modifier keys).
