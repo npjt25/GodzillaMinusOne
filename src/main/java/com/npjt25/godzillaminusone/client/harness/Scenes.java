@@ -196,11 +196,18 @@ final class Scenes {
         shot("hazmat_side");
 
         // without the suit: Radiation, its icon on screen (the radiation trefoil)
-        server("hazmat: off, and irradiated", level -> {
+        server("hazmat: off", level -> suit(serverPlayer(level), false));
+        waitTicks(5);
+        server("hazmat: irradiated", level -> {
             ServerPlayer player = serverPlayer(level);
-            suit(player, false);
-            player.addEffect(new net.minecraft.world.effect.MobEffectInstance(ModEffects.RADIATION.get(), 600, 0));
+            boolean added = player.addEffect(new net.minecraft.world.effect.MobEffectInstance(ModEffects.RADIATION.get(), 600, 0));
+            log("hazmat: Radiation added: " + added + ", shielded " + Radiation.shielded(player) + ", armour "
+                    + player.getInventory().armor + ", effects " + player.getActiveEffects() + ", game mode "
+                    + player.gameMode.getGameModeForPlayer() + ", alive " + player.isAlive());
         });
+        waitTicks(5);
+        checkServer("hazmat: Radiation on the player (server)", level -> serverPlayer(level).hasEffect(ModEffects.RADIATION.get())
+                ? null : "none; effects " + serverPlayer(level).getActiveEffects());
         once("hazmat: first person, the HUD on", () -> {
             view(null, null);
             mc().options.setCameraType(CameraType.FIRST_PERSON);
