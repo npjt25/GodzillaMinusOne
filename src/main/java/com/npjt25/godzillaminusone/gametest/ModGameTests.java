@@ -1039,6 +1039,40 @@ public final class ModGameTests {
         });
     }
 
+    /**
+     * Going for someone with a building in the way (a wall of deepslate bricks and polished deepslate, which he used to
+     * take for rock and stand stuck behind), the Odo Island Monster breaks and bites his way through it to them.
+     */
+    @GameTest(template = FLOOR, batch = "gmo_odo_wall", timeoutTicks = 600)
+    public static void theOdoMonsterBreaksThroughAWallToWhoeverHesAfter(GameTestHelper helper) {
+        int floor = floorY(helper);
+        Runnable release = room(helper, floor, -7, -4, 15, 34, 16);
+        for (int x = -7; x <= 15; x++) {
+            for (int y = floor + 1; y <= floor + 12; y++) {
+                helper.setBlock(new BlockPos(x, y, 14), (y % 2 == 0 ? Blocks.DEEPSLATE_BRICKS : Blocks.POLISHED_DEEPSLATE).defaultBlockState());
+            }
+        }
+        OdoIslandMonsterEntity odo = spawnOdo(helper, floor, 4);
+        Pig prey = helper.spawn(EntityType.PIG, new Vec3(4.5, floor + 1, 24.5));
+        prey.setNoAi(true);
+        odo.setTarget(prey);
+        float full = prey.getHealth();
+        BlockPos origin = helper.absolutePos(BlockPos.ZERO);
+        helper.onEachTick(() -> {
+            if (helper.getTick() % 40 == 0) {
+                GodzillaMinusOne.LOGGER.info("odo wall tick {}: odo at {}, target {}, wall {} blocks; {}", helper.getTick(),
+                        BlockPos.containing(odo.position()).subtract(origin).toShortString(), odo.getTarget() == null ? "none" : "the pig",
+                        countBlocks(helper, Blocks.DEEPSLATE_BRICKS, -7, floor + 1, 14, 15, floor + 12, 14)
+                                + countBlocks(helper, Blocks.POLISHED_DEEPSLATE, -7, floor + 1, 14, 15, floor + 12, 14), odo.debugState());
+            }
+        });
+        helper.succeedWhen(() -> {
+            helper.assertTrue(!prey.isAlive() || prey.getHealth() < full, "he should break through the wall and get his jaws on the pig");
+            remove(odo, prey);
+            release.run();
+        });
+    }
+
     private static final java.util.Set<String> ODO_TOWERS_DONE = new java.util.HashSet<>();
 
     /** (logs the tick the light went, once per run) */

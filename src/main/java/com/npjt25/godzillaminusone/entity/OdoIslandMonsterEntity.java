@@ -12,6 +12,7 @@ import net.minecraft.network.syncher.SynchedEntityData;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundSource;
+import net.minecraft.tags.BlockTags;
 import net.minecraft.tags.DamageTypeTags;
 import net.minecraft.util.Mth;
 import net.minecraft.world.damagesource.DamageSource;
@@ -155,6 +156,10 @@ public class OdoIslandMonsterEntity extends Monster implements GeoEntity {
     // headway towards the hunted searchlight: the closest he's come (horizontally) and how long since he got closer
     private double lightBest = Double.MAX_VALUE;
     private int lightStuckTicks;
+    // and towards whoever he's going for: the closest he's come, how long since he got closer, and who it is
+    private double chaseBest = Double.MAX_VALUE;
+    private int chaseStuckTicks;
+    private int chaseId = -1;
     private int pendingHitTicks = -1;
     private boolean pendingStomp;
     /** The searchlight that caught him in its beam: he's going to smash it. */
@@ -601,6 +606,29 @@ public class OdoIslandMonsterEntity extends Monster implements GeoEntity {
                 && (stuck || hunted.position().distanceTo(position()) < TEAR_DOWN_RANGE)) {
             tearDownTowards(level, hunted, stuck);
         }
+        if (hunted == null && target != null && this.roarTicks <= 0) {
+            // going for someone: a building in the way (and he's made no headway for a while, or he's walked into it)
+            // is torn down between him and them, the same as one in the way of a searchlight
+            if (target.getId() != this.chaseId) {
+                this.chaseId = target.getId();
+                this.chaseBest = Double.MAX_VALUE;
+                this.chaseStuckTicks = 0;
+            }
+            double d = Math.sqrt(target.position().subtract(position()).horizontalDistanceSqr());
+            boolean reach = inBiteReach(target) || inStompReach(target);
+            if (d < this.chaseBest - 0.5 || reach) {
+                this.chaseBest = Math.min(this.chaseBest, d);
+                this.chaseStuckTicks = 0;
+            } else {
+                this.chaseStuckTicks++;
+            }
+            boolean blocked = this.chaseStuckTicks >= STUCK_TICKS;
+            if (!reach && (blocked || this.horizontalCollision) && this.tickCount % 5 == 0 && ForgeEventFactory.getMobGriefingEvent(level, this)) {
+                tearDownTowards(level, target, blocked);
+            }
+        } else if (target == null) {
+            this.chaseId = -1;
+        }
         if (this.huntedLight != null && !this.huntedLight.isAlive()) {
             // someone else broke it (or knocked it back into its item): straight on to whoever was working it
             this.huntedLight = null;
@@ -614,6 +642,8 @@ public class OdoIslandMonsterEntity extends Monster implements GeoEntity {
             if (light != null && inReachOfLight(light)) {
                 if (this.pendingStomp) {
                     stomp(level);
+                } else {
+                    biteThrough(level);
                 }
                 smashLight();
             } else if (this.pendingStomp) {
@@ -647,17 +677,17 @@ public class OdoIslandMonsterEntity extends Monster implements GeoEntity {
     }
 
     /**
-     * The searchlight is on or in a building he can't get his jaws to: he tears through whatever stands between him and
-     * it, whatever it's made of (but not the ground), and once he's under it, the building it stands on comes down, and
-     * the light with it.
+     * The searchlight (or whoever he's going for) is on or in a building he can't get his jaws to: he tears through
+     * whatever stands between him and it, whatever it's made of (but not the ground), and once he's under it, the
+     * building it stands on comes down, and a searchlight with it.
      */
-    private void tearDownTowards(ServerLevel level, SearchlightEntity light, boolean stuck) {
-        Vec3 to = light.position().subtract(position());
+    private void tearDownTowards(ServerLevel level, Entity goal, boolean stuck) {
+        Vec3 to = goal.position().subtract(position());
         double horizontal = Math.sqrt(to.x * to.x + to.z * to.z);
         AABB box = getBoundingBox().expandTowards(Mth.clamp(to.x, -4.0, 4.0), 0.0, Mth.clamp(to.z, -4.0, 4.0)).inflate(0.5, 0.0, 0.5);
-        if (horizontal < BITE_RADIUS + 4.0 && light.getY() > getY()) {
+        if (horizontal < BITE_RADIUS + 4.0 && goal.getY() > getY()) {
             // close under it: bring down what it stands on
-            box = box.minmax(new AABB(light.getX() - 2.0, getY() + 1.0, light.getZ() - 2.0, light.getX() + 2.0, light.getY(), light.getZ() + 2.0));
+            box = box.minmax(new AABB(goal.getX() - 2.0, getY() + 1.0, goal.getZ() - 2.0, goal.getX() + 2.0, goal.getY(), goal.getZ() + 2.0));
         }
         BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
         int broken = 0;
@@ -682,7 +712,7 @@ public class OdoIslandMonsterEntity extends Monster implements GeoEntity {
                 }
             }
         }
-        if (horizontal < BITE_RADIUS + 4.0 && light.getY() > getY() + 1.0) {
+        if (goal instanceof SearchlightEntity light && horizontal < BITE_RADIUS + 4.0 && light.getY() > getY() + 1.0) {
             BlockPos under = BlockPos.containing(light.getX(), light.getY() - 0.5, light.getZ());
             if (level.getBlockState(under).getCollisionShape(level, under).isEmpty()) {
                 // nothing left holding it up: it comes down with the building
@@ -696,7 +726,10 @@ public class OdoIslandMonsterEntity extends Monster implements GeoEntity {
         return Mth.floor(getY() + 1.0E-3);
     }
 
-    /** Trees, plants, fences and glass in his way give; stone and earth don't. */
+    /**
+     * Walking into it, whatever is built in his way gives (walls of brick, stone, concrete, iron..., anything short of
+     * obsidian), and so do trees and plants; the ground (rock and earth as the world made them) doesn't: he climbs it.
+     */
     private void crashThrough(ServerLevel level) {
         Vec3 fwd = Vec3.directionFromRotation(0.0F, getYRot());
         AABB box = getBoundingBox().expandTowards(fwd.x * 2.0, 0.0, fwd.z * 2.0).inflate(0.5, 0.0, 0.5);
@@ -710,9 +743,9 @@ public class OdoIslandMonsterEntity extends Monster implements GeoEntity {
                         continue;
                     }
                     float hardness = state.getDestroySpeed(level, pos);
-                    float strength = isFrenzied() ? 3.0F : 2.0F; // in a frenzy, wooden doors and planks give too
-                    if (hardness >= 0.0F && hardness <= strength && Destruction.canBreak(level, pos, state, this)) {
-                        level.destroyBlock(pos, true, this);
+                    boolean built = GodzillaEntity.isBuilt(state) && !state.is(BlockTags.LOGS);
+                    if (hardness >= 0.0F && (built ? hardness < 50.0F : hardness <= 2.0F) && Destruction.canBreak(level, pos, state, this)) {
+                        level.destroyBlock(pos, !built, this); // (a tree's wood drops; a building is just rubble)
                         if (++broken >= 60) {
                             return;
                         }
@@ -761,6 +794,64 @@ public class OdoIslandMonsterEntity extends Monster implements GeoEntity {
         if (target != null && target.isAlive() && inBiteReach(target)) {
             doHurtTarget(target);
         }
+        biteThrough(level);
+    }
+
+    /**
+     * His jaws close: whatever is built where they close is bitten through (anything short of obsidian; not what he's
+     * standing on). So walled in, or with a building between him and whoever he's after, he bites his way through.
+     */
+    private void biteThrough(ServerLevel level) {
+        if (!ForgeEventFactory.getMobGriefingEvent(level, this)) {
+            return;
+        }
+        Vec3 jaws = at(JAWS);
+        int r = Mth.ceil(BITE_RADIUS);
+        BlockPos middle = BlockPos.containing(jaws);
+        BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
+        int broken = 0;
+        for (int dy = r; dy >= -r; dy--) {
+            if (middle.getY() + dy < feetRow()) {
+                continue;
+            }
+            for (int dx = -r; dx <= r; dx++) {
+                for (int dz = -r; dz <= r; dz++) {
+                    if (dx * dx + dy * dy + dz * dz > BITE_RADIUS * BITE_RADIUS) {
+                        continue;
+                    }
+                    BlockState state = level.getBlockState(pos.set(middle.getX() + dx, middle.getY() + dy, middle.getZ() + dz));
+                    if (!GodzillaEntity.isBuilt(state)) {
+                        continue;
+                    }
+                    float hardness = state.getDestroySpeed(level, pos);
+                    if (hardness >= 0.0F && hardness < 50.0F && Destruction.canBreak(level, pos, state, this)) {
+                        level.destroyBlock(pos, false, this);
+                        if (++broken >= 120) {
+                            return;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /** Whether there's something built where his jaws would close (a wall in front of him): something to bite through. */
+    boolean builtAtJaws() {
+        BlockPos jaws = BlockPos.containing(at(JAWS.multiply(1.0, 1.0, 0.6)));
+        for (BlockPos pos : BlockPos.betweenClosed(jaws.offset(-1, -1, -1), jaws.offset(1, 1, 1))) {
+            if (GodzillaEntity.isBuilt(level().getBlockState(pos))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** Up against a wall going for someone (or a searchlight): he bites into it. */
+    void biteAtWall() {
+        this.pendingStomp = false;
+        this.pendingHitTicks = BITE_HIT;
+        this.attackCooldown = isFrenzied() ? 12 : 24;
+        triggerAnim("action", this.random.nextBoolean() ? "bite" : "bite2");
     }
 
     private void stomp(ServerLevel level) {
@@ -988,6 +1079,10 @@ public class OdoIslandMonsterEntity extends Monster implements GeoEntity {
                 return;
             }
 
+            if (this.odo.horizontalCollision && this.odo.attackCooldown <= 0 && this.odo.pendingHitTicks < 0 && this.odo.roarTicks <= 0
+                    && this.odo.builtAtJaws()) {
+                this.odo.biteAtWall(); // a wall between them: he bites his way through
+            }
             double speed = this.odo.rageTicks > 0 && this.odo.distanceTo(target) > (this.odo.isFrenzied() ? 8.0 : 14.0) ? RUN_SPEED : 1.0;
             // aim a little short, so his jaws (10 blocks ahead of his middle) end up on the target
             Vec3 toTarget = target.position().subtract(this.odo.position());
@@ -1046,6 +1141,9 @@ public class OdoIslandMonsterEntity extends Monster implements GeoEntity {
                 return;
             }
             this.odo.getLookControl().setLookAt(light.getX(), light.getY() + SearchlightEntity.LENS_HEIGHT, light.getZ(), 30.0F, 30.0F);
+            if (this.odo.horizontalCollision && this.odo.attackCooldown <= 0 && this.odo.pendingHitTicks < 0 && this.odo.builtAtJaws()) {
+                this.odo.biteAtWall();
+            }
             Vec3 to = light.position().subtract(this.odo.position());
             // he stops short of a light at his head's height (his jaws reach out in front of him); one up on or in a
             // building he goes right up to, tearing his way in and bringing down what it stands on
