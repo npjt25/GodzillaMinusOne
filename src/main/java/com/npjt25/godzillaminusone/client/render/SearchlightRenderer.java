@@ -87,6 +87,7 @@ public class SearchlightRenderer extends GeoEntityRenderer<SearchlightEntity> {
             }
             Vec3 cam = event.getCamera().getPosition();
             float partialTick = event.getPartialTick();
+            fogEnd = mc.gameRenderer.getRenderDistance() * (ShaderPacks.inUse() ? 0.7 : 0.95);
             PoseStack poseStack = event.getPoseStack();
             MultiBufferSource.BufferSource buffers = mc.renderBuffers().bufferSource();
             boolean any = false;
@@ -119,7 +120,13 @@ public class SearchlightRenderer extends GeoEntityRenderer<SearchlightEntity> {
      * facing you is seen edge-on down its length, and every stretch of it piles up on the same few pixels where the beam
      * vanishes into the distance: right in the middle of the operator's view. So each stretch fades out as the line of
      * sight to it comes in line with the beam ({@link #sideOn}), as a shaft of light seen down its length is just the
-     * light where it lands; and so it does where it passes right by the camera ({@link #NEAR}).
+     * light where it lands; and so it does where it passes right by the camera ({@link #NEAR}), and far off, into the
+     * fog at the edge of what's drawn ({@link #fog}).
+     *
+     * <p>Those fades narrow the strips as well as dimming them, down to nothing (and a stretch faded out isn't drawn
+     * at all): shader packs (Iris / Oculus) draw it their own way, often taking no notice of how see-through it is,
+     * and then only its shape fades it. That's what left a thin bright line in the middle of the view, and pools of
+     * light hanging in the fog, with shaders on.
      */
     private static void renderBeam(SearchlightEntity entity, float[] aim, Vec3 eye, PoseStack poseStack, VertexConsumer buffer) {
         Vec3 dir = SearchlightEntity.beamDirection(aim[0], aim[1]);
@@ -141,19 +148,73 @@ public class SearchlightRenderer extends GeoEntityRenderer<SearchlightEntity> {
             Vec3 c1 = from.add(dir.scale(d1));
             Vec3 e0 = eye.subtract(c0);
             Vec3 e1 = eye.subtract(c1);
-            float alpha0 = (float) (Math.pow(1.0 - d0 / length, 1.3) * sideOn(dir, e0));
-            float alpha1 = (float) (Math.pow(1.0 - d1 / length, 1.3) * sideOn(dir, e1));
-            if (alpha0 <= 0.002F && alpha1 <= 0.002F) {
+            double f0 = sideOn(dir, e0) * fog(e0.length());
+            double f1 = sideOn(dir, e1) * fog(e1.length());
+            if (f0 < HIDDEN && f1 < HIDDEN) {
                 continue;
             }
+            float alpha0 = (float) (Math.pow(1.0 - d0 / length, 1.3) * f0);
+            float alpha1 = (float) (Math.pow(1.0 - d1 / length, 1.3) * f1);
             Vec3 w0 = across(dir, e0, fallback);
             Vec3 w1 = across(dir, e1, fallback);
-            double r0 = SearchlightEntity.beamRadius(d0);
-            double r1 = SearchlightEntity.beamRadius(d1);
+            double r0 = SearchlightEntity.beamRadius(d0) * f0;
+            double r1 = SearchlightEntity.beamRadius(d1) * f1;
             shaft(buffer, pose, c0, c1, w0.scale(r0), w1.scale(r1), GLOW * alpha0, GLOW * alpha1);
             shaft(buffer, pose, c0, c1, w0.scale(r0 * CORE_WIDTH), w1.scale(r1 * CORE_WIDTH), CORE * alpha0, CORE * alpha1);
         }
-        renderSpot(entity, hit, length, buffer, pose);
+        renderSpot(entity, hit, length, eye, buffer, pose);
+    }
+
+    /** Whether a shader pack (Iris / Oculus) is drawing the world (for the in-game checks). */
+    public static boolean shaderPackInUse() {
+        return ShaderPacks.inUse();
+    }
+
+    /** Below this much of it showing, a stretch of beam (or a square of its pool) isn't drawn at all. */
+    private static final double HIDDEN = 0.08;
+    /** Where the fog closes in this frame (blocks from the camera): what's drawn ends there. */
+    private static double fogEnd = 256.0;
+
+    /** How much of what's {@code distance} from the camera shows through the fog: all of it near, none at its edge. */
+    private static double fog(double distance) {
+        double f = Mth.clamp((fogEnd - distance) / (fogEnd * 0.45), 0.0, 1.0);
+        return f * f * (3.0 - 2.0 * f);
+    }
+
+    /**
+     * Whether a shader pack is in use (Iris, or Oculus on Forge: their public API, looked up by name, so neither is
+     * needed). Then the fog closes in sooner (packs thicken it), and the beam fades into it sooner.
+     */
+    static final class ShaderPacks {
+        private static boolean lookedUp;
+        @org.jetbrains.annotations.Nullable
+        private static Object api;
+        @org.jetbrains.annotations.Nullable
+        private static java.lang.reflect.Method inUse;
+
+        static boolean inUse() {
+            if (!lookedUp) {
+                lookedUp = true;
+                try {
+                    Class<?> type = Class.forName("net.irisshaders.iris.api.v0.IrisApi");
+                    api = type.getMethod("getInstance").invoke(null);
+                    inUse = type.getMethod("isShaderPackInUse");
+                } catch (ReflectiveOperationException | LinkageError | RuntimeException e) {
+                    api = null; // (no Iris / Oculus)
+                }
+            }
+            if (api == null || inUse == null) {
+                return false;
+            }
+            try {
+                return (Boolean) inUse.invoke(api);
+            } catch (ReflectiveOperationException | RuntimeException e) {
+                return false;
+            }
+        }
+
+        private ShaderPacks() {
+        }
     }
 
     /** Length of each stretch of the beam (blocks, about). */
@@ -203,7 +264,7 @@ public class SearchlightRenderer extends GeoEntityRenderer<SearchlightEntity> {
      * The pool of light where it lands, on the face it hits: the squares of the block grid within its radius, each lit
      * by how close it is to the middle (a few distinct steps), a little off the surface so it doesn't flicker.
      */
-    private static void renderSpot(SearchlightEntity entity, HitResult beamHit, double length, VertexConsumer buffer, Matrix4f pose) {
+    private static void renderSpot(SearchlightEntity entity, HitResult beamHit, double length, Vec3 eye, VertexConsumer buffer, Matrix4f pose) {
         if (!(beamHit instanceof BlockHitResult hit) || hit.getType() != HitResult.Type.BLOCK) {
             return;
         }
@@ -215,10 +276,17 @@ public class SearchlightRenderer extends GeoEntityRenderer<SearchlightEntity> {
         Direction.Axis va = axis == Direction.Axis.Z ? Direction.Axis.Y : Direction.Axis.Z;
         Vec3 u = unit(ua);
         Vec3 v = unit(va);
-        double radius = SearchlightEntity.spotRadius(length);
-        double cell = radius > 8.0 ? 1.0 : 0.5;
         // the further it lands, the dimmer the pool
         float fade = (float) Math.max(0.25, Math.pow(1.0 - Math.min(length / SearchlightEntity.RANGE, 1.0), 0.8));
+        // ...and out in the fog, it goes with what it lights (it doesn't hang there in the fog on its own); a pool too far
+        // off to show is left out, and one going into the fog shrinks as it fades
+        double seen = fog(at.subtract(entity.position()).subtract(eye).length());
+        if (seen < HIDDEN) {
+            return;
+        }
+        fade *= (float) seen;
+        double radius = SearchlightEntity.spotRadius(length) * Math.sqrt(Math.min(1.0, (seen - HIDDEN) / 0.5 + 0.3));
+        double cell = radius > 8.0 ? 1.0 : 0.5;
         double cu = at.get(ua);
         double cv = at.get(va);
         Vec3 plane = unit(axis).scale(at.get(axis) - entity.position().get(axis)).add(normal.scale(0.06));

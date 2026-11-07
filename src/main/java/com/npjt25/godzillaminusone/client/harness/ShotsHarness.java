@@ -79,8 +79,9 @@ import java.util.function.Supplier;
 public final class ShotsHarness {
     public static final boolean ENABLED = Boolean.getBoolean("godzillaminusone.shots");
     /**
-     * Which script: "all" (the default: every scene, in a flat world), or "ocean" (-Dgodzillaminusone.shots.scene=ocean:
-     * only the Shinsei Maru on a real ocean, in a normal world, for Physics Mod's waves).
+     * Which script: "all" (the default: every scene, in a flat world), "ocean" (-Dgodzillaminusone.shots.scene=ocean:
+     * only the Shinsei Maru on a real ocean, in a normal world, for Physics Mod's waves), or "searchlight" (only the
+     * searchlight's scenes, in a flat world: with a shader pack on, CI's "shaders" job).
      */
     static final String SCENE = System.getProperty("godzillaminusone.shots.scene", "all");
     /** Everything has to be done within this many ticks of the world loading (30 minutes). */
@@ -148,6 +149,8 @@ public final class ShotsHarness {
                     log("world loaded; sound engine: " + mc.getSoundManager().getDebugString());
                     if (SCENE.equals("ocean")) {
                         Scenes.oceanScript();
+                    } else if (SCENE.equals("searchlight")) {
+                        Scenes.searchlightScript();
                     } else {
                         Scenes.script();
                     }

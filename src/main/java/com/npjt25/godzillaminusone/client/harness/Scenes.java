@@ -94,6 +94,22 @@ final class Scenes {
         ShapeScenes.script(); // (with Walkers installed: CI's client-shapes job)
     }
 
+    /**
+     * Only the searchlight's scenes (CI's "shaders" job: with Oculus and a shader pack on, which draw the beam their own
+     * way): its beam over water and ice, and worked from it, with nothing of it in the middle of the view.
+     */
+    static void searchlightScript() {
+        commands("gamerule doMobSpawning false", "time set 6000", "weather clear");
+        waitTicks(20);
+        check("shaders: a shader pack in use", () -> {
+            boolean on = com.npjt25.godzillaminusone.client.render.SearchlightRenderer.shaderPackInUse();
+            log("shaders: shader pack in use: " + on);
+            return on ? null : "no shader pack in use (Oculus missing, or the pack didn't load)";
+        });
+        searchlight();
+        searchlightOperator();
+    }
+
     private static Minecraft mc() {
         return Minecraft.getInstance();
     }

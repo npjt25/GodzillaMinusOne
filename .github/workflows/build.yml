@@ -160,6 +160,11 @@ jobs:
           - with: physicsmod-ocean
             mods: physicsmod
             scene: ocean
+          # (only the searchlight, with a shader pack on: Oculus and Embeddium, and Complementary Reimagined)
+          - with: shaders
+            mods: oculus embeddium
+            shaderpack: complementary-reimagined
+            scene: searchlight
     steps:
       - uses: actions/checkout@v4
 
@@ -180,6 +185,7 @@ jobs:
         shell: bash
         env:
           MODS: ${{ matrix.mods }}
+          SHADERPACK: ${{ matrix.shaderpack || '' }}
         run: |
           pip install --quiet 'portablemc>=4.3,<5'
           mkdir -p mc/mods
@@ -197,6 +203,22 @@ jobs:
               print(slug, version['version_number'], file['filename'])
               urllib.request.urlretrieve(file['url'], 'mc/mods/' + file['filename'])
           PY
+          if [ -n "$SHADERPACK" ]; then
+            mkdir -p mc/shaderpacks mc/config
+            python3 - <<'PY'
+          import json, os, urllib.request
+          slug = os.environ['SHADERPACK']
+          versions = json.load(urllib.request.urlopen('https://api.modrinth.com/v2/project/' + slug
+                                                      + '/version?game_versions=%5B%221.20.1%22%5D'))
+          file = next((f for f in versions[0]['files'] if f['primary']), versions[0]['files'][0])
+          print(slug, versions[0]['version_number'], file['filename'])
+          urllib.request.urlretrieve(file['url'], 'mc/shaderpacks/' + file['filename'])
+          for name in ('oculus.properties', 'iris.properties'):
+              with open('mc/config/' + name, 'w') as f:
+                  f.write('enableShaders=true\nshaderPack=' + file['filename'] + '\n')
+          PY
+            ls -la mc/shaderpacks; cat mc/config/oculus.properties
+          fi
           ls -la mc/mods
           portablemc --output human --main-dir mc --work-dir mc start --dry forge:1.20.1-47.3.0
 
@@ -218,7 +240,7 @@ jobs:
       - name: Screenshots
         if: always()
         shell: bash
-        run: grep -o "GMO-IMG \(shape\|boat\|ocean\).*" client.log || true
+        run: grep -o "GMO-IMG \(shape\|boat\|ocean\|searchlight\).*" client.log || true
 
       - name: Upload screenshots
         if: always()
