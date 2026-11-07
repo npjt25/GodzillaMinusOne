@@ -5,29 +5,33 @@
 ## Godzilla (`godzillaminusone:godzilla`)
 - Boss mob, GojiDraw's model scaled to ~45 blocks tall, ~76 long. Phases: emerge from ground → roar → active → collapse → dead → regenerate.
 - Roar heard up to 3000 blocks away (louder as you get closer); from 200 blocks on, listeners hear distant-roar recordings instead (alternating). Roars every 2 min (configurable).
-- Radiation aura (Wither) within 16 blocks. Footsteps shake the camera, hurt nearby mobs and crush footprints into the ground.
+- Radiation aura within 16 blocks gives the mod's own **Radiation** effect (trefoil icon; no on-screen warning); a full **hazmat suit** blocks it. Footsteps shake the camera, hurt nearby mobs and crush footprints into the ground.
 - Smashes through blocks; **buildings topple over** as he walks through/swipes them (falling blocks).
 - Knocks tall buildings (≥ half his ~45-block height, 23) down to a quarter (11) when nothing else to fight, then rests `demolitionIntervalSeconds` (20) before the next.
-- Melee combo: two claw swipes, a full-body spin with a whip-snap tail; a real bite (lunge + jaw snap, bite sound), stomps below, tail swing behind.
+- Melee combo: two claw swipes, a full-body spin with a whip-snap tail; a real bite (lunge + jaw snap, bite sound), stomps below, tail swing behind. Claws tear through what's built where they rake; the tail knocks away what's built round him (low, out to 30/38 blocks).
 - Only breathes at targets **≥75 blocks** away (`minTargetDistance`); closer ones get melee. After the beam he roars once (full roar) and goes back to normal.
 - **Atomic breath:** dorsal plates light up blue tail-to-neck, 4-second in-breath while his **mouth glows blue, brighter until it's white-hot just before firing**; he rears up and fires. His **head turns to aim** (left/right up to 50°, up/down) and the beam comes **out between his jaws**. Plates slam down as the beam fires.
 - 2 s after impact, a **nuclear blast**: kills nearby, ~96-wide crater, blast wave, **levels land above Y 65 within 60 blocks** (no drops), and **ruins everything out to 100 blocks** (burnt bare trees, charred trunks, broken glass, holed walls/roofs, cracked stone, dead crops, fires). Black rain particles.
 - Breath recharges in 3 min (configurable); not usable in his first 2–3 minutes. Burns his own mouth (heals over 40 s).
 - Swims in deep water with plates showing; head periodically surfaces to glare. **In the water the Shinsei Maru boat is his main target.**
-- Only naval mines hurt him; at zero health he collapses, lies down `downedSeconds` (15), then regenerates. Exception: while his mouth is burnt after a breath, a Shinden crashed into his **face** defeats him outright.
+- Only naval mines hurt him; at zero health he collapses, lies down `downedSeconds` (15; also **Lies Downed** in the in-game config screen), then regenerates. Exceptions: while his mouth is burnt after a breath, a Shinden crashed into his **face** defeats him outright; and during his 4 s **in-breath** before the beam, a Shinden brings him down in **one hit** (crash, kamikaze near him, or a Torrid burst; `shindenInhaleKnockout`).
 
 ## The atomic blast (visuals)
 Film-accurate "Ginza blast" sequence: flash, fireball, dust ring/shockwave, rising column, mushroom cap (built from Alex's Caves cloud textures), cooling, mature cloud, slow break-up (~3 min). Fully configurable timings/size.
 
 ## Odo Island Monster (`godzillaminusone:odo_island_monster`)
 - Godzilla's earlier dinosaur form (Monster122's Godzillasaurus model), 14 blocks tall, 600 HP.
-- Charges players within ~16 blocks; frenzies when seen/hurt (faster, harder bites/stomps, breaks wooden things).
+- Charges players within ~16 blocks; frenzies when seen/hurt (faster, harder bites/stomps).
+- **Goes through buildings**: anything built (short of obsidian) gives as he walks into it; blocked on the way to someone he tears down toward them, and against a wall he bites through it. Polished/cut stone and bricks count as built, not rock.
 - **Spotlight reaction:** caught by a manned searchlight's beam he stares into it, roars, charges and smashes it, then hunts its operator. If the light is on/in a building he **tears the building down** to get it. A player coming within 12 blocks distracts him onto them.
 - Hit by a nuclear bomb he's burnt, lies dormant 3 minutes, then **rises as Godzilla**.
 - Sounds: roar, searchlight-spotted shriek, spawn cry (alone: no vanilla ambient growl or roar over it), bite, nuked cry, distant roar (100+ blocks). Vanilla-style spawn egg. Never gets stuck going for a light (tears through obstacles; gives up after 30 s and hunts the operator).
 
+## Hazmat suit
+Hood, suit, trousers, boots (GeckoLib armour, detailed: blue suit, black full-face mask and big visor, harness with yellow detector and gauge, two white cylinders with red diamond labels, gloves, yellow-green soled boots). All four worn: no Radiation, existing Radiation removed, radiation damage cancelled.
+
 ## Searchlight
-WWII searchlight, mountable. Rider aims it by looking; **R** toggles the lamp. Unmanned it **sweeps automatically like a clock** (doesn't anger Odo). Beam is a soft glow round a core, each stretch facing the camera and fading when seen end-on (no glare in the middle of the operator's view), with a block-by-block lit pool (on the surface over water); drawn after water/ice so it doesn't x-ray through them. Mobs anywhere in a lit beam (inside the cone, short of where it lands, in sight of the lens) are drawn lit, client side, via a mixin on EntityRenderDispatcher.getPackedLightCoords.
+WWII searchlight, mountable. Rider aims it by looking; **R** toggles the lamp. Unmanned it **sweeps automatically like a clock** (doesn't anger Odo). Beam is a soft glow round a core, each stretch facing the camera and fading when seen end-on (no glare in the middle of the operator's view), with a block-by-block lit pool (on the surface over water); fades narrow the strips to nothing (not just alpha) and beam/pool fade into the fog, so shader packs (Iris/Oculus) show no line in the middle of the view or pools hanging in the sky; drawn after water/ice so it doesn't x-ray through them. Mobs anywhere in a lit beam (inside the cone, short of where it lands, in sight of the lens) are drawn lit, client side, via a mixin on EntityRenderDispatcher.getPackedLightCoords.
 
 ## Shinsei Maru (boat)
 - The film's run-down minesweeper, **16.3 × 5.6 blocks**, heavily weathered (rust streaks, flaking paint, tyre fenders, nets, rigging).
@@ -46,16 +50,17 @@ WWII searchlight, mountable. Rider aims it by looking; **R** toggles the lamp. U
 - Forced third-person camera pulled back to frame his whole body.
 - Moves with a small top-left HUD: **Z** Tail Whip, **H** Scratch, **J** Bite, **K** Roar (weakness/slowness in 48 blocks), **B** Atomic Breath (full charge + nuclear blast, 3-min recharge; head follows your look).
 - The five keys are ordinary key bindings (Options > Controls > Key Binds > Godzilla Minus One; saved in options.txt; the HUD shows the bound keys), active only while you're Godzilla (`ModKeyContexts.GODZILLA_SHAPE`), whether Walkers or ReMorphed made you him.
-- Walking breaks through buildings and leaves footprints (`playable` config section). J is a real bite. Rooted from breath charge to the end of the post-beam roar; any interruption frees you.
+- Walking breaks through buildings and leaves footprints (`playable` config section); tail whip and scratch tear down buildings. J is a real bite. Rooted from breath charge to the end of the post-beam roar; any interruption frees you.
+- Never stuck: **M** (or the config screen) switches **Auto-Climb** (steps up to `playerGodzillaStepHeight`, 20 blocks) and **Walk Through** (passes through any block; mixins on Entity.collide / LocalPlayer.moveTowardsClosestSpace, server noPhysics between ticks, no suffocation).
 
 ## Playing as the Odo Island Monster (optional)
-- Hold Left Ctrl (rebindable, only active as Odo) to run at 12 blocks/s (`playerOdoRunBlocksPerSecond`); left click bites.
+- Moves at 12 blocks/s with no key (`playerOdoBlocksPerSecond`; sprint adds nothing); forced third person framing him; left click bites.
 - Note: Walkers' ability key is also R (conflicts with the mod's "Vehicle Action"). Shinden: hold Left Ctrl for free look.
 - Checked in the released game with Walkers 5.8.13, ReMorphed 4.2, CraftedCore 5.8.2 (mod ids walkers, remorphed, craftedcore): all eight mod keys in Controls once; Godzilla's Z/H/J/K/B each making its move, Roar rebound to N working and saved in options.txt, rooted through B's charge and roar then free, breaking through a building, changing back; the Odo (taken through ReMorphed's morph request) running 12.00 blocks/s in three 20-tick stretches with one speed modifier, removed on letting go, speed back to 0.1 (4.32 blocks/s walking) after changing back; left-click bite.
 - Note: before this version the keys were registered by four same-named `Keys.register` handlers that Forge's event bus merged into one, so only Vehicle Action was in Controls; `client.ModKeyMappings` now registers all of them.
 
 ## Config
-In-game config screen (health bar, breath/roar intervals, blast visuals) plus `godzillaminusone-common.toml` (kill/radiation radius, `craterRadius` 48, `scorchRadius` 60, `ruinRadius` 100, `flattenRadius` 60, `flattenDownToY` 65, building demolition (`demolishFromHeight`/`demolishDownToHeight` -1 = auto, `demolitionIntervalSeconds`), `downedSeconds`, `minTargetDistance`, playable-shape options, block breaking, mortality, etc.).
+In-game config screen (health bar, breath/roar intervals, Godzilla's downed time, played Godzilla's Auto-Climb/Walk Through, blast visuals) plus `godzillaminusone-common.toml` (kill/radiation radius, `craterRadius` 48, `scorchRadius` 60, `ruinRadius` 100, `flattenRadius` 60, `flattenDownToY` 65, building demolition (`demolishFromHeight`/`demolishDownToHeight` -1 = auto, `demolitionIntervalSeconds`), `downedSeconds`, `minTargetDistance`, playable-shape options, block breaking, mortality, etc.).
 
 ## Physics Mod
 No Physics Mod API is called (only its presence is detected). Building toppling is the mod's own falling-block simulation; other breaking uses vanilla block breaking, which Physics Mod shatters by itself (with it installed, all demolition breaks go that way and the mod adds no extra particles). Its waves are its own client-side business for every entity (see the boat above). All in-game checks pass in the released game with Physics Mod 3.0.20 installed.

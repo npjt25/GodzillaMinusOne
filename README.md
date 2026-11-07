@@ -91,7 +91,9 @@ the blue one a player.*
   you get closer (loud, but not painful in headphones). **From 200 blocks away you hear a distant roar** instead
   (two recordings, taking turns from one roar to the next); closer in, the roar itself. Each listener gets exactly
   one of the two, picked by their own distance, so they never play over each other.
-- **Radiation aura**: anything within 16 blocks gets "RADIATION POISONING" and Wither.
+- **Radiation aura**: anything within 16 blocks gets **Radiation**, the mod's own effect (a radiation trefoil for its
+  icon; it hurts every 2 seconds, faster at higher levels), instead of Wither, and there's no on-screen warning any
+  more. A whole **hazmat suit** keeps it off (see **Hazmat suit** below). An atomic blast's fallout gives Radiation too.
 - Every footfall shakes the camera, hurts everything near him and **crushes a footprint** of rubble into the
   ground. He smashes through blocks (needs `mobGriefing`), and **buildings fall over** as he wades through them
   or swipes at them: the walls high up beside him topple as falling blocks, thrown the way he's going (or away
@@ -104,7 +106,10 @@ the blue one a player.*
   after it instead. (This is separate from what he breaks just by walking into it or treading on it.)
 - **He roars every 2 minutes** (stopping where he is to do it); set how often in the config screen.
 - Up close he attacks in a combo: a **claw swipe with each hand**, then a **heavy spin** of his whole body with
-  the tail sweeping round him and **snapping like a whip**. He bites at things above him, stomps on things
+  the tail sweeping round him and **snapping like a whip**. **His claws tear through what's built** where they rake
+  (7 blocks round them, through walls too), and **his tail knocks away what's built round him**, low down (up to 10
+  blocks above his feet, out to 30 blocks as it sweeps round and 38 as it snaps), the blocks flung outwards; the
+  ground is left (needs `breaksBlocks` and `mobGriefing`). He bites at things above him, stomps on things
   under his feet, and swings the tail round at anything behind him. His **bite** is a real bite now (head rearing
   back, jaws gaping, then a lunge and a snap), with its own sound as the jaws close.
 - For the first **2 to 3 minutes after he appears** he can't use his atomic breath yet.
@@ -143,10 +148,15 @@ the blue one a player.*
   his reach, he forgets everything else and goes after her, for her helmsman first, then her gunner, and keeps
   after her even with nobody aboard. One bite or swipe wrecks her.
 - **Only naval mines hurt him** (as in the add-on), each taking about 10% of his health and stunning him.
-  At zero health he collapses (5 seconds), lies defeated for **15 seconds**, then regenerates and rises again. The
-  resting time is `downedSeconds` (seconds, 0 to 3600, default 15) in the `godzilla` section of
+  At zero health he collapses (5 seconds), lies defeated for **15 seconds**, then regenerates and rises again. **Set
+  how long he lies there in game**: Mods, Godzilla Minus One, Config, **Lies Downed** (0 to 10 minutes, in steps of 5
+  seconds). It's `downedSeconds` (0 to 3600, default 15) in the `godzilla` section of
   `config/godzillaminusone-common.toml`: counted from the end of his collapse, which, like his getting up, plays as
   always. The server keeps the time (in single player, the world on your computer), so on a server only its file counts.
+- **One hit brings him down while he breathes in.** During the 4 seconds he takes his deep breath in, just before the
+  beam, a **Shinden takes all his health in one hit**: flown into him (into his face, or blown up by his radiation as it
+  closes in anywhere near him) or **one Torrid burst** into him (his head or body, nothing solid in the way). He
+  collapses and lies downed as when the mines bring him down, and the beam never comes. (`shindenInhaleKnockout`, on.)
 - **The one exception: his burnt face.** While his mouth is still raw from his atomic breath (the 40 seconds it
   takes to heal), a Shinden flown **straight into his face** at full speed takes **all his health**: he collapses as
   when the mines bring him down. Only his face counts (not his chest, tail or legs), and not once it has healed.
@@ -208,6 +218,12 @@ the blue one a player.*
   His walk, roar, two bites (one with a swipe of his arm), stomp and burnt pose are the add-on's animations.
 - Left alone he wanders and ignores you, but get within about 16 blocks and he **charges**: he runs you down,
   crashing through trees and fences, and **bites** or **stomps** you.
+- **Buildings don't stop him.** Whatever is built in his way gives as he walks into it (brick, stone bricks, deepslate
+  bricks and tiles, polished stone, concrete, iron..., anything short of obsidian; not the ground: rock and earth as
+  the world made them, which he climbs). Going for someone with a building between them, if he makes no headway for 2
+  seconds he tears it down towards them, and **up against a wall he bites into it: his bite bites through whatever is
+  built where his jaws close.** (Before, polished stone and deepslate counted as rock to him, and harder blocks such as
+  deepslate bricks didn't give at all, so he stood stuck behind them.)
 - **Lit by a searchlight someone is working, he goes for the light**: he turns to stare straight into it and
   roars, then charges it, bites or stomps it to pieces (glass shattering, the iron frame clanging down), and
   comes straight for whoever was working it, in a frenzy. If the searchlight is up on or inside a building, he
@@ -232,6 +248,21 @@ the blue one a player.*
   hide slowly going out. Nothing can hurt him while he lies there. **Three minutes later he rises again as
   Godzilla.** (Godzilla's own atomic breath just kills him.)
 
+### Hazmat suit
+
+- Four pieces: **Hazmat Hood**, **Hazmat Suit**, **Hazmat Trousers** and **Hazmat Boots** (in the mod's creative tab).
+  Worn, it's a detailed blue chemical-protection suit after your reference: a blue hood and coverall with a zip down
+  the front and seams, a black full-face mask with a big visor (reflections on it) and a respirator with its filter
+  and valve at the chin, a black harness (shoulder straps, chest strap, belt and buckle) with a **yellow gas detector**
+  and a **round pressure gauge** on it and an air hose, **two white air cylinders on the back** with **red diamond
+  labels**, their valves and manifold, black rubber gloves to mid-forearm, and black rubber boots with yellow-green
+  soles; worn and dirty, grimier low down. (A GeckoLib armour model: `tools/make_hazmat.py` builds it.)
+- **Wear all four and radiation can't touch you**: Godzilla's aura and fallout don't give you Radiation, any you had
+  washes off as soon as the suit is complete, and radiation damage (the heat of his charge too) doesn't hurt you.
+- Armour about as good as leather (1, 3, 2, 1), as durable as iron. Recipes: hood: blue wool round a glass pane,
+  charcoal under it (`BBB / BGB / _C_`); suit: `B_B / IKI / BBB` (blue wool, iron ingots, black wool); trousers:
+  blue wool as leggings; boots: `K_K / S_S` (black wool, slime balls).
+
 ### Searchlight
 
 - Crafted from iron ingots, glass, a redstone lamp and iron blocks (iron ingot, glass, iron ingot / iron
@@ -240,7 +271,11 @@ the blue one a player.*
 - The beam is a shaft of light: a soft glow as wide as the cone round a brighter core, fading with distance, with a
   pool of light picked out block by block where it lands. Each stretch of it is drawn facing you; seen down its
   length (as its operator does, or from behind them) the far part fades out, so it doesn't pile up into a glare in
-  the middle of the view, and it fades where it passes right by the camera. It's drawn after water and ice and never
+  the middle of the view, and it fades where it passes right by the camera. **Those fades narrow the beam as well as
+  dimming it, down to nothing**, and far off it fades into the fog with what it lights (the pool too: it no longer
+  hangs in the fog on its own). That's for **shader packs** (Iris / Oculus), which draw it their own way and can
+  ignore how see-through it is: then only its shape fades it, and that's what left a thin line in the middle of the
+  screen and pools of light in the sky. With a shader pack on, it fades into the fog sooner. It's drawn after water and ice and never
   hides them: looking at it over the sea or through ice you don't see straight through to what's under the water.
   It ends at the surface of water, and lights up the surface there.
 - **Mobs in the beam are lit up** where it reaches them, anywhere along it (not just where it lands): inside the cone,
@@ -373,6 +408,13 @@ With [Walkers](https://www.curseforge.com/minecraft/mc-mods/woodwalkers) install
   where you look.
 - As him you're always in **third person** (the camera pulled far enough back to show all of him; F5 still turns
   it round to face you), back to first person when you change back.
+- **You never get stuck.** Press **M** ("Godzilla: Walk Through / Climb", rebindable) to switch between:
+  - **Auto-Climb** (as you start out): you step straight up onto anything up to **20 blocks** high in your way (walls,
+    roofs, ledges, cliffs), as a player steps up a slab (`playerGodzillaStepHeight`); and
+  - **Walk Through**: you walk through anything, buildings and hills alike, still standing on the ground and falling as
+    usual, never smothered inside a wall, and the camera doesn't get pulled in by the walls you're in.
+  It's also on the config screen (**Played Godzilla: Auto-Climb / Walk Through**), and the list of moves in the corner
+  shows which you're on. Your choice is kept (`playerGodzillaWalkThrough` in `config/godzillaminusone-client.toml`).
 - As him, a small list of his moves and their keys sits in the **top left corner** of the screen:
   - **Z: Tail Whip**, a spin of his whole body, the tail sweeping round twice,
   - **H: Scratch**, a claw swipe (right, then left),
@@ -382,6 +424,8 @@ With [Walkers](https://www.curseforge.com/minecraft/mc-mods/woodwalkers) install
     `mobGriefing`), then a **3 minute** recharge, counted down beside it (change it in the config: it's his
     breath interval). You stand rooted from the start of the charge until the roar after the beam is over, then
     you're free to move again.
+  - **M: Walk Through / Climb** (above).
+  His **tail whip and scratch tear down what's built**, as the mob's do.
   These are the defaults. All five are ordinary key bindings: change them in **Options, Controls, Key Binds,
   Godzilla Minus One** ("Godzilla: Tail Whip", "Godzilla: Scratch", "Godzilla: Bite", "Godzilla: Roar",
   "Godzilla: Atomic Breath"). They're saved with the rest of your controls (`options.txt`), there's no other key
@@ -399,14 +443,14 @@ With [Walkers](https://www.curseforge.com/minecraft/mc-mods/woodwalkers) install
 
 Take his shape as you would Godzilla's (`godzillaminusone:odo_island_monster`):
 
-- **Hold Left Control to run** ("Odo Island Monster: Run", rebindable): **12 blocks a second** on level ground
-  (`playerOdoRunBlocksPerSecond`); his shape runs. Only the player playing as him runs faster: the speed-up is one
-  modifier on your speed, made whatever it takes to cover 12 blocks a second (sprinting included), and it comes off
-  when you let go of the key, change back, die or log out. The key only counts while you're him (and not riding
-  anything), so it never clashes with the Shinden's Free Look on the same key.
+- **He moves at 12 blocks a second** on level ground whenever he moves, **with no key to hold**
+  (`playerOdoBlocksPerSecond`); sprinting adds nothing to it, and his shape runs. The speed-up is one modifier on your
+  speed, made whatever it takes to cover 12 blocks a second, and it comes off when you change back, die or log out.
+  (The Run key of the last version is gone.)
+- **You're always in third person** as him, the camera far enough back for all of him to be in the picture (F5 still
+  turns it round), back to first person when you change back.
 - **Left click bites** (his bite animation, seen by everyone; the jaws close 0.75 s in, `playerOdoBiteDamage`) instead
   of a punch.
-- In third person (F5) the camera stands far enough back to show all of him (Minecraft's own is inside his back).
 
 **Checked in the released game** (CI's `client-release` run: Minecraft 1.20.1, Forge 47.3.0, this mod's built jar with
 **Walkers 5.8.13, ReMorphed 4.2 and CraftedCore 5.8.2**, the same versions as the jars supplied with this request; mod
@@ -459,6 +503,9 @@ mod's part:
   - **Breath: every** sets how long he takes to recharge his atomic breath, from 10 seconds to 10 minutes
     (3 minutes by default).
   - **Roar: every** sets how often he roars on his own, from 30 seconds to 10 minutes, or off (2 minutes).
+  - **Lies Downed** sets how long Godzilla lies defeated when his health bar hits zero (after his 5 s collapse), from
+    0 to 10 minutes in steps of 5 seconds (15 seconds by default; `downedSeconds`).
+  - **Played Godzilla: Auto-Climb / Walk Through**: how you get about playing as him (also the **M** key).
   - The atomic blast: **Cloud Height** (40 to 600 blocks, 240), **Blast Flash** (how strongly the flash whites out
     your view, 0 to 100%; Minecraft's "Hide Lightning Flashes" option also turns it off), **Cloud Rises**
     (30 seconds), **Cloud Towers** (how long it stays full-grown, 1 minute) and **Cloud Fades** (how long it takes to
@@ -488,10 +535,12 @@ mod's part:
   | `minTargetDistance` | `atomic_breath` | 75 | He only starts an atomic breath at a target at least this far away. |
   | `playerGodzillaBreaksBlocks` | `playable` | true | Playing as Godzilla: walking and his blows break what's built. |
   | `playerGodzillaFootprints` | `playable` | true | Playing as Godzilla: strides crush footprints. |
-  | `playerOdoRunBlocksPerSecond` | `playable` | 12.0 | Playing as the Odo: running speed, blocks a second on level ground (1 to 20). |
+  | `playerGodzillaStepHeight` | `playable` | 20 | Playing as Godzilla, climbing: how high (blocks) he steps straight up. |
+  | `shindenInhaleKnockout` | `weapons` | true | During his 4 s in-breath before the beam, a Shinden (crash or Torrid burst) brings him down in one hit. |
+  | `playerOdoBlocksPerSecond` | `playable` | 12.0 | Playing as the Odo: his speed, blocks a second on level ground (1 to 20), no key held. |
   | `playerOdoBiteDamage` | `playable` | 30 | Playing as the Odo: bite damage. | (The crater, flattening
   and building settings have new names, so a config file from an earlier version picks up the new defaults; so does
-  the Odo's run speed, `playerOdoRunSpeed` (6) before.)
+  the Odo's speed: `playerOdoRunSpeed` (6) and then `playerOdoRunBlocksPerSecond`, a speed while a key was held, before.)
 
 ## Building
 
