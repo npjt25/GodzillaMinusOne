@@ -26,7 +26,6 @@ import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.level.GameRules;
-import net.minecraft.world.level.block.LiquidBlock;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.phys.AABB;
@@ -52,7 +51,8 @@ import java.util.UUID;
  * his own animation (seen by everyone) and his own blows, as the mob deals them:
  *
  * <ul>
- *   <li>{@link Move#TAIL_WHIP}: the spin, its tail sweeping round him and then snapping.</li>
+ *   <li>{@link Move#TAIL_WHIP}: the spin, its tail sweeping round him and then snapping, knocking away what's built
+ *       round him (low down).</li>
  *   <li>{@link Move#SCRATCH}: a claw swipe, right then left: it hurts and flings whatever is in front of him, and tears
  *       through what's built there.</li>
  *   <li>{@link Move#BITE}: his jaws, where he's looking (in the water, his swimming bite).</li>
@@ -89,6 +89,8 @@ public final class PlayerGodzilla {
             AttributeModifier.Operation.MULTIPLY_TOTAL);
     private static final String BREATH_READY = GodzillaMinusOne.MODID + ":BreathReady";
     private static final double BEAM_REACH = 220.0;
+    /** How high above his feet the tail sweeping round takes buildings. */
+    private static final int TAIL_HEIGHT = 10;
 
     private static final Map<UUID, State> STATES = new HashMap<>();
 
@@ -146,8 +148,8 @@ public final class PlayerGodzilla {
         String animation = move.animation;
         switch (move) {
             case TAIL_WHIP -> {
-                later(state, player, 17, () -> tailSweep(player, 30.0, 0.4F, SoundEvents.PLAYER_ATTACK_SWEEP, 0.7F));
-                later(state, player, 26, () -> tailSweep(player, 38.0, 0.35F, SoundEvents.PLAYER_ATTACK_CRIT, 1.0F));
+                later(state, player, 17, () -> tailSweep(player, 0.0, 30.0, 0.4F, SoundEvents.PLAYER_ATTACK_SWEEP, 0.7F));
+                later(state, player, 26, () -> tailSweep(player, 30.0, 38.0, 0.35F, SoundEvents.PLAYER_ATTACK_CRIT, 1.0F));
             }
             case SCRATCH -> {
                 state.leftSwipe = !state.leftSwipe;
@@ -352,8 +354,12 @@ public final class PlayerGodzilla {
         }
     }
 
-    private static void tailSweep(ServerPlayer player, double radius, float share, SoundEvent sound, float shake) {
+    /** The tail comes round (out to {@code radius}), and what's built in its way, from {@code from} out, goes flying. */
+    private static void tailSweep(ServerPlayer player, double from, double radius, float share, SoundEvent sound, float shake) {
         hurtAround(player, player.position(), radius, damage() * share, null);
+        if (mayDestroy(player)) {
+            Destruction.tailSweep(player.serverLevel(), player, player.position(), Math.max(from, player.getBbWidth() / 2.0), radius, TAIL_HEIGHT);
+        }
         player.level().playSound(null, player.getX(), player.getY() + 4.0, player.getZ(), sound, SoundSource.PLAYERS, 10.0F, 0.35F);
         ModNetwork.shake(player.serverLevel(), player.position(), 64.0, shake, 1.2F);
     }
@@ -381,30 +387,8 @@ public final class PlayerGodzilla {
 
     /** What's built within {@code radius} of {@code center} is torn apart: solid blocks topple, the rest breaks. */
     private static void tearThrough(ServerPlayer player, Vec3 center, double radius, Vec3 push) {
-        ServerLevel level = player.serverLevel();
-        if (!mayDestroy(player)) {
-            return;
-        }
-        int r = Mth.ceil(radius);
-        BlockPos middle = BlockPos.containing(center);
-        BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
-        int toppled = 0;
-        for (int dx = -r; dx <= r; dx++) {
-            for (int dy = -r; dy <= r; dy++) {
-                for (int dz = -r; dz <= r; dz++) {
-                    if (dx * dx + dy * dy + dz * dz > radius * radius) {
-                        continue;
-                    }
-                    pos.set(middle.getX() + dx, middle.getY() + dy, middle.getZ() + dz);
-                    BlockState state = level.getBlockState(pos);
-                    if (!GodzillaEntity.isBuilt(state) || state.getBlock() instanceof LiquidBlock || !Destruction.canBreak(level, pos, state, player)) {
-                        continue;
-                    }
-                    if (Destruction.topple(level, pos, state, push, toppled < 60)) {
-                        toppled++;
-                    }
-                }
-            }
+        if (mayDestroy(player)) {
+            Destruction.tearThrough(player.serverLevel(), player, center, radius, push);
         }
     }
 

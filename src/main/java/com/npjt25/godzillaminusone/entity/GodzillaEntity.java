@@ -1302,6 +1302,14 @@ public class GodzillaEntity extends Monster implements GeoEntity {
 
     // ------------------------------------------------------------------ melee
 
+    /** How high above his feet his tail, sweeping round, takes what's built. */
+    private static final int TAIL_HEIGHT = 10;
+
+    /** Whether his claws and tail tear down what's built (godzillaBreaksBlocks and mobGriefing). */
+    private boolean meleeBreaks(ServerLevel level) {
+        return Config.GODZILLA_BREAKS_BLOCKS.get() && ForgeEventFactory.getMobGriefingEvent(level, this);
+    }
+
     /** His melee combo, in order: a swipe of each hand, then the spin and tail whip. */
     private static final Attack[] COMBO = {Attack.SWIPE_RIGHT, Attack.SWIPE_LEFT, Attack.SPIN};
 
@@ -1339,6 +1347,23 @@ public class GodzillaEntity extends Monster implements GeoEntity {
         return this.swimPeeks;
     }
 
+    /** For the game tests: his blow from the named attack (its animation's name) lands now. */
+    public void strikeNow(String anim) {
+        if (level() instanceof ServerLevel level) {
+            for (Attack attack : Attack.values()) {
+                if (anim.equals(attack.anim)) {
+                    performAttack(level, attack, null);
+                    return;
+                }
+            }
+        }
+    }
+
+    /** For the game tests: where his claws rake in a swipe (right: 1, left: -1). */
+    public Vec3 clawPosition(double side) {
+        return locator(2.2 * side, 10.0, 16.5);
+    }
+
     /** For the game tests: the attack he makes next against a target in front of him. */
     public String nextComboAttack() {
         return COMBO[this.comboStep].anim;
@@ -1373,12 +1398,18 @@ public class GodzillaEntity extends Monster implements GeoEntity {
                 Vec3 fwd = Vec3.directionFromRotation(0.0F, this.yBodyRot);
                 Vec3 across = new Vec3(fwd.z, 0.0, -fwd.x).scale(side * 2.2).add(0.0, 0.7, 0.0);
                 areaAttack(level, claws, 15.0, (float) getAttributeValue(Attributes.ATTACK_DAMAGE) * 0.6F, target, across);
+                if (meleeBreaks(level)) {
+                    Destruction.tearThrough(level, this, claws, 7.0, across.add(fwd.scale(0.4)).scale(0.3)); // through walls too
+                }
                 level.playSound(null, claws.x, claws.y, claws.z, SoundEvents.PLAYER_ATTACK_SWEEP, SoundSource.HOSTILE, 8.0F, 0.45F);
                 ModNetwork.shake(level, claws, 48.0, 0.4F, 0.8F);
             }
             case SPIN -> {
                 // the tail sweeps round him at the ground...
                 areaAttack(level, position(), 30.0, (float) getAttributeValue(Attributes.ATTACK_DAMAGE) * 0.4F, null, null);
+                if (meleeBreaks(level)) {
+                    Destruction.tailSweep(level, this, position(), getBbWidth() / 2.0, 30.0, TAIL_HEIGHT);
+                }
                 level.playSound(null, getX(), getY() + 4.0, getZ(), SoundEvents.PLAYER_ATTACK_SWEEP, SoundSource.HOSTILE, 10.0F, 0.3F);
                 ModNetwork.shake(level, position(), 64.0, 0.7F, 1.2F);
                 // ...and then snaps
@@ -1387,6 +1418,9 @@ public class GodzillaEntity extends Monster implements GeoEntity {
             }
             case TAIL_SNAP -> {
                 areaAttack(level, position(), 38.0, (float) getAttributeValue(Attributes.ATTACK_DAMAGE) * 0.35F, null, null);
+                if (meleeBreaks(level)) {
+                    Destruction.tailSweep(level, this, position(), 30.0, 38.0, TAIL_HEIGHT); // (its tip, further out)
+                }
                 level.playSound(null, getX(), getY() + 4.0, getZ(), SoundEvents.PLAYER_ATTACK_CRIT, SoundSource.HOSTILE, 12.0F, 0.4F);
                 ModNetwork.shake(level, position(), 96.0, 1.0F, 1.0F);
             }

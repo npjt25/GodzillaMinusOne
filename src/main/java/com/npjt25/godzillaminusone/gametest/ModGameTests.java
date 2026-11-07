@@ -1073,6 +1073,57 @@ public final class ModGameTests {
         });
     }
 
+    /** His claw swipe tears through a wall where his claws rake, and his tail whip knocks away what's built round him. */
+    @GameTest(template = FLOOR, batch = "gmo_melee_breaks", timeoutTicks = 40)
+    public static void godzillasClawsAndTailTearDownBuildings(GameTestHelper helper) {
+        int floor = floorY(helper);
+        GodzillaEntity godzilla = spawnActiveGodzilla(helper);
+        Vec3 claws = godzilla.clawPosition(1.0);
+        BlockPos rake = BlockPos.containing(claws);
+        // a wall of stone bricks where his claws rake...
+        for (int dx = -2; dx <= 2; dx++) {
+            for (int dy = -2; dy <= 2; dy++) {
+                helper.getLevel().setBlockAndUpdate(rake.offset(dx, dy, 0), Blocks.STONE_BRICKS.defaultBlockState());
+            }
+        }
+        // ...and pillars of polished andesite and bricks round him, 12 to 25 blocks out, within his tail's reach
+        Vec3 feet = godzilla.position();
+        List<BlockPos> pillars = new ArrayList<>();
+        for (int i = 0; i < 8; i++) {
+            double a = i * Math.PI / 4.0;
+            double r = 12.0 + i * 1.8;
+            BlockPos base = BlockPos.containing(feet.x + Math.cos(a) * r, feet.y, feet.z + Math.sin(a) * r);
+            for (int y = 0; y < 4; y++) {
+                helper.getLevel().setBlockAndUpdate(base.above(y), (i % 2 == 0 ? Blocks.POLISHED_ANDESITE : Blocks.BRICKS).defaultBlockState());
+            }
+            pillars.add(base);
+        }
+        godzilla.strikeNow("swipe_right");
+        int wall = 0;
+        for (int dx = -2; dx <= 2; dx++) {
+            for (int dy = -2; dy <= 2; dy++) {
+                if (helper.getLevel().getBlockState(rake.offset(dx, dy, 0)).is(Blocks.STONE_BRICKS)) {
+                    wall++;
+                }
+            }
+        }
+        helper.assertTrue(wall == 0, "his claws should tear through the wall, " + wall + " of 25 blocks left");
+        godzilla.strikeNow("spin_whip");
+        int standing = 0;
+        for (BlockPos base : pillars) {
+            for (int y = 0; y < 4; y++) {
+                BlockState state = helper.getLevel().getBlockState(base.above(y));
+                if (state.is(Blocks.POLISHED_ANDESITE) || state.is(Blocks.BRICKS)) {
+                    standing++;
+                }
+            }
+        }
+        helper.assertTrue(standing == 0, "his tail should knock away what's built round him, " + standing + " of 32 blocks left");
+        helper.assertTrue(helper.getBlockState(new BlockPos(4, floor, 4)).is(Blocks.STONE), "the ground should stay");
+        remove(godzilla);
+        helper.succeed();
+    }
+
     private static final java.util.Set<String> ODO_TOWERS_DONE = new java.util.HashSet<>();
 
     /** (logs the tick the light went, once per run) */

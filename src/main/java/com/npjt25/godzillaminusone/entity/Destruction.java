@@ -472,6 +472,72 @@ public final class Destruction {
         return false;
     }
 
+    /**
+     * Godzilla's claws (or jaws) rake through what's built within {@code radius} of {@code center}: solid blocks topple
+     * along {@code push}, the rest breaks (the ground and liquids are left; nothing drops).
+     */
+    static void tearThrough(ServerLevel level, LivingEntity breaker, Vec3 center, double radius, Vec3 push) {
+        int r = Mth.ceil(radius);
+        BlockPos middle = BlockPos.containing(center);
+        BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
+        int toppled = 0;
+        for (int dx = -r; dx <= r; dx++) {
+            for (int dy = -r; dy <= r; dy++) {
+                for (int dz = -r; dz <= r; dz++) {
+                    if (dx * dx + dy * dy + dz * dz > radius * radius) {
+                        continue;
+                    }
+                    pos.set(middle.getX() + dx, middle.getY() + dy, middle.getZ() + dz);
+                    BlockState state = level.getBlockState(pos);
+                    if (!GodzillaEntity.isBuilt(state) || !canBreak(level, pos, state, breaker)) {
+                        continue;
+                    }
+                    if (topple(level, pos, state, push, toppled < 60)) {
+                        toppled++;
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Godzilla's tail sweeps round him, low: what's built between {@code inner} and {@code outer} blocks from
+     * {@code center} (horizontally), from his feet up to {@code height} above them, is knocked away, flung outwards and
+     * round the way the tail goes. Returns how many blocks it took.
+     */
+    static int tailSweep(ServerLevel level, LivingEntity breaker, Vec3 center, double inner, double outer, int height) {
+        int r = Mth.ceil(outer);
+        int cx = Mth.floor(center.x);
+        int cz = Mth.floor(center.z);
+        int y0 = Mth.floor(center.y);
+        BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
+        int taken = 0;
+        int toppled = 0;
+        for (int dx = -r; dx <= r; dx++) {
+            for (int dz = -r; dz <= r; dz++) {
+                double d2 = dx * dx + dz * dz;
+                if (d2 > outer * outer || d2 < inner * inner || !level.hasChunkAt(pos.set(cx + dx, y0, cz + dz))) {
+                    continue;
+                }
+                double d = Math.sqrt(d2);
+                Vec3 push = new Vec3(dx / d * 1.2 - dz / d * 0.8, 0.6, dz / d * 1.2 + dx / d * 0.8);
+                for (int y = y0; y <= y0 + height; y++) {
+                    BlockState state = level.getBlockState(pos.set(cx + dx, y, cz + dz));
+                    if (!GodzillaEntity.isBuilt(state) || !canBreak(level, pos, state, breaker)) {
+                        continue;
+                    }
+                    if (topple(level, pos, state, push, toppled < 60)) {
+                        toppled++;
+                    }
+                    if (++taken >= 1500) {
+                        return taken;
+                    }
+                }
+            }
+        }
+        return taken;
+    }
+
     @Nullable
     private static Boolean physicsMod;
 
