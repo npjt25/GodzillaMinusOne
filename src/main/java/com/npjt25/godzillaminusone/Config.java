@@ -60,7 +60,7 @@ public final class Config {
     public static final ForgeConfigSpec.BooleanValue PLAYER_GODZILLA_BREAKS_BLOCKS;
     public static final ForgeConfigSpec.BooleanValue PLAYER_GODZILLA_FOOTPRINTS;
     public static final ForgeConfigSpec.IntValue PLAYER_GODZILLA_STEP_HEIGHT;
-    public static final ForgeConfigSpec.DoubleValue PLAYER_ODO_RUN_SPEED;
+    public static final ForgeConfigSpec.DoubleValue PLAYER_ODO_SPEED;
     public static final ForgeConfigSpec.DoubleValue PLAYER_ODO_BITE_DAMAGE;
 
     static {
@@ -231,11 +231,11 @@ public final class Config {
                 .comment("Playing as Godzilla and climbing (not walking through things: each player picks with a key, M by default,",
                         "or in the config screen): he steps straight up onto anything up to this many blocks high.")
                 .defineInRange("playerGodzillaStepHeight", 20, 1, 64);
-        PLAYER_ODO_RUN_SPEED = BUILDER
-                .comment("Playing as the Odo Island Monster: how fast he runs, in blocks per second on level ground, while the Run",
-                        "key (Left Control by default) is held. Only the player playing as him; walking is left as it is.",
-                        "(Replaces playerOdoRunSpeed, 6 by default, of earlier versions.)")
-                .defineInRange("playerOdoRunBlocksPerSecond", 12.0, 1.0, 20.0);
+        PLAYER_ODO_SPEED = BUILDER
+                .comment("Playing as the Odo Island Monster: how fast he moves, in blocks per second on level ground, whenever he",
+                        "moves (no key to hold; sprinting doesn't add to it). Only the player playing as him. (Replaces",
+                        "playerOdoRunBlocksPerSecond, his speed while a Run key was held, in earlier versions.)")
+                .defineInRange("playerOdoBlocksPerSecond", 12.0, 1.0, 20.0);
         PLAYER_ODO_BITE_DAMAGE = BUILDER
                 .comment("Playing as the Odo Island Monster: damage of his bite (left click).")
                 .defineInRange("playerOdoBiteDamage", 30.0, 0.0, 1000.0);

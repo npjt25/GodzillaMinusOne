@@ -1,10 +1,12 @@
 package com.npjt25.godzillaminusone.client.harness;
 
 import com.mojang.blaze3d.platform.InputConstants;
+import com.npjt25.godzillaminusone.ClientConfig;
 import com.npjt25.godzillaminusone.client.ModKeyContexts;
 import com.npjt25.godzillaminusone.client.PlayerGodzillaControls;
 import com.npjt25.godzillaminusone.compat.Shapes;
 import com.npjt25.godzillaminusone.entity.GodzillaEntity;
+import com.npjt25.godzillaminusone.entity.GodzillaStride;
 import com.npjt25.godzillaminusone.entity.PlayerGodzilla;
 import com.npjt25.godzillaminusone.entity.PlayerOdo;
 import com.npjt25.godzillaminusone.registry.ModEntities;
@@ -54,8 +56,9 @@ import static com.npjt25.godzillaminusone.client.harness.ShotsHarness.waitTicks;
  * (the request its morph menu sends), and plays them with the keys a player would press: as Godzilla each of his five
  * keys makes its own move (J bites, B breathes: rooted from the charge to the end of the roar after the beam, then free
  * again), a key rebound as in Controls is the one that works (and is saved with the game's options), and walking breaks
- * through what's built; as the Odo, Left Control runs (12 blocks a second, measured by the distance he covers) and a
- * left click bites; changing back leaves the player's speed as it was.
+ * through what's built; climbing he walks up onto a rock ledge, and with M walks through a bedrock wall; as the Odo,
+ * he's in third person on his own and moves at 12 blocks a second with no key held (measured by the distance he
+ * covers), and a left click bites; changing back leaves the player's speed as it was.
  */
 final class ShapeScenes {
     private static final Vec3 GODZILLA_AT = new Vec3(300.5, -60.0, 300.5);
@@ -283,11 +286,78 @@ final class ShapeScenes {
             return left < 400 ? null : left + " of 462 planks still standing";
         });
         shot("shape_godzilla_through_the_wall");
+        stride();
         server("shapes: back to himself", level -> log("shapes: back: " + setShape(serverPlayer(level), null)));
         waitTicks(20);
         checkServer("shapes: changing back frees him", level -> !PlayerGodzilla.isGodzilla(serverPlayer(level))
                 && !PlayerGodzilla.isRooted(serverPlayer(level)) ? null : "still Godzilla or rooted");
         check("shapes: himself again, Godzilla's keys don't count", () -> ModKeyContexts.GODZILLA_SHAPE.isActive() ? "their context is still active" : null);
+    }
+
+    /**
+     * Never stuck as Godzilla: climbing (as he starts out), he walks straight up onto a ledge of rock 6 blocks high (rock:
+     * nothing he breaks); M switches him to walking through things, and he walks through a wall of bedrock 21 blocks
+     * high (nothing anyone breaks), on the ground, the server agreeing where he is; M again, back to climbing.
+     */
+    private static void stride() {
+        Vec3 climbAt = new Vec3(300.5, -60.0, 400.5);
+        Vec3 throughAt = new Vec3(300.5, -60.0, 480.5);
+        commands("fill 285 -60 410 315 -55 440 minecraft:stone", "fill 285 -60 490 315 -40 492 minecraft:bedrock");
+        server("shapes: to the ledge", level -> serverPlayer(level).teleportTo(level, climbAt.x, climbAt.y, climbAt.z, 0.0F, 0.0F));
+        waitTicks(20);
+        check("shapes: as Godzilla he starts out climbing", () -> ClientConfig.PLAYER_GODZILLA_WALK_THROUGH.get() ? "walking through" : null);
+        once("shapes: walk at the ledge", () -> {
+            if (mc().player != null) {
+                mc().player.setYRot(0.0F);
+                mc().player.setXRot(0.0F);
+            }
+            mc().options.keyUp.setDown(true);
+        });
+        waitTicks(100);
+        once("shapes: stop at the ledge", () -> mc().options.keyUp.setDown(false));
+        waitTicks(10);
+        checkServer("shapes: climbing, he walks up onto a ledge 6 blocks high", level -> {
+            ServerPlayer player = serverPlayer(level);
+            log(String.format("shapes: after the ledge at %.1f %.1f %.1f", player.getX(), player.getY(), player.getZ()));
+            return player.getY() > -54.5 && player.getZ() > 412.0 ? null
+                    : String.format("at y %.1f, z %.1f", player.getY(), player.getZ());
+        });
+        shot("shape_godzilla_climbed");
+
+        server("shapes: to the bedrock wall", level -> serverPlayer(level).teleportTo(level, throughAt.x, throughAt.y, throughAt.z, 0.0F, 0.0F));
+        waitTicks(20);
+        tap("shapes: M", GLFW.GLFW_KEY_M);
+        waitTicks(10);
+        check("shapes: M switches him to walking through things", () -> ClientConfig.PLAYER_GODZILLA_WALK_THROUGH.get() ? null : "still climbing");
+        checkServer("shapes: the server knows", level -> GodzillaStride.walksThrough(serverPlayer(level)) ? null : "not on the server");
+        once("shapes: walk at the wall", () -> {
+            if (mc().player != null) {
+                mc().player.setYRot(0.0F);
+                mc().player.setXRot(0.0F);
+            }
+            mc().options.keyUp.setDown(true);
+        });
+        waitTicks(50);
+        shot("shape_godzilla_walking_through");
+        waitTicks(50);
+        once("shapes: stop past the wall", () -> mc().options.keyUp.setDown(false));
+        waitTicks(10);
+        check("shapes: walking through, he's through the bedrock wall, on the ground", () -> {
+            LocalPlayer player = mc().player;
+            if (player == null) {
+                return "no player";
+            }
+            log(String.format("shapes: after the wall at %.1f %.1f %.1f", player.getX(), player.getY(), player.getZ()));
+            return player.getZ() > 494.0 && player.getY() < -59.0 ? null : String.format("at y %.1f, z %.1f", player.getY(), player.getZ());
+        });
+        checkServer("shapes: the server has him there too (not snapped back)", level -> {
+            ServerPlayer player = serverPlayer(level);
+            return player.getZ() > 494.0 ? null : String.format("server has him at z %.1f", player.getZ());
+        });
+        tap("shapes: M again", GLFW.GLFW_KEY_M);
+        waitTicks(10);
+        check("shapes: M again, back to climbing", () -> ClientConfig.PLAYER_GODZILLA_WALK_THROUGH.get() ? "still walking through" : null);
+        checkServer("shapes: the server knows that too", level -> GodzillaStride.walksThrough(serverPlayer(level)) ? "still walking through" : null);
     }
 
     /**
@@ -329,18 +399,20 @@ final class ShapeScenes {
                 instanceof com.npjt25.godzillaminusone.entity.OdoIslandMonsterEntity ? null : "the client doesn't have him");
         checkServer("shapes: the server has him too", level -> PlayerOdo.isOdo(serverPlayer(level)) ? null : "not on the server");
 
-        // walking, then holding Left Control (as the keyboard sends it) to run: the distance he covers, three times over
+        // no key held: he moves at 12 blocks a second (three seconds of it), and sprinting (Left Control) adds nothing
+        check("shapes: as the Odo, third person without asking", () -> mc().options.getCameraType().isFirstPerson()
+                ? "still in first person" : null);
+        once("shapes: first person asked for", () -> mc().options.setCameraType(CameraType.FIRST_PERSON));
+        waitTicks(3);
+        check("shapes: as the Odo, back in third person at once", () -> mc().options.getCameraType().isFirstPerson()
+                ? "first person stuck" : null);
         double[] walk = new double[3];
-        double[] run = new double[3];
-        speed("shapes: walking", walk);
-        once("shapes: Left Control down", () -> mc().keyboardHandler.keyPress(mc().getWindow().getWindow(),
-                GLFW.GLFW_KEY_LEFT_CONTROL, 0, GLFW.GLFW_PRESS, GLFW.GLFW_MOD_CONTROL));
-        once("shapes: third person", () -> mc().options.setCameraType(CameraType.THIRD_PERSON_BACK));
-        speed("shapes: running", run);
-        checkServer("shapes: running, one speed-up on him, no more", level -> {
+        double[] sprint = new double[2];
+        speed("shapes: moving", walk);
+        checkServer("shapes: as the Odo, one speed-up on him, no more", level -> {
             long ups = runModifiers(serverPlayer(level));
             double value = serverPlayer(level).getAttributeValue(Attributes.MOVEMENT_SPEED);
-            log(String.format("shapes: running: %d speed-up(s), speed attribute %.4f (server)", ups, value));
+            log(String.format("shapes: moving: %d speed-up(s), speed attribute %.4f (server)", ups, value));
             return ups == 1 ? null : ups + " speed-ups";
         });
         check("shapes: as the Odo, third person stands back to show all of him", () -> {
@@ -351,23 +423,27 @@ final class ShapeScenes {
             double d = mc().gameRenderer.getMainCamera().getPosition().distanceTo(player.getEyePosition());
             return d > 15.0 ? null : String.format("camera %.1f blocks from his eyes", d);
         });
+        once("shapes: Left Control down (sprint)", () -> mc().keyboardHandler.keyPress(mc().getWindow().getWindow(),
+                GLFW.GLFW_KEY_LEFT_CONTROL, 0, GLFW.GLFW_PRESS, GLFW.GLFW_MOD_CONTROL));
+        speed("shapes: sprinting", sprint);
         shot("shape_odo_running");
-        once("shapes: first person", () -> mc().options.setCameraType(CameraType.FIRST_PERSON));
         once("shapes: Left Control up", () -> mc().keyboardHandler.keyPress(mc().getWindow().getWindow(),
                 GLFW.GLFW_KEY_LEFT_CONTROL, 0, GLFW.GLFW_RELEASE, 0));
-        check("shapes: Left Control runs at 12 blocks a second (each second of it)", () -> {
-            String detail = String.format("running %.2f, %.2f, %.2f; walking %.2f, %.2f, %.2f blocks a second", run[0], run[1], run[2],
-                    walk[0], walk[1], walk[2]);
-            for (double v : run) {
+        check("shapes: the Odo moves at 12 blocks a second, no key held (each second of it), sprinting too", () -> {
+            String detail = String.format("moving %.2f, %.2f, %.2f; sprinting %.2f, %.2f blocks a second", walk[0], walk[1], walk[2],
+                    sprint[0], sprint[1]);
+            for (double v : walk) {
                 if (Math.abs(v - 12.0) > 0.4) {
                     return detail;
                 }
             }
-            return walk[2] < 6.0 ? null : detail;
+            for (double v : sprint) {
+                if (Math.abs(v - 12.0) > 0.6) {
+                    return detail;
+                }
+            }
+            return null;
         });
-        waitTicks(5);
-        checkServer("shapes: Left Control let go: the speed-up comes off", level -> runModifiers(serverPlayer(level)) == 0 ? null
-                : "still on");
 
         // a left click: his bite, not a punch
         once("shapes: look ahead", () -> {
@@ -409,7 +485,7 @@ final class ShapeScenes {
     private static long runModifiers(Player player) {
         AttributeInstance speed = player.getAttribute(Attributes.MOVEMENT_SPEED);
         return speed == null ? -1 : speed.getModifiers().stream().map(AttributeModifier::getName)
-                .filter("Odo Island Monster running"::equals).count();
+                .filter("Odo Island Monster's pace"::equals).count();
     }
 
     /**

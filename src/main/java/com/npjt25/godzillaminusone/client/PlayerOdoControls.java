@@ -7,33 +7,33 @@ import com.npjt25.godzillaminusone.network.ModNetwork;
 import com.npjt25.godzillaminusone.network.OdoMoveRequestPacket;
 import com.npjt25.godzillaminusone.network.ShapeAnimPacket;
 import net.minecraft.client.Camera;
-import net.minecraft.client.KeyMapping;
+import net.minecraft.client.CameraType;
 import net.minecraft.client.Minecraft;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.client.event.ClientPlayerNetworkEvent;
 import net.minecraftforge.client.event.InputEvent;
 import net.minecraftforge.client.event.RenderPlayerEvent;
 import net.minecraftforge.client.event.ViewportEvent;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
-import org.lwjgl.glfw.GLFW;
 import software.bernie.geckolib.animatable.GeoEntity;
 
 /**
- * Playing as the Odo Island Monster (Walkers / ReMorphed: entity.PlayerOdo), client side: hold Run (Left Control by
- * default, in Controls, Godzilla Minus One; it only counts as him, so it never clashes with the Shinden's Free Look) to
- * run, and left-click to bite (instead of a punch). His shape runs and bites for everyone who sees him.
+ * Playing as the Odo Island Monster (Walkers / ReMorphed: entity.PlayerOdo), client side: he moves at his own pace (12
+ * blocks a second, no key to hold), and left-click to bite (instead of a punch). His shape runs and bites for everyone
+ * who sees him. As him you see yourself from behind (third person, forced: back to first person when you change back),
+ * the camera far enough back for all of him to be in the picture.
  */
 @Mod.EventBusSubscriber(modid = GodzillaMinusOne.MODID, bus = Mod.EventBusSubscriber.Bus.FORGE, value = Dist.CLIENT)
 public final class PlayerOdoControls {
-    public static final KeyMapping RUN = new ContextKeyMapping("key.godzillaminusone.odo_run", ModKeyContexts.ODO_SHAPE,
-            GLFW.GLFW_KEY_LEFT_CONTROL, "key.categories.godzillaminusone");
     /** Faster than this (blocks a tick, over the ground) his shape is shown running. */
     private static final double RUNNING = 0.2;
-    private static boolean sentRunning;
+    /** Whether we put the camera into third person (to put it back in first person when the player changes back). */
+    private static boolean forcedThirdPerson;
 
 
     private static boolean isOdo(Player player) {
@@ -46,11 +46,21 @@ public final class PlayerOdoControls {
             return;
         }
         Minecraft mc = Minecraft.getInstance();
-        boolean running = mc.player != null && mc.screen == null && isOdo(mc.player) && RUN.isDown();
-        if (running != sentRunning && mc.getConnection() != null) {
-            sentRunning = running;
-            ModNetwork.CHANNEL.sendToServer(new OdoMoveRequestPacket(OdoMoveRequestPacket.RUN, running));
+        boolean odo = mc.player != null && isOdo(mc.player);
+        if (odo && mc.options.getCameraType().isFirstPerson()) {
+            mc.options.setCameraType(CameraType.THIRD_PERSON_BACK);
+            forcedThirdPerson = true;
+        } else if (!odo && forcedThirdPerson) {
+            forcedThirdPerson = false;
+            if (mc.player != null) {
+                mc.options.setCameraType(CameraType.FIRST_PERSON);
+            }
         }
+    }
+
+    @SubscribeEvent
+    public static void onLogout(ClientPlayerNetworkEvent.LoggingOut event) {
+        forcedThirdPerson = false;
     }
 
     /** A left click as him is a bite, not a punch. */

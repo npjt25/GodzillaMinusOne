@@ -7,8 +7,9 @@ import net.minecraftforge.network.NetworkEvent;
 
 import java.util.function.Supplier;
 
-/** A player playing as the Odo Island Monster, client to server: the Run key held or let go, or a bite (client.PlayerOdoControls). */
+/** A player playing as the Odo Island Monster, client to server: a bite (client.PlayerOdoControls). */
 public record OdoMoveRequestPacket(int action, boolean on) {
+    /** (Was the Run key, held or let go: he now moves at his pace without one.) */
     public static final int RUN = 0;
     public static final int BITE = 1;
 
@@ -26,9 +27,7 @@ public record OdoMoveRequestPacket(int action, boolean on) {
         if (player == null) {
             return;
         }
-        if (msg.action() == RUN) {
-            PlayerOdo.setRunning(player, msg.on());
-        } else if (msg.action() == BITE) {
+        if (msg.action() == BITE) {
             PlayerOdo.bite(player);
         }
     }

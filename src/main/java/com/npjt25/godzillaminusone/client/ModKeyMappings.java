@@ -9,8 +9,8 @@ import net.minecraftforge.fml.common.Mod;
 
 /**
  * The mod's key bindings, as the game's own (Options, Controls, Key Binds, Godzilla Minus One; saved in options.txt):
- * the Shinsei Maru's and searchlight's Vehicle Action, the Shinden's free look, the played Odo's run and the played
- * Godzilla's five moves.
+ * the Shinsei Maru's and searchlight's Vehicle Action, the Shinden's free look and the played Godzilla's five moves and
+ * his Walk Through / Climb.
  *
  * <p>All registered here, in one handler: each used to be registered by a {@code Keys.register} of its own (four
  * classes named alike, with methods named alike), and the event bus took them all for the first one, so Vehicle
@@ -20,7 +20,7 @@ import net.minecraftforge.fml.common.Mod;
 public final class ModKeyMappings {
     /** Every one of them, in the order Controls lists them. */
     public static KeyMapping[] all() {
-        return new KeyMapping[] {ShinseiMaruControls.VEHICLE_ACTION, ShindenControls.FREE_LOOK, PlayerOdoControls.RUN,
+        return new KeyMapping[] {ShinseiMaruControls.VEHICLE_ACTION, ShindenControls.FREE_LOOK,
                 PlayerGodzillaControls.TAIL_WHIP, PlayerGodzillaControls.SCRATCH, PlayerGodzillaControls.BITE,
                 PlayerGodzillaControls.ROAR, PlayerGodzillaControls.ATOMIC_BREATH, PlayerGodzillaControls.STRIDE};
     }

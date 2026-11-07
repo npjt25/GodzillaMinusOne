@@ -20,15 +20,13 @@ import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
 
 /**
- * A player playing as the Odo Island Monster (Walkers / ReMorphed: compat.Shapes), server side: his Run key (Left
- * Control by default, client.PlayerOdoControls) makes him run at playerOdoRunBlocksPerSecond (12 blocks a second on level ground),
- * and a left click is his bite (his "bite" animation, seen by everyone; the jaws close 0.75 s in and hurt what's in
+ * A player playing as the Odo Island Monster (Walkers / ReMorphed: compat.Shapes), server side: he moves at
+ * playerOdoBlocksPerSecond (12 blocks a second on level ground) whenever he moves, sprinting or not (no key to hold),
+ * and a left click (client.PlayerOdoControls) is his bite (his "bite" animation, seen by everyone; the jaws close 0.75 s in and hurt what's in
  * front of them, playerOdoBiteDamage).
  */
 @Mod.EventBusSubscriber(modid = GodzillaMinusOne.MODID, bus = Mod.EventBusSubscriber.Bus.FORGE)
@@ -42,22 +40,11 @@ public final class PlayerOdo {
     private static final double BITE_REACH = 6.5;
     private static final double BITE_RADIUS = 4.5;
 
-    private static final Set<UUID> RUNNING = new HashSet<>();
     private static final Map<UUID, Integer> NEXT_BITE = new HashMap<>();
     private static final Map<UUID, Integer> BITE_LANDS = new HashMap<>();
 
     public static boolean isOdo(Player player) {
         return Shapes.shapeOf(player) instanceof OdoIslandMonsterEntity;
-    }
-
-    /** The Run key held or let go (client.PlayerOdoControls). */
-    public static void setRunning(ServerPlayer player, boolean running) {
-        if (running && isOdo(player)) {
-            RUNNING.add(player.getUUID());
-        } else {
-            RUNNING.remove(player.getUUID());
-            setRunSpeed(player, false);
-        }
     }
 
     /** A left click: his bite, if he's the Odo Island Monster and it's ready. */
@@ -82,10 +69,9 @@ public final class PlayerOdo {
         UUID id = player.getUUID();
         boolean odo = player.isAlive() && isOdo(player);
         if (!odo) {
-            RUNNING.remove(id);
             BITE_LANDS.remove(id);
         }
-        setRunSpeed(player, odo && RUNNING.contains(id));
+        setRunSpeed(player, odo);
         Integer lands = BITE_LANDS.get(id);
         if (lands != null && player.tickCount >= lands) {
             BITE_LANDS.remove(id);
@@ -106,9 +92,9 @@ public final class PlayerOdo {
     }
 
     /**
-     * Running, his speed attribute is made whatever gives playerOdoRunBlocksPerSecond blocks a second (whatever else is on it,
-     * sprinting included: the modifier makes up the difference), changed only when that difference changes; walking,
-     * it's taken off.
+     * As him, his speed attribute is made whatever gives playerOdoBlocksPerSecond blocks a second (whatever else is on
+     * it, sprinting included: the modifier makes up the difference), changed only when that difference changes; changed
+     * back, it's taken off.
      */
     private static void setRunSpeed(ServerPlayer player, boolean on) {
         AttributeInstance speed = player.getAttribute(Attributes.MOVEMENT_SPEED);
@@ -127,21 +113,20 @@ public final class PlayerOdo {
         if (without <= 1.0E-6) {
             return;
         }
-        double wanted = Config.PLAYER_ODO_RUN_SPEED.get() / BLOCKS_PER_SECOND_PER_SPEED / without - 1.0;
+        double wanted = Config.PLAYER_ODO_SPEED.get() / BLOCKS_PER_SECOND_PER_SPEED / without - 1.0;
         if (current == null || Math.abs(wanted - have) > 0.005) {
             speed.removeModifier(RUN_ID);
-            speed.addTransientModifier(new AttributeModifier(RUN_ID, "Odo Island Monster running", wanted,
+            speed.addTransientModifier(new AttributeModifier(RUN_ID, "Odo Island Monster's pace", wanted,
                     AttributeModifier.Operation.MULTIPLY_TOTAL));
         }
     }
 
-    /** For the game tests: his speed attribute as running makes it. */
+    /** For the game tests: his speed attribute as his pace makes it. */
     public static double runSpeedAttribute() {
-        return Config.PLAYER_ODO_RUN_SPEED.get() / BLOCKS_PER_SECOND_PER_SPEED;
+        return Config.PLAYER_ODO_SPEED.get() / BLOCKS_PER_SECOND_PER_SPEED;
     }
 
     private static void forget(Player player) {
-        RUNNING.remove(player.getUUID());
         NEXT_BITE.remove(player.getUUID());
         BITE_LANDS.remove(player.getUUID());
         if (player instanceof ServerPlayer serverPlayer) {
