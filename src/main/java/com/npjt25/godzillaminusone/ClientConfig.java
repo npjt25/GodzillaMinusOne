@@ -13,6 +13,12 @@ public final class ClientConfig {
             .comment("Show Godzilla's health bar at the top of the screen.")
             .define("showGodzillaHealthBar", true);
 
+    public static final ForgeConfigSpec.BooleanValue PLAYER_GODZILLA_WALK_THROUGH = BUILDER
+            .comment("Playing as Godzilla (Walkers / ReMorphed): true, you walk through anything (buildings, hills); false, you",
+                    "climb straight up onto whatever is in your way (up to playerGodzillaStepHeight, in the common config). Also",
+                    "switched in game with the \"Godzilla: Walk Through / Climb\" key (M by default).")
+            .define("playerGodzillaWalkThrough", false);
+
     // The atomic blast (client.render.NuclearCloud, client.render.BlastTimeline). The defaults are a proposal for the
     // film's sequence at a playable pace, not timings measured from it.
     static {

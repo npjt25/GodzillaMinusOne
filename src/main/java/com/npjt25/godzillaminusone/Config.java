@@ -59,6 +59,7 @@ public final class Config {
     // ---- Playing as Godzilla / the Odo Island Monster (Walkers or ReMorphed)
     public static final ForgeConfigSpec.BooleanValue PLAYER_GODZILLA_BREAKS_BLOCKS;
     public static final ForgeConfigSpec.BooleanValue PLAYER_GODZILLA_FOOTPRINTS;
+    public static final ForgeConfigSpec.IntValue PLAYER_GODZILLA_STEP_HEIGHT;
     public static final ForgeConfigSpec.DoubleValue PLAYER_ODO_RUN_SPEED;
     public static final ForgeConfigSpec.DoubleValue PLAYER_ODO_BITE_DAMAGE;
 
@@ -226,6 +227,10 @@ public final class Config {
         PLAYER_GODZILLA_FOOTPRINTS = BUILDER
                 .comment("Playing as Godzilla: his strides crush footprints (with playerGodzillaBreaksBlocks).")
                 .define("playerGodzillaFootprints", true);
+        PLAYER_GODZILLA_STEP_HEIGHT = BUILDER
+                .comment("Playing as Godzilla and climbing (not walking through things: each player picks with a key, M by default,",
+                        "or in the config screen): he steps straight up onto anything up to this many blocks high.")
+                .defineInRange("playerGodzillaStepHeight", 20, 1, 64);
         PLAYER_ODO_RUN_SPEED = BUILDER
                 .comment("Playing as the Odo Island Monster: how fast he runs, in blocks per second on level ground, while the Run",
                         "key (Left Control by default) is held. Only the player playing as him; walking is left as it is.",

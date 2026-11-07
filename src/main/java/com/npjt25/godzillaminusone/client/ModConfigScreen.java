@@ -61,6 +61,15 @@ public class ModConfigScreen extends Screen {
         // how long he lies defeated when his health runs out
         addSlider(new NumberSlider(left, y + 104, Config.SPEC, Config.DOWNED_SECONDS, 0, 600, 5, "downed_time",
                 seconds -> seconds == 0 ? Component.translatable(KEY + ".seconds", 0) : time(seconds)));
+        // playing as Godzilla: climb onto things, or walk through them
+        addRenderableWidget(CycleButton.booleanBuilder(Component.translatable(KEY + ".stride.through"), Component.translatable(KEY + ".stride.climb"))
+                .withInitialValue(ClientConfig.PLAYER_GODZILLA_WALK_THROUGH.get())
+                .withTooltip(value -> Tooltip.create(Component.translatable(KEY + ".stride.tooltip")))
+                .create(right, y + 104, WIDTH, 20, Component.translatable(KEY + ".stride"), (button, value) -> {
+                    ClientConfig.PLAYER_GODZILLA_WALK_THROUGH.set(value);
+                    ClientConfig.SPEC.save();
+                    PlayerGodzillaControls.stride(false);
+                }));
         addRenderableWidget(Button.builder(CommonComponents.GUI_DONE, button -> onClose())
                 .bounds(this.width / 2 - 100, this.height - 40, 200, 20)
                 .build());

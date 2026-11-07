@@ -1,12 +1,15 @@
 package com.npjt25.godzillaminusone.client;
 
 import com.mojang.blaze3d.platform.InputConstants;
+import com.npjt25.godzillaminusone.ClientConfig;
 import com.npjt25.godzillaminusone.GodzillaMinusOne;
 import com.npjt25.godzillaminusone.compat.Shapes;
 import com.npjt25.godzillaminusone.entity.GodzillaEntity;
+import com.npjt25.godzillaminusone.entity.GodzillaStride;
 import com.npjt25.godzillaminusone.entity.PlayerGodzilla;
 import com.npjt25.godzillaminusone.network.GodzillaMovePacket;
 import com.npjt25.godzillaminusone.network.GodzillaMoveRequestPacket;
+import com.npjt25.godzillaminusone.network.GodzillaStridePacket;
 import com.npjt25.godzillaminusone.network.ModNetwork;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Camera;
@@ -42,6 +45,8 @@ import java.util.Map;
  * are G, U, R and V, ReMorphed's `), saved with the rest of the game's (options.txt), and the list on screen shows
  * whatever they're bound to. They only count while you're playing as him ({@link ModKeyContexts#GODZILLA_SHAPE}), as
  * whichever of Walkers or ReMorphed made you him: otherwise their keys are free for whatever else is bound to them.
+ * One more key ("Godzilla: Walk Through / Climb", M) switches between climbing onto whatever is in his way and walking
+ * through it (entity.GodzillaStride), as does the config screen; the list on screen shows which.
  * As him you see yourself from behind (third person, forced: back to first person when you change back), the camera
  * pulled far enough back for all of him to be in the picture.
  */
@@ -54,6 +59,8 @@ public final class PlayerGodzillaControls {
     public static final KeyMapping BITE = key("bite", GLFW.GLFW_KEY_J);
     public static final KeyMapping ROAR = key("roar", GLFW.GLFW_KEY_K);
     public static final KeyMapping ATOMIC_BREATH = key("atomic_breath", GLFW.GLFW_KEY_B);
+    /** Walk through things, or climb them (entity.GodzillaStride; ClientConfig.PLAYER_GODZILLA_WALK_THROUGH). */
+    public static final KeyMapping STRIDE = key("stride", GLFW.GLFW_KEY_M);
     private static final KeyMapping[] KEYS = {TAIL_WHIP, SCRATCH, BITE, ROAR, ATOMIC_BREATH};
     private static final String HUD = "hud." + GodzillaMinusOne.MODID + ".godzilla.";
     private static final float HUD_SCALE = 0.7F;
@@ -63,6 +70,8 @@ public final class PlayerGodzillaControls {
     private static int breathReadyAt;
     /** Whether we put the camera into third person (to put it back in first person when the player changes back). */
     private static boolean forcedThirdPerson;
+    /** Whether this player was Godzilla last tick (on becoming him, the server is told how he gets about). */
+    private static boolean wasGodzilla;
     /** Players playing as Godzilla who are charging their breath: when they started (client ticks). */
     private static final Map<Integer, Integer> CHARGING = new HashMap<>();
 
@@ -95,6 +104,18 @@ public final class PlayerGodzillaControls {
                 }
             }
         }
+        boolean toggled = false;
+        while (STRIDE.consumeClick()) {
+            if (godzilla) {
+                ClientConfig.PLAYER_GODZILLA_WALK_THROUGH.set(!ClientConfig.PLAYER_GODZILLA_WALK_THROUGH.get());
+                ClientConfig.SPEC.save();
+                toggled = true;
+            }
+        }
+        if (godzilla && (toggled || !wasGodzilla || clientTicks % 100 == 0)) {
+            stride(toggled);
+        }
+        wasGodzilla = godzilla;
         if (mc.level == null) {
             CHARGING.clear();
             return;
@@ -117,6 +138,24 @@ public final class PlayerGodzillaControls {
     }
 
     /**
+     * Tells the server (and this client's own movement) whether he walks through things or climbs them, as the
+     * config says; {@code announce}: also says so above the hotbar.
+     */
+    public static void stride(boolean announce) {
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.player == null || mc.getConnection() == null) {
+            return;
+        }
+        boolean through = ClientConfig.PLAYER_GODZILLA_WALK_THROUGH.get();
+        GodzillaStride.setWalkThrough(mc.player, through);
+        ModNetwork.CHANNEL.sendToServer(new GodzillaStridePacket(through));
+        if (announce) {
+            mc.player.displayClientMessage(Component.translatable(HUD + (through ? "stride_through" : "stride_climb"))
+                    .withStyle(ChatFormatting.AQUA), true);
+        }
+    }
+
+    /**
      * As Godzilla, in third person: the camera looks at the middle of him from {@link #cameraDistance} away (instead of
      * Minecraft's 4 blocks from the eyes, which is inside him), closer if the ground or a wall is in the way.
      */
@@ -127,6 +166,11 @@ public final class PlayerGodzillaControls {
             return;
         }
         Vec3 middle = player.getPosition((float) event.getPartialTick()).add(0.0, player.getBbHeight() * 0.55, 0.0);
+        if (GodzillaStride.walksThrough(player)) {
+            // walking through things, walls don't pull the camera in to him (he's often half inside one)
+            CameraPlacement.place(camera, middle.subtract(new Vec3(camera.getLookVector()).scale(cameraDistance(player))));
+            return;
+        }
         CameraPlacement.pullBack(camera, player, middle, cameraDistance(player));
     }
 
@@ -205,6 +249,11 @@ public final class PlayerGodzillaControls {
             breath = Component.translatable(HUD + "ready").withStyle(ChatFormatting.GREEN);
         }
         graphics.drawString(mc.font, line(ATOMIC_BREATH, Component.translatable(HUD + "atomic_breath").append(": ").append(breath)), 0, y, 0xFFFFFF);
+        y += 10;
+        boolean through = ClientConfig.PLAYER_GODZILLA_WALK_THROUGH.get();
+        graphics.drawString(mc.font, line(STRIDE, Component.translatable(HUD + "stride").append(": ")
+                .append(Component.translatable(HUD + (through ? "stride_through_short" : "stride_climb_short")).withStyle(ChatFormatting.AQUA))),
+                0, y, 0xFFFFFF);
         graphics.pose().popPose();
     }
 
@@ -218,6 +267,7 @@ public final class PlayerGodzillaControls {
         CHARGING.clear();
         forcedThirdPerson = false;
         breathReadyAt = 0;
+        wasGodzilla = false;
     }
 
     private PlayerGodzillaControls() {

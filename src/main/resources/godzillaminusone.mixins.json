@@ -6,7 +6,9 @@
   "refmap": "godzillaminusone.refmap.json",
   "mixins": [],
   "client": [
-    "EntityRenderDispatcherMixin"
+    "EntityCollideMixin",
+    "EntityRenderDispatcherMixin",
+    "LocalPlayerMixin"
   ],
   "injectors": {
     "defaultRequire": 1

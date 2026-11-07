@@ -22,7 +22,7 @@ public final class ModKeyMappings {
     public static KeyMapping[] all() {
         return new KeyMapping[] {ShinseiMaruControls.VEHICLE_ACTION, ShindenControls.FREE_LOOK, PlayerOdoControls.RUN,
                 PlayerGodzillaControls.TAIL_WHIP, PlayerGodzillaControls.SCRATCH, PlayerGodzillaControls.BITE,
-                PlayerGodzillaControls.ROAR, PlayerGodzillaControls.ATOMIC_BREATH};
+                PlayerGodzillaControls.ROAR, PlayerGodzillaControls.ATOMIC_BREATH, PlayerGodzillaControls.STRIDE};
     }
 
     @SubscribeEvent
