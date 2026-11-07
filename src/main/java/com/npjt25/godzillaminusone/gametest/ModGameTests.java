@@ -365,6 +365,14 @@ public final class ModGameTests {
         ShindenEntity plane = planeAt(helper, face.add(forward.scale(24.0)), pilot);
         plane.moveTo(plane.getX(), plane.getY(), plane.getZ(), godzilla.yBodyRot + 180.0F, 0.0F);
         plane.setXRot(0.0F);
+        // (the test's pocket is deep in the rock: a clear line of fire from the plane to his face, as in the open air)
+        Vec3 muzzle = plane.position().add(0.0, 1.5, 0.0);
+        for (double t = 0.0; t <= 1.0; t += 0.02) {
+            BlockPos at = BlockPos.containing(muzzle.add(face.subtract(muzzle).scale(t)));
+            for (BlockPos pos : BlockPos.betweenClosed(at.offset(-1, -1, -1), at.offset(1, 1, 1))) {
+                helper.getLevel().setBlock(pos, Blocks.AIR.defaultBlockState(), 2);
+            }
+        }
         plane.fireGuns(pilot);
         helper.assertTrue(godzilla.isActive() && godzilla.getHealth() == godzilla.getMaxHealth(),
                 "not breathing in, the Torrid shouldn't hurt him, was " + godzilla.getPhase() + " / " + godzilla.getHealth());
