@@ -8,11 +8,13 @@ import com.npjt25.godzillaminusone.client.ShinseiMaruSounds;
 import com.npjt25.godzillaminusone.entity.GodzillaEntity;
 import com.npjt25.godzillaminusone.entity.GodzillaStatueEntity;
 import com.npjt25.godzillaminusone.entity.OdoIslandMonsterEntity;
+import com.npjt25.godzillaminusone.entity.Radiation;
 import com.npjt25.godzillaminusone.entity.SearchlightEntity;
 import com.npjt25.godzillaminusone.entity.ShindenEntity;
 import com.npjt25.godzillaminusone.entity.ShinseiMaruEntity;
 import com.npjt25.godzillaminusone.entity.ShinseiMaruPart;
 import com.npjt25.godzillaminusone.registry.ModEntities;
+import com.npjt25.godzillaminusone.registry.ModEffects;
 import com.npjt25.godzillaminusone.registry.ModItems;
 import com.npjt25.godzillaminusone.registry.ModSounds;
 import net.minecraft.client.CameraType;
@@ -71,7 +73,7 @@ import static com.npjt25.godzillaminusone.client.harness.ShotsHarness.waitTicks;
 
 /**
  * The scenes {@link ShotsHarness} goes through, in a flat world (its ground is at y -60), each in its own place: the
- * hunched snarl statue; the Odo Island Monster spawning (and his spawn egg in the hotbar); Godzilla's roar heard from
+ * config screen; the hazmat suit worn and the Radiation effect; the hunched snarl statue; the Odo Island Monster spawning (and his spawn egg in the hotbar); Godzilla's roar heard from
  * either side of 200 blocks; a searchlight's beam over water and ice at night; the Shinsei Maru (walking her decks as
  * she sails and turns, climbing her ladders, her crew standing at their stations, her motor); a Shinden (third person,
  * its engine, Free Look); Godzilla getting over his atomic breath.
@@ -83,6 +85,8 @@ final class Scenes {
         commands("gamerule doMobSpawning false", "gamerule mobGriefing true", "time set 6000", "weather clear");
         waitTicks(20);
         controls();
+        configScreen();
+        hazmat();
         statue();
         odo();
         roars();
@@ -138,6 +142,110 @@ final class Scenes {
         check("controls: the new key is saved in options.txt", () -> ShotsHarness.saved(PlayerGodzillaControls.ROAR, "key.keyboard.n"));
         once("controls: Roar back on K", () -> ShotsHarness.rebind(PlayerGodzillaControls.ROAR, PlayerGodzillaControls.ROAR.getDefaultKey()));
         check("controls: K saved again", () -> ShotsHarness.saved(PlayerGodzillaControls.ROAR, "key.keyboard.k"));
+    }
+
+    // ------------------------------------------------------------------ the config screen
+
+    /** The config screen (Mods, Godzilla Minus One, Config) has Godzilla's downed time and the played Godzilla's movement. */
+    private static void configScreen() {
+        once("config: open", () -> mc().setScreen(new com.npjt25.godzillaminusone.client.ModConfigScreen(null)));
+        waitTicks(10);
+        check("config: downed time and played Godzilla's movement on it", () -> {
+            if (mc().screen == null) {
+                return "no screen";
+            }
+            List<String> labels = mc().screen.children().stream()
+                    .filter(w -> w instanceof net.minecraft.client.gui.components.AbstractWidget)
+                    .map(w -> ((net.minecraft.client.gui.components.AbstractWidget) w).getMessage().getString()).toList();
+            log("config: " + labels);
+            boolean downed = labels.stream().anyMatch(l -> l.startsWith("Lies Downed: "));
+            boolean stride = labels.stream().anyMatch(l -> l.startsWith("Played Godzilla: "));
+            return downed && stride ? null : "missing: " + (downed ? "" : "downed time ") + (stride ? "" : "movement");
+        });
+        shot("config_screen");
+        once("config: close", () -> mc().setScreen(null));
+        waitTicks(5);
+    }
+
+    // ------------------------------------------------------------------ the hazmat suit and Radiation
+
+    private static final Vec3 SUIT_AT = new Vec3(500.5, -60.0, 0.5);
+
+    /**
+     * The hazmat suit worn (all four pieces), from in front and behind; the Radiation effect (its icon on screen, its
+     * name), and the suit, put on, washing it off.
+     */
+    private static void hazmat() {
+        once("hazmat: the game's camera", () -> view(null, null));
+        server("hazmat: suited up", level -> {
+            ServerPlayer player = serverPlayer(level);
+            player.setGameMode(GameType.SURVIVAL);
+            player.teleportTo(level, SUIT_AT.x, SUIT_AT.y, SUIT_AT.z, 0.0F, 0.0F);
+            suit(player, true);
+        });
+        waitTicks(30);
+        check("hazmat: all four pieces on (client)", () -> mc().player != null && Radiation.shielded(mc().player) ? null : "not all on");
+        once("hazmat: from in front", () -> view(SUIT_AT.add(0.6, 1.5, 3.0), SUIT_AT.add(0.0, 1.0, 0.0)));
+        waitTicks(10);
+        shot("hazmat_front");
+        once("hazmat: from behind", () -> view(SUIT_AT.add(-0.6, 1.6, -3.0), SUIT_AT.add(0.0, 1.0, 0.0)));
+        waitTicks(10);
+        shot("hazmat_back");
+        once("hazmat: from the side", () -> view(SUIT_AT.add(3.0, 1.3, 0.4), SUIT_AT.add(0.0, 1.0, 0.0)));
+        waitTicks(10);
+        shot("hazmat_side");
+
+        // without the suit: Radiation, its icon on screen (the radiation trefoil)
+        server("hazmat: off, and irradiated", level -> {
+            ServerPlayer player = serverPlayer(level);
+            suit(player, false);
+            player.addEffect(new net.minecraft.world.effect.MobEffectInstance(ModEffects.RADIATION.get(), 600, 0));
+        });
+        once("hazmat: first person, the HUD on", () -> {
+            view(null, null);
+            mc().options.setCameraType(CameraType.FIRST_PERSON);
+            mc().options.hideGui = false;
+        });
+        waitTicks(20);
+        check("hazmat: Radiation on the player, by that name", () -> {
+            if (mc().player == null || !mc().player.hasEffect(ModEffects.RADIATION.get())) {
+                return "no Radiation";
+            }
+            String name = net.minecraft.client.resources.language.I18n.get(ModEffects.RADIATION.get().getDescriptionId());
+            log("hazmat: the effect is called " + name);
+            return name.equals("Radiation") ? null : "called " + name;
+        });
+        shot("radiation_effect_hud");
+        once("hazmat: inventory", () -> {
+            if (mc().player != null) {
+                mc().setScreen(new net.minecraft.client.gui.screens.inventory.InventoryScreen(mc().player));
+            }
+        });
+        waitTicks(10);
+        shot("radiation_effect_inventory");
+        once("hazmat: inventory closed, HUD off", () -> {
+            mc().setScreen(null);
+            mc().options.hideGui = true;
+        });
+        // the suit back on: what he'd caught washes off
+        server("hazmat: suit back on", level -> suit(serverPlayer(level), true));
+        waitTicks(30);
+        checkServer("hazmat: the suit on, Radiation washes off", level -> serverPlayer(level).hasEffect(ModEffects.RADIATION.get())
+                ? "still irradiated" : null);
+        server("hazmat: done", level -> {
+            ServerPlayer player = serverPlayer(level);
+            suit(player, false);
+            player.removeAllEffects();
+            player.setGameMode(GameType.CREATIVE);
+        });
+        waitTicks(5);
+    }
+
+    private static void suit(ServerPlayer player, boolean on) {
+        player.setItemSlot(net.minecraft.world.entity.EquipmentSlot.HEAD, on ? new ItemStack(ModItems.HAZMAT_HOOD.get()) : ItemStack.EMPTY);
+        player.setItemSlot(net.minecraft.world.entity.EquipmentSlot.CHEST, on ? new ItemStack(ModItems.HAZMAT_SUIT.get()) : ItemStack.EMPTY);
+        player.setItemSlot(net.minecraft.world.entity.EquipmentSlot.LEGS, on ? new ItemStack(ModItems.HAZMAT_TROUSERS.get()) : ItemStack.EMPTY);
+        player.setItemSlot(net.minecraft.world.entity.EquipmentSlot.FEET, on ? new ItemStack(ModItems.HAZMAT_BOOTS.get()) : ItemStack.EMPTY);
     }
 
     // ------------------------------------------------------------------ the hunched snarl statue
