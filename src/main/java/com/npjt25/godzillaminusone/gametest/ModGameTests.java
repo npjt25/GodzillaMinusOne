@@ -14,6 +14,7 @@ import com.npjt25.godzillaminusone.entity.NuclearBombEntity;
 import com.npjt25.godzillaminusone.entity.OdoIslandMonsterEntity;
 import com.npjt25.godzillaminusone.entity.PlayerGodzilla;
 import com.npjt25.godzillaminusone.entity.PlayerOdo;
+import com.npjt25.godzillaminusone.entity.Radiation;
 import com.npjt25.godzillaminusone.entity.SearchlightEntity;
 import com.npjt25.godzillaminusone.entity.ShindenEntity;
 import com.npjt25.godzillaminusone.entity.ShinseiMaruEntity;
@@ -21,6 +22,7 @@ import com.npjt25.godzillaminusone.entity.ShinseiMaruPart;
 import com.npjt25.godzillaminusone.item.RemoteDetonatorItem;
 import com.npjt25.godzillaminusone.menu.ShinseiMaruMenu;
 import com.npjt25.godzillaminusone.registry.ModDamageTypes;
+import com.npjt25.godzillaminusone.registry.ModEffects;
 import com.npjt25.godzillaminusone.registry.ModEntities;
 import com.npjt25.godzillaminusone.registry.ModItems;
 import com.npjt25.godzillaminusone.registry.ModSounds;
@@ -38,6 +40,9 @@ import net.minecraft.tags.FluidTags;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.EquipmentSlot;
+import net.minecraft.world.entity.monster.Zombie;
+import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.item.FallingBlockEntity;
 import net.minecraft.world.entity.MobSpawnType;
 import net.minecraft.world.entity.animal.Pig;
@@ -318,6 +323,35 @@ public final class ModGameTests {
         pilot.stopRiding();
         remove(godzilla);
         helper.succeed();
+    }
+
+    /**
+     * Near him, a mob gets Radiation (not Wither); one in the whole hazmat suit gets nothing, and radiation can't hurt
+     * it (his charge's heat included).
+     */
+    @GameTest(template = FLOOR, batch = "gmo_radiation", timeoutTicks = 100)
+    public static void hisRadiationGivesRadiationAndTheHazmatSuitKeepsItOff(GameTestHelper helper) {
+        GodzillaEntity godzilla = spawnActiveGodzilla(helper);
+        Zombie bare = helper.spawn(EntityType.ZOMBIE, 2, 3, 2);
+        Zombie suited = helper.spawn(EntityType.ZOMBIE, 6, 3, 2);
+        for (Zombie zombie : new Zombie[] {bare, suited}) {
+            zombie.setNoAi(true);
+            zombie.setSilent(true);
+        }
+        suited.setItemSlot(EquipmentSlot.HEAD, new ItemStack(ModItems.HAZMAT_HOOD.get()));
+        suited.setItemSlot(EquipmentSlot.CHEST, new ItemStack(ModItems.HAZMAT_SUIT.get()));
+        suited.setItemSlot(EquipmentSlot.LEGS, new ItemStack(ModItems.HAZMAT_TROUSERS.get()));
+        suited.setItemSlot(EquipmentSlot.FEET, new ItemStack(ModItems.HAZMAT_BOOTS.get()));
+        helper.assertTrue(Radiation.shielded(suited) && !Radiation.shielded(bare), "only the suited one should be shielded");
+        float before = suited.getHealth();
+        suited.hurt(ModDamageTypes.source(helper.getLevel(), ModDamageTypes.RADIATION, godzilla), 5.0F);
+        helper.assertTrue(suited.getHealth() == before, "radiation shouldn't hurt someone in the suit");
+        helper.succeedWhen(() -> {
+            helper.assertTrue(bare.hasEffect(ModEffects.RADIATION.get()), "near him, Radiation");
+            helper.assertFalse(bare.hasEffect(MobEffects.WITHER), "Radiation, not Wither");
+            helper.assertFalse(suited.hasEffect(ModEffects.RADIATION.get()), "the hazmat suit should keep Radiation off");
+            remove(godzilla, bare, suited);
+        });
     }
 
     /** Taking his deep breath in before the beam, a Shinden flown into his face brings him down in one hit. */
