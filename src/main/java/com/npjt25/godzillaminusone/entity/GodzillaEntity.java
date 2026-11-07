@@ -82,6 +82,7 @@ import software.bernie.geckolib.util.GeckoLibUtil;
 
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * Godzilla (goji:gojira and its gojira_dead / gojira_dead2 / gojira_spawn1 / gojira_spawn2 stages from the
@@ -117,6 +118,7 @@ public class GodzillaEntity extends Monster implements GeoEntity {
     private static final int COLLAPSE_TICKS = 100;      // gojira_dead timer: 5 s
     private static final int ANGER_DELAY = 40;          // angry timeline: charge starts at 2.0 s
     public static final int BEAM_START_TICK = 304;     // charge animation: the beam appears at 14.96 s (after the 4 s in-breath)
+    public static final int INHALE_TICKS = 80;          // ...the in-breath: his last 4 s before it
     public static final int CHARGE_BLAST_TICK = 344;   // ...and 2 s later its impact goes up in a nuclear blast
     public static final int BEAM_END_TICK = 388;       // charge animation: the beam is gone at 19.17 s
     public static final int ROAR_TICKS = 109;           // animation.gojira.roar: 5.46 s
@@ -356,6 +358,25 @@ public class GodzillaEntity extends Monster implements GeoEntity {
 
     public boolean isCharging() {
         return getChargeState() != CHARGE_NONE;
+    }
+
+    /**
+     * Server side: he's taking his deep breath in, the last 4 s of the charge before the beam. Then a piloted Shinden
+     * brings him down in one hit (shindenInhaleKnockout): see {@link #shindenStrike}, {@link #torridBurst} and the
+     * kamikaze in radiationAura.
+     */
+    public boolean isInhaling() {
+        return this.chargeTicks >= BEAM_START_TICK - INHALE_TICKS && this.chargeTicks < BEAM_START_TICK;
+    }
+
+    private boolean inhaleKnockout() {
+        return isInhaling() && Config.SHINDEN_INHALE_KNOCKOUT.get();
+    }
+
+    /** For the game tests: he starts his charge's in-breath now (as if he'd been charging at someone). */
+    public void startInhaling() {
+        this.chargeTicks = BEAM_START_TICK - INHALE_TICKS;
+        setChargeState(CHARGE_GLOWING);
     }
 
     public boolean isStunned() {
@@ -726,10 +747,16 @@ public class GodzillaEntity extends Monster implements GeoEntity {
         int kamikaze = Config.SHINDEN_KAMIKAZE_DISTANCE.get();
         if (kamikaze > 0) {
             for (ShindenEntity shinden : level.getEntitiesOfClass(ShindenEntity.class, getBoundingBox().inflate(kamikaze))) {
-                if (getBurnTicks() > 0 && headingForFace(shinden)) {
-                    continue; // he's burnt: let it through to his face (checked every tick: tickFaceStrikes)
+                if ((getBurnTicks() > 0 || inhaleKnockout()) && headingForFace(shinden)) {
+                    continue; // burnt, or breathing in: let it through to his face (checked every tick: tickFaceStrikes)
                 }
+                boolean finishes = inhaleKnockout() && shinden.getControllingPassenger() instanceof Player;
+                Entity pilot = shinden.getControllingPassenger();
                 shinden.explode();
+                if (finishes && isActive()) {
+                    // breathing in, a Shinden blown up on him is the one hit that brings him down
+                    knockOut(ModDamageTypes.source(level, ModDamageTypes.NAVAL_MINE, shinden, pilot));
+                }
             }
         }
     }
@@ -1024,8 +1051,9 @@ public class GodzillaEntity extends Monster implements GeoEntity {
      * speed, head on (from in front of his head, towards it), it crashes there: like any crash it goes off as a naval
      * mine, but if his mouth is still burnt raw from his atomic breath ({@link #getBurnTicks()} > 0) it finishes him:
      * all his health gone, and he collapses as when mines bring him down (an exception to "only naval mines hurt him").
-     * A hit anywhere else (chest, tail, legs...), or on a face that isn't burnt, is no such thing. Returns whether it
-     * hit his face.
+     * So does it while he takes his deep breath in before the beam ({@link #isInhaling}, shindenInhaleKnockout). A hit
+     * anywhere else (chest, tail, legs...), or on a face that isn't burnt, is no such thing (though breathing in, a
+     * Shinden blown up anywhere near him also brings him down: radiationAura). Returns whether it hit his face.
      */
     public boolean shindenStrike(ShindenEntity plane, Vec3 motion) {
         if (!(level() instanceof ServerLevel level) || !isActive() || !(plane.getControllingPassenger() instanceof Player pilot)) {
@@ -1045,13 +1073,46 @@ public class GodzillaEntity extends Monster implements GeoEntity {
         if (!inFront || !towards) {
             return false;
         }
-        if (getBurnTicks() > 0) {
-            DamageSource source = ModDamageTypes.source(level, ModDamageTypes.NAVAL_MINE, plane, pilot);
-            setHealth(0.0F);
-            die(source);
+        if (getBurnTicks() > 0 || inhaleKnockout()) {
+            knockOut(ModDamageTypes.source(level, ModDamageTypes.NAVAL_MINE, plane, pilot));
         }
         plane.crash(pilot);
         return true;
+    }
+
+    /**
+     * A Shinden's Torrid burst from {@code origin} along {@code aim}, as far as {@code range}: while he's breathing in
+     * before the beam ({@link #isInhaling}, shindenInhaleKnockout), a burst that hits him (his head, or the rest of him;
+     * nothing solid in the way) brings him down in one. Returns whether it did.
+     */
+    public boolean torridBurst(ShindenEntity plane, Player pilot, Vec3 origin, Vec3 aim, double range) {
+        if (!(level() instanceof ServerLevel level) || !isActive() || !inhaleKnockout()) {
+            return false;
+        }
+        Vec3 end = origin.add(aim.scale(range));
+        Vec3 face = locator(FACE.x, FACE.y, FACE.z);
+        Vec3 at;
+        if (distanceSqrToSegment(face, origin, end) <= Mth.square(FACE_RADIUS + 1.0)) {
+            at = face; // (his head sticks out in front of his box)
+        } else {
+            Optional<Vec3> hit = getBoundingBox().inflate(1.0).clip(origin, end);
+            if (hit.isEmpty()) {
+                return false;
+            }
+            at = hit.get();
+        }
+        HitResult blocked = level.clip(new ClipContext(origin, at, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, plane));
+        if (blocked.getType() == HitResult.Type.BLOCK && blocked.getLocation().distanceTo(origin) < at.distanceTo(origin) - 1.5) {
+            return false;
+        }
+        knockOut(ModDamageTypes.source(level, ModDamageTypes.TORRID, plane, pilot));
+        return true;
+    }
+
+    /** All his health gone at once: he collapses, as when mines bring him down (then rests for downedSeconds). */
+    private void knockOut(DamageSource source) {
+        setHealth(0.0F);
+        die(source);
     }
 
     /** A piloted Shinden in front of his face, closing on it on a course that hits it. */

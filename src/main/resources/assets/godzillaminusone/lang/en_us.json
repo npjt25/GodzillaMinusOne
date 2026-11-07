@@ -7,6 +7,8 @@
   "config.godzillaminusone.breath_interval.tooltip": "How long Godzilla needs to recharge his atomic breath before he can use it again. (For worlds played on this computer; a server has its own setting.)",
   "config.godzillaminusone.roar_interval": "Roar: every %s",
   "config.godzillaminusone.roar_interval.tooltip": "How often Godzilla stops and roars on his own (he also roars after his atomic breath and when a naval mine hits him). (For worlds played on this computer; a server has its own setting.)",
+  "config.godzillaminusone.downed_time": "Lies Downed: %s",
+  "config.godzillaminusone.downed_time.tooltip": "How long Godzilla lies defeated when his health bar hits zero (after his 5 s collapse) before he regenerates and gets back up. (For worlds played on this computer; a server has its own setting.)",
   "config.godzillaminusone.cloud_height": "Cloud Height: %s",
   "config.godzillaminusone.cloud_height.tooltip": "How tall the atomic blast's mushroom cloud grows. Its cap, stem, dust wave and fireball are all in proportion.",
   "config.godzillaminusone.flash_strength": "Blast Flash: %s",

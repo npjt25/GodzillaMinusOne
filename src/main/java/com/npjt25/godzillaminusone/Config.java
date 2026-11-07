@@ -49,6 +49,7 @@ public final class Config {
     // ---- Shinden / Torrid / naval mine
     public static final ForgeConfigSpec.DoubleValue SHINDEN_MAX_SPEED;
     public static final ForgeConfigSpec.IntValue SHINDEN_KAMIKAZE_DISTANCE;
+    public static final ForgeConfigSpec.BooleanValue SHINDEN_INHALE_KNOCKOUT;
     public static final ForgeConfigSpec.DoubleValue TORRID_DAMAGE;
     public static final ForgeConfigSpec.IntValue TORRID_RANGE;
     public static final ForgeConfigSpec.IntValue MINE_BLAST_RADIUS;
@@ -194,6 +195,11 @@ public final class Config {
         SHINDEN_KAMIKAZE_DISTANCE = BUILDER
                 .comment("A Shinden flown this close to Godzilla detonates like a naval mine; its pilot bails out (add-on: 15).")
                 .defineInRange("shindenKamikazeDistance", 15, 0, 128);
+        SHINDEN_INHALE_KNOCKOUT = BUILDER
+                .comment("While Godzilla takes his deep breath in just before the atomic breath's beam (the 4 s in-breath), a",
+                        "piloted Shinden brings him down in one hit: crashed into him (or blown up by his radiation as it closes in)",
+                        "or a Torrid burst into him takes all his health, and he collapses (and rests for downedSeconds).")
+                .define("shindenInhaleKnockout", true);
         TORRID_DAMAGE = BUILDER
                 .comment("Damage of each Torrid (Shinden cannon) burst (add-on: 400).")
                 .defineInRange("torridDamage", 400.0, 0.0, 1_000_000.0);

@@ -346,6 +346,9 @@ public class ShindenEntity extends Mob implements GeoEntity {
         Vec3 aim = Vec3.directionFromRotation(getXRot(), getYRot()); // along the nose (the pilot may be looking round)
         Vec3 origin = position().add(0.0, 1.5, 0.0);
         DamageSource source = ModDamageTypes.source(level, ModDamageTypes.TORRID, this, pilot);
+        for (GodzillaEntity godzilla : level.getEntitiesOfClass(GodzillaEntity.class, getBoundingBox().inflate(range))) {
+            godzilla.torridBurst(this, pilot, origin, aim, range); // (breathing in before his beam, one burst brings him down)
+        }
         for (LivingEntity target : level.getEntitiesOfClass(LivingEntity.class, getBoundingBox().inflate(range),
                 e -> e != this && e != pilot && e.isAlive() && !e.isPassengerOfSameVehicle(pilot))) {
             Vec3 center = target.getBoundingBox().getCenter();

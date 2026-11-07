@@ -320,6 +320,63 @@ public final class ModGameTests {
         helper.succeed();
     }
 
+    /** Taking his deep breath in before the beam, a Shinden flown into his face brings him down in one hit. */
+    @GameTest(template = FLOOR, batch = "gmo_inhale_crash", timeoutTicks = 20)
+    public static void aShindenInHisFaceWhileHeBreathesInBringsHimDown(GameTestHelper helper) {
+        GodzillaEntity godzilla = spawnActiveGodzilla(helper);
+        godzilla.startInhaling();
+        helper.assertTrue(godzilla.isInhaling() && godzilla.getBurnTicks() == 0, "he should be breathing in, unburnt");
+        Vec3 forward = Vec3.directionFromRotation(0.0F, godzilla.yBodyRot);
+        Player pilot = helper.makeMockPlayer();
+        ShindenEntity plane = planeAt(helper, godzilla.facePosition().add(forward.scale(3.0)), pilot);
+        helper.assertTrue(godzilla.shindenStrike(plane, forward.scale(-1.6)), "flying into his face should hit it");
+        helper.assertTrue(godzilla.getPhase() == GodzillaEntity.Phase.COLLAPSING, "breathing in, he should collapse, was " + godzilla.getPhase());
+        helper.assertFalse(godzilla.isCharging(), "his charge should be over");
+        pilot.stopRiding();
+        remove(godzilla);
+        helper.succeed();
+    }
+
+    /** ...and so does one blown up by his radiation anywhere near him then (not only in his face)... */
+    @GameTest(template = FLOOR, batch = "gmo_inhale_kamikaze", timeoutTicks = 120)
+    public static void aShindenBlownUpOnHimWhileHeBreathesInBringsHimDown(GameTestHelper helper) {
+        GodzillaEntity godzilla = spawnActiveGodzilla(helper);
+        godzilla.startInhaling();
+        Vec3 forward = Vec3.directionFromRotation(0.0F, godzilla.yBodyRot);
+        Vec3 side = new Vec3(-forward.z, 0.0, forward.x);
+        Player pilot = helper.makeMockPlayer();
+        ShindenEntity plane = planeAt(helper, godzilla.position().add(side.scale(godzilla.getBbWidth() / 2.0 + 6.0)).add(0.0, 20.0, 0.0), pilot);
+        helper.succeedWhen(() -> {
+            helper.assertTrue(plane.isRemoved(), "the Shinden should blow up so close to him");
+            helper.assertTrue(godzilla.getPhase() == GodzillaEntity.Phase.COLLAPSING, "breathing in, he should collapse, was "
+                    + godzilla.getPhase() + " / " + godzilla.getHealth());
+            pilot.stopRiding();
+            remove(godzilla);
+        });
+    }
+
+    /** ...and so does a Torrid burst into him; outside the in-breath the Torrid does nothing to him. */
+    @GameTest(template = FLOOR, batch = "gmo_inhale_torrid", timeoutTicks = 20)
+    public static void aTorridBurstWhileHeBreathesInBringsHimDown(GameTestHelper helper) {
+        GodzillaEntity godzilla = spawnActiveGodzilla(helper);
+        Vec3 forward = Vec3.directionFromRotation(0.0F, godzilla.yBodyRot);
+        Player pilot = helper.makeMockPlayer();
+        Vec3 face = godzilla.facePosition();
+        ShindenEntity plane = planeAt(helper, face.add(forward.scale(24.0)), pilot);
+        plane.moveTo(plane.getX(), plane.getY(), plane.getZ(), godzilla.yBodyRot + 180.0F, 0.0F);
+        plane.setXRot(0.0F);
+        plane.fireGuns(pilot);
+        helper.assertTrue(godzilla.isActive() && godzilla.getHealth() == godzilla.getMaxHealth(),
+                "not breathing in, the Torrid shouldn't hurt him, was " + godzilla.getPhase() + " / " + godzilla.getHealth());
+        godzilla.startInhaling();
+        plane.fireGuns(pilot);
+        helper.assertTrue(godzilla.getPhase() == GodzillaEntity.Phase.COLLAPSING, "breathing in, one burst should bring him down, was "
+                + godzilla.getPhase() + " / " + godzilla.getHealth());
+        pilot.stopRiding();
+        remove(godzilla, plane);
+        helper.succeed();
+    }
+
     /** Burnt or not, a Shinden into his chest, or one only drifting into his face, doesn't count as a face crash. */
     @GameTest(template = FLOOR, batch = "gmo_face_crash_miss", timeoutTicks = 20)
     public static void onlyAFullSpeedHitOnHisFaceCounts(GameTestHelper helper) {

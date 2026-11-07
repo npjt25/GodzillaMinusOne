@@ -19,7 +19,7 @@ import java.util.function.IntFunction;
 
 /**
  * The mod's settings screen (Mods, Godzilla Minus One, Config). Changes are saved right away. The atomic breath's
- * and the roar's intervals are gameplay settings (config/godzillaminusone-common.toml): they apply to worlds played
+ * and the roar's intervals and how long he lies defeated are gameplay settings (config/godzillaminusone-common.toml): they apply to worlds played
  * on this computer; a dedicated server keeps its own. The atomic blast's settings are this player's own
  * (config/godzillaminusone-client.toml, which also has the flash's, fireball's, dust wave's and cooling's times).
  */
@@ -37,7 +37,7 @@ public class ModConfigScreen extends Screen {
 
     @Override
     protected void init() {
-        // two columns of four rows, clear of the Done button even on a small window
+        // two columns of five rows, clear of the Done button even on a small window
         int left = this.width / 2 - 155;
         int right = this.width / 2 + 5;
         int y = this.height / 6 + 16;
@@ -58,6 +58,9 @@ public class ModConfigScreen extends Screen {
         addSlider(new NumberSlider(left, y + 78, ClientConfig.SPEC, ClientConfig.MATURE_SECONDS, 0, 600, 10, "cloud_mature", ModConfigScreen::time));
         addSlider(new NumberSlider(right, y + 78, ClientConfig.SPEC, ClientConfig.DISSIPATE_SECONDS, 10, 600, 10, "cloud_dissipate",
                 ModConfigScreen::time));
+        // how long he lies defeated when his health runs out
+        addSlider(new NumberSlider(left, y + 104, Config.SPEC, Config.DOWNED_SECONDS, 0, 600, 5, "downed_time",
+                seconds -> seconds == 0 ? Component.translatable(KEY + ".seconds", 0) : time(seconds)));
         addRenderableWidget(Button.builder(CommonComponents.GUI_DONE, button -> onClose())
                 .bounds(this.width / 2 - 100, this.height - 40, 200, 20)
                 .build());
@@ -85,7 +88,7 @@ public class ModConfigScreen extends Screen {
 
     /**
      * A whole-number setting from {@code min} to {@code max} in steps of {@code step}, saved as it's moved: how long
-     * Godzilla takes to recharge his atomic breath, how often he roars, how tall the mushroom cloud grows, how hard
+     * Godzilla takes to recharge his atomic breath, how often he roars, how long he lies defeated, how tall the mushroom cloud grows, how hard
      * the flash whites out the view, and how long the cloud takes to rise, stays full-grown and takes to break up.
      */
     private static final class NumberSlider extends AbstractSliderButton {

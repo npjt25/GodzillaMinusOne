@@ -439,12 +439,19 @@ public final class Destruction {
         }
     }
 
-    /** Natural ground: where the blast wave stops digging down a column. */
+    /**
+     * Natural ground: where the blast wave stops digging down a column, and what Godzilla and the Odo Island Monster
+     * climb rather than break. Only the rock as the world makes it: polished stone, bricks, tiles, cut and smooth
+     * sandstone and the like are built (forge:stone and forge:sandstone count some of those as stone).
+     */
     static boolean isGround(BlockState state) {
-        return state.is(BlockTags.DIRT) || state.is(Tags.Blocks.STONE) || state.is(Tags.Blocks.SAND) || state.is(Tags.Blocks.GRAVEL)
-                || state.is(Tags.Blocks.SANDSTONE) || state.is(Tags.Blocks.ORES) || state.is(BlockTags.TERRACOTTA)
-                || state.is(Blocks.CLAY) || state.is(Blocks.SNOW_BLOCK) || state.is(BlockTags.ICE) || state.is(Blocks.DIRT_PATH)
-                || state.is(Blocks.BEDROCK) || state.is(Blocks.MUD);
+        return state.is(BlockTags.DIRT) || state.is(BlockTags.BASE_STONE_OVERWORLD) || state.is(BlockTags.BASE_STONE_NETHER)
+                || state.is(Tags.Blocks.SAND) || state.is(Tags.Blocks.GRAVEL) || state.is(Blocks.SANDSTONE) || state.is(Blocks.RED_SANDSTONE)
+                || state.is(Tags.Blocks.ORES) || state.is(BlockTags.TERRACOTTA) || state.is(Blocks.CLAY) || state.is(Blocks.SNOW_BLOCK)
+                || state.is(BlockTags.ICE) || state.is(Blocks.DIRT_PATH) || state.is(Blocks.BEDROCK) || state.is(Blocks.MUD)
+                || state.is(Blocks.CALCITE) || state.is(Blocks.DRIPSTONE_BLOCK) || state.is(Blocks.END_STONE)
+                || state.is(Blocks.SOUL_SAND) || state.is(Blocks.SOUL_SOIL) || state.is(Blocks.MAGMA_BLOCK)
+                || state.is(Blocks.INFESTED_STONE) || state.is(Blocks.INFESTED_DEEPSLATE);
     }
 
     /**
