@@ -73,7 +73,12 @@ public class GodzillaRenderer extends GeoEntityRenderer<GodzillaEntity> {
     private float coolingFade;
 
     public GodzillaRenderer(EntityRendererProvider.Context context) {
-        super(context, new GodzillaModel());
+        this(context, new GodzillaModel());
+    }
+
+    /** With {@code model} (Minus Zero's: client.render.GodzillaMinusZeroModel). */
+    protected GodzillaRenderer(EntityRendererProvider.Context context, GodzillaModel model) {
+        super(context, model);
         withScale(SCALE);
         this.shadowRadius = 8.0F;
         addRenderLayer(new GlowLayer(this));
@@ -115,6 +120,11 @@ public class GodzillaRenderer extends GeoEntityRenderer<GodzillaEntity> {
                 }
             }
         }
+    }
+
+    /** His plates' charge glow (Minus Zero's has his own plates in it). */
+    protected ResourceLocation plateGlow() {
+        return PLATE_GLOW;
     }
 
     /** How brightly a plate glows: it lights up over 0.4 s once punched up, and pulses while the charge builds. */
@@ -196,7 +206,8 @@ public class GodzillaRenderer extends GeoEntityRenderer<GodzillaEntity> {
             this.godzilla.chargeSeconds = entity.getChargeSeconds(partialTick);
             this.godzilla.coolingFade = state == GodzillaEntity.CHARGE_COOLING
                     ? Mth.clamp(1.0F - entity.getCoolingSeconds(partialTick) / 1.5F, 0.0F, 1.0F) : -1.0F;
-            this.godzilla.renderPass(Pass.PLATES, poseStack, entity, model, buffers, RenderType.eyes(PLATE_GLOW), partialTick, 1.0F, 1.0F, 1.0F);
+            this.godzilla.renderPass(Pass.PLATES, poseStack, entity, model, buffers, RenderType.eyes(this.godzilla.plateGlow()), partialTick,
+                    1.0F, 1.0F, 1.0F);
             float mouth = this.godzilla.mouthGlow();
             if (mouth > 0.01F) {
                 this.godzilla.renderPass(Pass.MOUTH, poseStack, entity, model, buffers, RenderType.eyes(MOUTH_GLOW), partialTick, mouth, mouth, mouth);

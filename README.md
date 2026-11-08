@@ -188,8 +188,12 @@ the blue one a player.*
   grey-green spots. He rises out of the ground and roars, as Godzilla does from his egg. No natural spawning.
 - `evolvesIntoMinusZero` (`godzilla` section, on): turn it off for Minus One to regenerate (or die, with
   `regenerates = false`) as before.
-- **His look: not his own yet.** For now Minus Zero wears Minus One's model and skin, scaled to twice the height.
-  His own model is still to come (see the report for this version).
+- **His look**: Minus One evolved, this mod's own design (`tools/make_minus_zero.py`): Minus One's model with a
+  **second, staggered row of plates** along his lower back and tail, smaller than the first and tilted out (they light
+  up with the rest in his charge), **overlapping armour bands** round his upper arms and forearms and **layered caps**
+  on his shoulders, a **row of spines along either side of his tail**, and a **darker, heavier skin** (his scorched
+  skin when he's down too). Every bone is Minus One's, so all of Minus One's animations play on him. None of the new
+  parts reaches above Minus One's highest point, so at exactly twice the scale he stands exactly twice as tall.
 
 ### Kyushu J7W1 Shinden
 

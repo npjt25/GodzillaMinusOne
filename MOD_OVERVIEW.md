@@ -19,7 +19,7 @@
 ## Godzilla Minus Zero (`godzillaminusone:godzilla_minus_zero`)
 - Minus One brought down → collapses, lies downed, then exactly one Minus Zero rises in his place (same spot and facing, full health = Minus One's max, targets whoever brought him down). Pending evolution saved in NBT (`Defeat`), so reloads neither lose nor duplicate it; blows while down do nothing; /kill doesn't evolve. Config `evolvesIntoMinusZero` (on).
 - Exactly twice Minus One's standing height (46.83 → 93.66 blocks), hitbox 20×80; `bodyScale()` doubles every body-relative point/reach (locators: mouth/beam origin, claws, face, feet, tail sweep, swim depth, bite reach). All numbers, moves, AI, sounds, config identical to Minus One.
-- Brought down he collapses and dies for good (no evolution, no regeneration). Own spawn egg (charcoal/grey-green, creative only). Currently uses Minus One's model scaled ×2 as a placeholder for his own look.
+- Brought down he collapses and dies for good (no evolution, no regeneration). Own spawn egg (charcoal/grey-green, creative only). His look (tools/make_minus_zero.py, the mod's own design): Minus One's model plus a second staggered row of tilted plates on the lower back and tail (glowing in the charge), armour bands on the arms and layered shoulder caps, spines along the tail's sides, darker skin; nothing above Minus One's top, so exactly 2× tall.
 
 ## The atomic blast (visuals)
 Film-accurate "Ginza blast" sequence: flash, fireball, dust ring/shockwave, rising column, mushroom cap (built from Alex's Caves cloud textures), cooling, mature cloud, slow break-up (~3 min). Fully configurable timings/size.
