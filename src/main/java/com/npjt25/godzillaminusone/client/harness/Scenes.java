@@ -613,8 +613,8 @@ final class Scenes {
     /**
      * Godzilla Minus Zero: standing beside Minus One, each with a gold pillar his own height beside him (47 and 94
      * blocks), twice his size on the client too; then Minus One brought down, and one Minus Zero (server and client)
-     * getting up where he lay; his whole breath (both beams and both blasts, his plates dimmed and lit again, the burns
-     * on his chest); his tail strike; his spawn egg.
+     * getting up where he lay; his tail strike; his whole breath (both beams and both blasts, his plates dimmed and lit
+     * again, the burns on his chest); his spawn egg.
      */
     private static void minusZero() {
         commands("gamerule mobGriefing false", "time set 6000", "kill @e[type=minecraft:pig]",
@@ -691,62 +691,13 @@ final class Scenes {
                     .filter(e -> e instanceof GodzillaMinusZeroEntity && e.isAlive()).count();
             return n == 1 ? null : n + " Minus Zeros";
         });
-        // his whole breath (each shot logged with how far into his charge he was: the client's and the server's): his
-        // charge and his beam; the beam on a wall 120 blocks off, and his first blast going up there (twice Minus One's);
-        // his plates' glow dimmed, then lit again with his plates punched up; his second laser, and the second blast; the
-        // burns it leaves on his mouth and chest. (Godzillas aren't hurt by the blasts; mobGriefing is off: the wall stays.)
-        commands("fill 684 -60 120 717 25 120 minecraft:stone");
-        server("minus zero: charges his breath", level -> {
-            for (GodzillaMinusZeroEntity z : level.getEntitiesOfClass(GodzillaMinusZeroEntity.class, new AABB(ONE_AT, ONE_AT).inflate(50.0))) {
-                z.setNoAi(true);
-                z.setYRot(0.0F);
-                z.setYBodyRot(0.0F);
-                z.setYHeadRot(0.0F);
-                z.startCharging();
-            }
-        });
-        Object[] beamCam = {new Vec3(775.0, -5.0, 70.0), new Vec3(700.5, 10.0, 40.0), 70};
-        Object[] blastCam = {new Vec3(735.0, 10.0, 40.0), new Vec3(700.5, 45.0, 125.0), 90};
-        Object[] platesCam = {new Vec3(760.0, 10.0, -30.0), new Vec3(700.5, -5.0, -5.0), 70};
-        Object[] chestCam = {new Vec3(700.5, 0.0, 58.0), new Vec3(700.5, -4.0, 15.0), 70};
-        int second = GodzillaEntity.SURGE_TICK;
-        Object[][] steps = {
-                {"charging", 300, beamCam}, {"beam", 320, beamCam},
-                {"first_blast", GodzillaEntity.CHARGE_BLAST_TICK + 8, blastCam}, {"first_blast_cloud", GodzillaEntity.CHARGE_BLAST_TICK + 30, blastCam},
-                {"glow_dimmed", GodzillaEntity.CHARGE_BLAST_TICK + 42, platesCam}, {"plates_relit", second - 6, platesCam},
-                {"second_laser", second + 8, beamCam},
-                {"second_blast", GodzillaEntity.SECOND_BLAST_TICK + 8, blastCam}, {"second_blast_cloud", GodzillaEntity.SECOND_BLAST_TICK + 30, blastCam},
-                {"burnt_chest", GodzillaEntity.SECOND_BEAM_END_TICK + 6, chestCam}};
-        Object[] cam = null;
-        for (Object[] step : steps) {
-            int at = (Integer) step[1];
-            if (step[2] != cam) {
-                cam = (Object[]) step[2];
-                camera("minus zero: " + step[0], (Vec3) cam[0], (Vec3) cam[1], (Integer) cam[2]);
-            }
-            until("minus zero: " + step[0] + " (charge tick " + at + ")", () -> {
-                GodzillaMinusZeroEntity z = find(GodzillaMinusZeroEntity.class);
-                return z != null && z.getChargeSeconds(0.0F) * 20.0F + GodzillaEntity.ANIM_TRANSITION >= at;
-            }, 700);
-            checkServer("minus zero: " + step[0] + ", where his charge is", level -> {
-                List<GodzillaMinusZeroEntity> zs = level.getEntitiesOfClass(GodzillaMinusZeroEntity.class, new AABB(ONE_AT, ONE_AT).inflate(50.0));
-                GodzillaMinusZeroEntity client = find(GodzillaMinusZeroEntity.class);
-                log(String.format("minus zero: %s: server charge tick %d, client charge seconds %.2f", step[0],
-                        zs.isEmpty() ? -1 : zs.get(0).getChargeTicks(), client == null ? -1.0F : client.getChargeSeconds(0.0F)));
-                return null;
-            });
-            shot("minus_zero_" + step[0]);
-        }
-        until("minus zero: his charge over", () -> {
-            GodzillaMinusZeroEntity z = find(GodzillaMinusZeroEntity.class);
-            return z != null && !z.isCharging();
-        }, 300);
-
-        // his tail strike: the plate at the tip of his tail punched up and glowing, then the whip
-        camera("minus zero: tail strike", new Vec3(768.0, -18.0, -32.0), new Vec3(700.5, -40.0, -35.0), 70);
-        waitTicks(20);
+        // his tail strike (before his breath, while the air is clear): the plate at the tip of his tail punched up and
+        // glowing, then the whip
+        camera("minus zero: tail strike", new Vec3(766.0, -24.0, -46.0), new Vec3(700.5, -42.0, -44.0), 70);
+        waitTicks(30);
         server("minus zero: tail strike", level -> {
             for (GodzillaMinusZeroEntity z : level.getEntitiesOfClass(GodzillaMinusZeroEntity.class, new AABB(ONE_AT, ONE_AT).inflate(50.0))) {
+                z.setNoAi(true);
                 z.startTailStrike();
             }
         });
@@ -758,7 +709,69 @@ final class Scenes {
         shot("minus_zero_tail_strike_windup");
         waitTicks(26);
         shot("minus_zero_tail_strike_whip");
-        commands("kill @e[type=godzillaminusone:godzilla_minus_zero]", "fill 684 -60 120 717 25 120 minecraft:air");
+        until("minus zero: his tail tip dark again (client)", () -> {
+            GodzillaMinusZeroEntity z = find(GodzillaMinusZeroEntity.class);
+            return z != null && !z.isTailGlowing();
+        }, 80);
+        waitTicks(40);
+
+        // his whole breath (each shot logged with how far into his charge he was: the client's and the server's): his
+        // charge and his beam; his first blast (in the air, 420 blocks off, where his beam ends: twice Minus One's
+        // cloud); his plates' glow dimmed, then lit again with his plates punched up; his second laser, and the second
+        // blast; then the burns it leaves on his mouth, throat and chest. (Godzillas aren't hurt by the blasts.)
+        server("minus zero: charges his breath", level -> {
+            for (GodzillaMinusZeroEntity z : level.getEntitiesOfClass(GodzillaMinusZeroEntity.class, new AABB(ONE_AT, ONE_AT).inflate(50.0))) {
+                z.setNoAi(true);
+                z.setYRot(0.0F);
+                z.setYBodyRot(0.0F);
+                z.setYHeadRot(0.0F);
+                z.startCharging();
+            }
+        });
+        Object[] beamCam = {new Vec3(775.0, -5.0, 70.0), new Vec3(700.5, 10.0, 40.0), 70};
+        Object[] cloudCam = {new Vec3(730.0, 20.0, 90.0), new Vec3(700.5, 110.0, 423.0), 90};
+        Object[] platesCam = {new Vec3(760.0, 10.0, -30.0), new Vec3(700.5, -5.0, -5.0), 70};
+        int second = GodzillaEntity.SURGE_TICK;
+        Object[][] steps = {
+                {"charging", 300, beamCam}, {"beam", 320, beamCam},
+                {"first_blast", GodzillaEntity.CHARGE_BLAST_TICK + 10, cloudCam}, {"first_blast_cloud", GodzillaEntity.CHARGE_BLAST_TICK + 34, cloudCam},
+                {"glow_dimmed", GodzillaEntity.CHARGE_BLAST_TICK + 40, platesCam}, {"plates_relit", second - 6, platesCam},
+                {"second_laser", second + 8, beamCam},
+                {"second_blast", GodzillaEntity.SECOND_BLAST_TICK + 10, cloudCam}, {"second_blast_cloud", GodzillaEntity.SECOND_BLAST_TICK + 34, cloudCam}};
+        Object[] cam = null;
+        for (Object[] step : steps) {
+            int at = (Integer) step[1];
+            if (step[2] != cam) {
+                cam = (Object[]) step[2];
+                camera("minus zero: " + step[0], (Vec3) cam[0], (Vec3) cam[1], (Integer) cam[2]);
+            }
+            until("minus zero: " + step[0] + " (charge tick " + at + ")", () -> {
+                GodzillaMinusZeroEntity z = find(GodzillaMinusZeroEntity.class);
+                return z != null && z.getChargeState() == GodzillaEntity.CHARGE_GLOWING
+                        && z.getChargeSeconds(0.0F) * 20.0F + GodzillaEntity.ANIM_TRANSITION >= at;
+            }, 700);
+            checkServer("minus zero: " + step[0] + ", where his charge is", level -> {
+                List<GodzillaMinusZeroEntity> zs = level.getEntitiesOfClass(GodzillaMinusZeroEntity.class, new AABB(ONE_AT, ONE_AT).inflate(50.0));
+                GodzillaMinusZeroEntity client = find(GodzillaMinusZeroEntity.class);
+                log(String.format("minus zero: %s: server charge tick %d, client charge seconds %.2f", step[0],
+                        zs.isEmpty() ? -1 : zs.get(0).getChargeTicks(), client == null ? -1.0F : client.getChargeSeconds(0.0F)));
+                return null;
+            });
+            shot("minus_zero_" + step[0]);
+        }
+        // his beam over (the client's charge clock starts again from there): his burns at their worst
+        camera("minus zero: burnt", new Vec3(700.5, 8.0, 78.0), new Vec3(700.5, 4.0, 20.0), 70);
+        until("minus zero: his beam over", () -> {
+            GodzillaMinusZeroEntity z = find(GodzillaMinusZeroEntity.class);
+            return z != null && z.getChargeState() == GodzillaEntity.CHARGE_COOLING;
+        }, 300);
+        waitTicks(6);
+        shot("minus_zero_burnt_chest");
+        until("minus zero: his charge over", () -> {
+            GodzillaMinusZeroEntity z = find(GodzillaMinusZeroEntity.class);
+            return z != null && !z.isCharging();
+        }, 300);
+        commands("kill @e[type=godzillaminusone:godzilla_minus_zero]");
         waitTicks(5);
 
         // his spawn egg

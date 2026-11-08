@@ -1624,7 +1624,7 @@ public class GodzillaEntity extends Monster implements GeoEntity {
         Vec3 c = position();
         DamageSource source = damageSources().mobAttack(this);
         AABB box = new AABB(c.x - outer, c.y - 2.0, c.z - outer, c.x + outer, c.y + height + 2.0, c.z + outer);
-        for (Entity e : level.getEntities(this, box, e -> e.isAlive() && !(e instanceof GodzillaEntity))) {
+        for (Entity e : level.getEntities(this, box, e -> e.isAlive() && !e.isSpectator() && !(e instanceof GodzillaEntity))) {
             double d = Math.sqrt(e.position().subtract(c).horizontalDistanceSqr());
             if (d < inner - 2.0 || d > outer + 2.0) {
                 continue;
