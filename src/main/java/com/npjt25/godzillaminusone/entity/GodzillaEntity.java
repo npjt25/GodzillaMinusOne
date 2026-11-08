@@ -122,6 +122,7 @@ public class GodzillaEntity extends Monster implements GeoEntity {
     public static final int BEAM_START_TICK = 304;     // charge animation: the beam appears at 14.96 s (after the 4 s in-breath)
     public static final int INHALE_TICKS = 80;          // ...the in-breath: his last 4 s before it
     public static final int CHARGE_BLAST_TICK = 344;   // ...and 2 s later its impact goes up in a nuclear blast
+    public static final int BEAM_END_TICK = 388;       // charge animation: the beam is gone at 19.17 s
     /**
      * Minus Zero's second blast: his first beam lasts 2 s longer than Minus One's; after its explosion (CHARGE_BLAST_TICK)
      * his plates dim for 2 s, light up again for 2 s (rising as they do), then punch back down as he fires again: a
@@ -132,7 +133,6 @@ public class GodzillaEntity extends Monster implements GeoEntity {
     public static final int SECOND_BLAST_TICK = SURGE_TICK + (CHARGE_BLAST_TICK - BEAM_START_TICK);
     /** ...and his second beam as long as his first would have been, ending here (then his roar, as Minus One's). */
     public static final int SECOND_BEAM_END_TICK = SURGE_TICK + (BEAM_END_TICK - BEAM_START_TICK);
-    public static final int BEAM_END_TICK = 388;       // charge animation: the beam is gone at 19.17 s
     public static final int ROAR_TICKS = 109;           // animation.gojira.roar: 5.46 s
     /**
      * The charge is over once the roar he lets out as the beam ends (at BEAM_END_TICK) has played out: then he's back
