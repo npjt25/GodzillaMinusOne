@@ -692,22 +692,31 @@ final class Scenes {
                     .filter(e -> e instanceof GodzillaMinusZeroEntity && e.isAlive()).count();
             return n == 1 ? null : n + " Minus Zeros";
         });
-        // his charge, and his beam from his mouth (taken away before it lands: no blast here)
-        server("minus zero: breathes in", level -> {
+        // his charge from the start, and his beam from his mouth; 2 s on, his glow faded out; then back, sharp, with his
+        // second laser (each shot logged with how far into his charge he was: the client's and the server's); taken
+        // away before his blast goes off
+        server("minus zero: charges his breath", level -> {
             for (GodzillaMinusZeroEntity z : level.getEntitiesOfClass(GodzillaMinusZeroEntity.class, new AABB(ONE_AT, ONE_AT).inflate(50.0))) {
                 z.setNoAi(true);
-                z.startInhaling();
+                z.startCharging();
             }
         });
         camera("minus zero: the beam", new Vec3(775.0, -5.0, 70.0), new Vec3(700.5, 10.0, 40.0), 70);
-        waitTicks(40);
-        shot("minus_zero_charging");
-        waitTicks(50);
-        shot("minus_zero_beam");
-        waitTicks(25);
-        shot("minus_zero_glow_faded");
-        waitTicks(13);
-        shot("minus_zero_second_laser");
+        for (Object[] step : new Object[][] {{"charging", 300}, {"beam", 320}, {"glow_faded", 343}, {"second_laser", 356}}) {
+            int at = (Integer) step[1];
+            until("minus zero: " + step[0] + " (charge tick " + at + ")", () -> {
+                GodzillaMinusZeroEntity z = find(GodzillaMinusZeroEntity.class);
+                return z != null && z.getChargeSeconds(0.0F) * 20.0F + GodzillaEntity.ANIM_TRANSITION >= at;
+            }, 500);
+            checkServer("minus zero: " + step[0] + ", where his charge is", level -> {
+                List<GodzillaMinusZeroEntity> zs = level.getEntitiesOfClass(GodzillaMinusZeroEntity.class, new AABB(ONE_AT, ONE_AT).inflate(50.0));
+                GodzillaMinusZeroEntity client = find(GodzillaMinusZeroEntity.class);
+                log(String.format("minus zero: %s: server charge tick %d, client charge seconds %.2f", step[0],
+                        zs.isEmpty() ? -1 : zs.get(0).getChargeTicks(), client == null ? -1.0F : client.getChargeSeconds(0.0F)));
+                return null;
+            });
+            shot("minus_zero_" + step[0]);
+        }
         commands("kill @e[type=godzillaminusone:godzilla_minus_zero]"); // (before his blast goes off)
         waitTicks(5);
 

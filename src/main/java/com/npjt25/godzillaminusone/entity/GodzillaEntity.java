@@ -417,6 +417,17 @@ public class GodzillaEntity extends Monster implements GeoEntity {
         return isInhaling() && Config.SHINDEN_INHALE_KNOCKOUT.get();
     }
 
+    /** For the in-game checks: he starts charging his atomic breath now, from the beginning (at nothing in particular). */
+    public void startCharging() {
+        this.chargeTicks = 0;
+        setChargeState(CHARGE_GLOWING);
+    }
+
+    /** For the in-game checks: ticks into his charge (-1: not charging). */
+    public int getChargeTicks() {
+        return this.chargeTicks;
+    }
+
     /** For the game tests: he starts his charge's in-breath now (as if he'd been charging at someone). */
     public void startInhaling() {
         this.chargeTicks = BEAM_START_TICK - INHALE_TICKS;
