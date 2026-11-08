@@ -704,7 +704,11 @@ final class Scenes {
         shot("minus_zero_charging");
         waitTicks(50);
         shot("minus_zero_beam");
-        commands("kill @e[type=godzillaminusone:godzilla_minus_zero]");
+        waitTicks(25);
+        shot("minus_zero_glow_faded");
+        waitTicks(13);
+        shot("minus_zero_second_laser");
+        commands("kill @e[type=godzillaminusone:godzilla_minus_zero]"); // (before his blast goes off)
         waitTicks(5);
 
         // his spawn egg

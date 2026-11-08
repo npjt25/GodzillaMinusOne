@@ -179,9 +179,10 @@ the blue one a player.*
   and 76 blocks), his feet and footprints, his stomp, his face (where a Shinden strikes), the depth of water he swims
   in, his bite's reach.
 - **Everything else is Minus One's**, unchanged: health, damage, speed, cooldowns, his moves (the claw swipes, the
-  spin and tail whip, bite, stomp, the swimming bite), the atomic breath and its charge (plates lighting up, the
-  in-breath, the beam, the nuclear blast), his roars and sounds, radiation aura, regeneration while calm, swimming,
-  breaking and demolishing buildings (the same 23-block rule), the Shinsei Maru and Shinden rules, and the config.
+  spin and tail whip, bite, stomp, the swimming bite), the atomic breath's charge (plates lighting up, the
+  in-breath), his roars and sounds, radiation aura, regeneration while calm, swimming,
+  breaking and demolishing buildings (the same 23-block rule), the Shinsei Maru and Shinden rules, and the config
+  (his breath's surge and bigger blast, below, are his own).
 - **Brought down, Minus Zero falls for good**: he collapses, lies there 3 seconds and dies (no Godzilla after him, no
   getting up again). That ends the encounter.
 - **His spawn egg** ("Spawn Godzilla Minus Zero", creative tab, no recipe): a vanilla-style egg, charcoal with
@@ -191,8 +192,14 @@ the blue one a player.*
 - **His look**: Minus One evolved, this mod's own design (`tools/make_minus_zero.py`): Minus One's model with a
   **second, staggered row of plates** along his lower back and tail, smaller than the first and tilted out (they light
   up with the rest in his charge), **overlapping armour bands** round his upper arms and forearms and **layered caps**
-  on his shoulders, a **row of spines along either side of his tail**, and a **darker, heavier skin** (his scorched
-  skin when he's down too). Every bone is Minus One's, so all of Minus One's animations play on him. None of the new
+  on his shoulders, a **row of spines along either side of his tail**, **every plate drawn out into a sharp point**
+  (the plate at the end of his tail into the longest, finest point on his tail), and a **darker, heavier skin** (his
+  scorched skin when he's down too).
+- **His atomic breath surges**: the charge is Minus One's, but once his beam fires, the blue glow on his plates
+  **fades out over 2 seconds**, then **comes back in a sharper, brighter blue**, and **a second laser joins the
+  first**: the beam grows about a third wider and twice as bright, hits a wider band round it, twice as often, and
+  his nuclear blast goes off with it, **twice the size of Minus One's** (twice every radius: kill, fallout, crater,
+  scorch, ruins and flattening). Minus One's breath is unchanged. Every bone is Minus One's, so all of Minus One's animations play on him. None of the new
   parts reaches above Minus One's highest point, so at exactly twice the scale he stands exactly twice as tall.
 
 ### Kyushu J7W1 Shinden
