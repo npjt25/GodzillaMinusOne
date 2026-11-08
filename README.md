@@ -161,6 +161,36 @@ the blue one a player.*
   takes to heal), a Shinden flown **straight into his face** at full speed takes **all his health**: he collapses as
   when the mines bring him down. Only his face counts (not his chest, tail or legs), and not once it has healed.
 
+### Godzilla Minus Zero
+
+- **What Godzilla Minus One becomes when he's brought down.** At zero health Minus One collapses (5 s) and lies there
+  for the downed time (**Lies Downed** in the config screen, `downedSeconds`), and then **Godzilla Minus Zero rises in
+  his place**: exactly one, where Minus One lay, facing the way he faced, at full health (Minus One's maximum health),
+  getting up with Godzilla's rise and roar, and going after whoever brought Minus One down if they're still about.
+  Minus One is gone the moment Minus Zero is there. Once per Minus One: every way of bringing him down counts (naval
+  mines, a Shinden in his burnt face, the one hit during his in-breath), more blows while he's down change nothing,
+  and his pending evolution is saved with him (the world saving, or his chunk unloading and loading, neither loses
+  it nor makes two). It all happens on the server; everyone sees the one Minus Zero. `/kill` and the void just remove
+  Minus One, no evolution. Bringing Minus One down still unlocks his shape with ReMorphed, once.
+- **Twice Minus One's standing height**: Minus One stands 46.83 blocks from the ground to his highest point (his
+  standing pose, plates included); Minus Zero 93.66. His whole body is scaled (not just stretched upwards), his
+  hitbox is twice Minus One's (20 wide, 80 tall), and every point on his body and every reach that comes from it is
+  twice as far out: his mouth (where the atomic breath's beam starts), his claws and their reach, his tail sweep (60
+  and 76 blocks), his feet and footprints, his stomp, his face (where a Shinden strikes), the depth of water he swims
+  in, his bite's reach.
+- **Everything else is Minus One's**, unchanged: health, damage, speed, cooldowns, his moves (the claw swipes, the
+  spin and tail whip, bite, stomp, the swimming bite), the atomic breath and its charge (plates lighting up, the
+  in-breath, the beam, the nuclear blast), his roars and sounds, radiation aura, regeneration while calm, swimming,
+  breaking and demolishing buildings (the same 23-block rule), the Shinsei Maru and Shinden rules, and the config.
+- **Brought down, Minus Zero falls for good**: he collapses, lies there 3 seconds and dies (no Godzilla after him, no
+  getting up again). That ends the encounter.
+- **His spawn egg** ("Spawn Godzilla Minus Zero", creative tab, no recipe): a vanilla-style egg, charcoal with
+  grey-green spots. He rises out of the ground and roars, as Godzilla does from his egg. No natural spawning.
+- `evolvesIntoMinusZero` (`godzilla` section, on): turn it off for Minus One to regenerate (or die, with
+  `regenerates = false`) as before.
+- **His look: not his own yet.** For now Minus Zero wears Minus One's model and skin, scaled to twice the height.
+  His own model is still to come (see the report for this version).
+
 ### Kyushu J7W1 Shinden
 
 - Right-click to climb in. **The view switches to third person**, pulled back 11 blocks so the whole plane (13
@@ -531,6 +561,7 @@ mod's part:
 
   | Setting | Section | Default | What it does |
   | --- | --- | --- | --- |
+  | `evolvesIntoMinusZero` | `godzilla` | true | Minus One brought down rises as Godzilla Minus Zero (once); off: he regenerates (or dies) as before. |
   | `downedSeconds` | `godzilla` | 15 | Resting time: seconds (0 to 3600) he lies defeated, counted from the end of his 5 s collapse, before he regenerates and gets up. Kept by the server. |
   | `demolishFromHeight` | `godzilla` | -1 (23) | How tall a building must be for him to demolish it; -1 = half his real height. |
   | `demolishDownToHeight` | `godzilla` | -1 (11) | How tall he leaves it; -1 = a quarter of his real height. |
