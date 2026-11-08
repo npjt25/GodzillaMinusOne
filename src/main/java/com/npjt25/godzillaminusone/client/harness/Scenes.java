@@ -694,11 +694,19 @@ final class Scenes {
         });
         // his tail strike (before his breath, while the air is clear): the plate at the tip of his tail punched up and
         // glowing, then the whip
-        camera("minus zero: tail strike", new Vec3(766.0, -24.0, -46.0), new Vec3(700.5, -42.0, -44.0), 70);
+        // (facing south: the tip of his tail, wound up, is then ~108 blocks behind him, ~21 up: tools/render_preview.py)
+        server("minus zero: facing south", level -> {
+            for (GodzillaMinusZeroEntity z : level.getEntitiesOfClass(GodzillaMinusZeroEntity.class, new AABB(ONE_AT, ONE_AT).inflate(50.0))) {
+                z.setNoAi(true);
+                z.setYRot(0.0F);
+                z.setYBodyRot(0.0F);
+                z.setYHeadRot(0.0F);
+            }
+        });
+        camera("minus zero: tail strike", new Vec3(758.0, -22.0, -78.0), new Vec3(700.5, -40.0, -104.0), 60);
         waitTicks(30);
         server("minus zero: tail strike", level -> {
             for (GodzillaMinusZeroEntity z : level.getEntitiesOfClass(GodzillaMinusZeroEntity.class, new AABB(ONE_AT, ONE_AT).inflate(50.0))) {
-                z.setNoAi(true);
                 z.startTailStrike();
             }
         });

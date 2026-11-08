@@ -399,7 +399,19 @@ final class ShapeScenes {
             GodzillaEntity shape = mc().player == null ? null : Shapes.godzillaOf(mc().player);
             return shape != null && shape.isTailGlowing() ? null : "not glowing";
         });
+        // (seen from the side: wound up, the tip of his tail is ~108 blocks behind him, ~21 up, where his own camera is)
+        once("shapes: a look at the tip of his tail", () -> {
+            LocalPlayer player = mc().player;
+            if (player != null) {
+                Vec3 ahead = Vec3.directionFromRotation(0.0F, player.yBodyRot);
+                Vec3 tip = player.position().add(ahead.scale(-108.0)).add(0.0, 21.0, 0.0);
+                Vec3 side = new Vec3(-ahead.z, 0.0, ahead.x).scale(60.0);
+                ShotsHarness.view(tip.add(side).add(0.0, 18.0, 0.0), tip);
+            }
+        });
+        waitTicks(3);
         shot("shape_minus_zero_tail_strike");
+        once("shapes: his own camera again", () -> ShotsHarness.view(null, null));
         waitTicks(PlayerGodzilla.Move.TAIL_STRIKE.length);
         int[] before = {-1};
         server("shapes: /godzilla tailstrike", level -> {
