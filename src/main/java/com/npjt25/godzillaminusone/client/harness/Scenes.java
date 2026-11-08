@@ -702,7 +702,7 @@ final class Scenes {
             }
         });
         camera("minus zero: the beam", new Vec3(775.0, -5.0, 70.0), new Vec3(700.5, 10.0, 40.0), 70);
-        for (Object[] step : new Object[][] {{"charging", 300}, {"beam", 320}, {"glow_faded", 343}, {"second_laser", 356}}) {
+        for (Object[] step : new Object[][] {{"charging", 300}, {"beam", 320}, {"glow_faded", 330}, {"second_laser", 356}}) {
             int at = (Integer) step[1];
             until("minus zero: " + step[0] + " (charge tick " + at + ")", () -> {
                 GodzillaMinusZeroEntity z = find(GodzillaMinusZeroEntity.class);
