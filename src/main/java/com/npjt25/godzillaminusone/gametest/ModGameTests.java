@@ -267,8 +267,8 @@ public final class ModGameTests {
 
     /** The Minus Zeros (alive) in the world within {@code radius} of {@code at}. */
     private static List<GodzillaMinusZeroEntity> minusZeros(GameTestHelper helper, Vec3 at, double radius) {
-        return helper.getLevel().getEntities(ModEntities.GODZILLA_MINUS_ZERO.get(),
-                z -> z.isAlive() && z.position().distanceTo(at) < radius);
+        return new ArrayList<>(helper.getLevel().getEntities(ModEntities.GODZILLA_MINUS_ZERO.get(),
+                z -> z.isAlive() && z.position().distanceTo(at) < radius));
     }
 
     /**

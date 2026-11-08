@@ -1652,7 +1652,7 @@ public class GodzillaEntity extends Monster implements GeoEntity {
         if (hasCustomName()) {
             zero.setCustomName(getCustomName());
         }
-        zero.foe = this.foe;
+        ((GodzillaEntity) zero).foe = this.foe;
         zero.risesFromEvolution();
         level.addFreshEntity(zero);
         GodzillaMinusOne.LOGGER.debug("Godzilla Minus One became Godzilla Minus Zero at {}", blockPosition());

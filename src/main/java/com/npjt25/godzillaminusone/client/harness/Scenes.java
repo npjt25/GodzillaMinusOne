@@ -6,6 +6,7 @@ import com.npjt25.godzillaminusone.client.PlayerGodzillaControls;
 import com.npjt25.godzillaminusone.client.SearchlightGlow;
 import com.npjt25.godzillaminusone.client.ShinseiMaruSounds;
 import com.npjt25.godzillaminusone.entity.GodzillaEntity;
+import com.npjt25.godzillaminusone.entity.GodzillaMinusZeroEntity;
 import com.npjt25.godzillaminusone.entity.GodzillaStatueEntity;
 import com.npjt25.godzillaminusone.entity.OdoIslandMonsterEntity;
 import com.npjt25.godzillaminusone.entity.Radiation;
@@ -95,6 +96,7 @@ final class Scenes {
         boat();
         shinden();
         godzilla();
+        minusZero();
         ShapeScenes.script(); // (with Walkers installed: CI's client-shapes job)
     }
 
@@ -601,6 +603,131 @@ final class Scenes {
         server("searchlight operator: off it", level -> serverPlayer(level).stopRiding());
         commands("kill @e[type=minecraft:zombie]", "kill @e[type=godzillaminusone:searchlight]", "time set 6000");
         waitTicks(5);
+    }
+
+    // ------------------------------------------------------------------ Godzilla Minus Zero
+
+    private static final Vec3 ONE_AT = new Vec3(700.5, -60.0, 0.5);
+    private static final Vec3 ZERO_AT = new Vec3(760.5, -60.0, 0.5);
+
+    /**
+     * Godzilla Minus Zero: standing beside Minus One, each with a gold pillar his own height beside him (47 and 94
+     * blocks), twice his size on the client too; then Minus One brought down, and one Minus Zero (server and client)
+     * getting up where he lay; his charge and beam; his spawn egg.
+     */
+    private static void minusZero() {
+        commands("gamerule mobGriefing false", "time set 6000", "kill @e[type=minecraft:pig]",
+                "kill @e[type=godzillaminusone:godzilla]", "kill @e[type=godzillaminusone:nuclear_cloud]");
+        camera("minus zero", new Vec3(730.5, -20.0, 230.0), new Vec3(730.5, -22.0, 0.5), 70);
+        waitTicks(60);
+        commands("fill 690 -60 0 690 -14 0 minecraft:gold_block", "fill 780 -60 0 780 33 0 minecraft:gold_block");
+        server("minus zero: beside Minus One", level -> {
+            for (Vec3 at : new Vec3[] {ONE_AT, ZERO_AT}) {
+                GodzillaEntity g = (at == ONE_AT ? ModEntities.GODZILLA.get() : ModEntities.GODZILLA_MINUS_ZERO.get()).create(level);
+                g.moveTo(at.x, at.y, at.z, 0.0F, 0.0F);
+                g.setYBodyRot(0.0F);
+                g.setYHeadRot(0.0F);
+                g.skipIntro();
+                g.setBreathCooldown(20 * 600);
+                g.setNoAi(true);
+                level.addFreshEntity(g);
+            }
+        });
+        waitTicks(60);
+        check("minus zero: twice Minus One's size on the client", () -> {
+            GodzillaEntity one = null;
+            GodzillaMinusZeroEntity zero = find(GodzillaMinusZeroEntity.class);
+            for (Entity e : mc().level == null ? List.<Entity>of() : mc().level.entitiesForRendering()) {
+                if (e instanceof GodzillaEntity g && !(e instanceof GodzillaMinusZeroEntity) && g.isAlive()) {
+                    one = g;
+                }
+            }
+            if (one == null || zero == null) {
+                return "missing: " + (one == null ? "Minus One " : "") + (zero == null ? "Minus Zero" : "");
+            }
+            log(String.format("minus zero: hitboxes %.1f x %.1f and %.1f x %.1f", one.getBbWidth(), one.getBbHeight(), zero.getBbWidth(), zero.getBbHeight()));
+            return Math.abs(zero.getBbHeight() - 2.0F * one.getBbHeight()) < 1.0E-3 && zero.bodyScale() == 2.0 ? null : "not twice";
+        });
+        shot("minus_zero_beside_minus_one");
+        camera("minus zero: close", new Vec3(760.5, 10.0, 120.0), new Vec3(760.5, -10.0, 0.5), 70);
+        waitTicks(40);
+        shot("minus_zero_front");
+        camera("minus zero: side", new Vec3(880.0, 0.0, 0.5), new Vec3(760.5, -15.0, 0.5), 70);
+        waitTicks(40);
+        shot("minus_zero_side");
+        camera("minus zero: behind", new Vec3(760.5, 10.0, -120.0), new Vec3(760.5, -10.0, 0.5), 70);
+        waitTicks(40);
+        shot("minus_zero_back");
+
+        // Minus One brought down: one Minus Zero gets up where he lay, and Minus One is gone
+        commands("kill @e[type=godzillaminusone:godzilla_minus_zero]");
+        int[] downed = {0};
+        server("minus zero: Minus One brought down", level -> {
+            downed[0] = com.npjt25.godzillaminusone.Config.DOWNED_SECONDS.get();
+            com.npjt25.godzillaminusone.Config.DOWNED_SECONDS.set(1);
+            for (GodzillaEntity g : level.getEntitiesOfClass(GodzillaEntity.class, new AABB(ONE_AT, ONE_AT).inflate(20.0))) {
+                g.setNoAi(false);
+                g.die(level.damageSources().generic());
+            }
+        });
+        camera("minus zero: the evolution", new Vec3(700.5, 10.0, 150.0), new Vec3(700.5, -15.0, 0.5), 70);
+        waitTicks(60);
+        shot("minus_one_collapsed");
+        until("minus zero: Minus Zero gets up where Minus One lay", () -> find(GodzillaMinusZeroEntity.class) != null, 400);
+        checkServer("minus zero: exactly one, and no Minus One", level -> {
+            List<GodzillaEntity> all = level.getEntitiesOfClass(GodzillaEntity.class, new AABB(ONE_AT, ONE_AT).inflate(200.0), Entity::isAlive);
+            long zeros = all.stream().filter(g -> g instanceof GodzillaMinusZeroEntity).count();
+            com.npjt25.godzillaminusone.Config.DOWNED_SECONDS.set(downed[0]);
+            return zeros == 1 && all.size() == 1 ? null : zeros + " Minus Zeros, " + (all.size() - zeros) + " Minus Ones";
+        });
+        waitTicks(80);
+        shot("minus_zero_rising");
+        until("minus zero: up and about", () -> {
+            GodzillaMinusZeroEntity z = find(GodzillaMinusZeroEntity.class);
+            return z != null && z.isActive();
+        }, 400);
+        check("minus zero: still only one (client)", () -> {
+            long n = mc().level == null ? 0 : java.util.stream.StreamSupport.stream(mc().level.entitiesForRendering().spliterator(), false)
+                    .filter(e -> e instanceof GodzillaMinusZeroEntity && e.isAlive()).count();
+            return n == 1 ? null : n + " Minus Zeros";
+        });
+        // his charge, and his beam from his mouth (taken away before it lands: no blast here)
+        server("minus zero: breathes in", level -> {
+            for (GodzillaMinusZeroEntity z : level.getEntitiesOfClass(GodzillaMinusZeroEntity.class, new AABB(ONE_AT, ONE_AT).inflate(50.0))) {
+                z.setNoAi(true);
+                z.startInhaling();
+            }
+        });
+        camera("minus zero: the beam", new Vec3(820.0, 30.0, 140.0), new Vec3(700.5, 20.0, 60.0), 70);
+        waitTicks(40);
+        shot("minus_zero_charging");
+        waitTicks(50);
+        shot("minus_zero_beam");
+        commands("kill @e[type=godzillaminusone:godzilla_minus_zero]");
+        waitTicks(5);
+
+        // his spawn egg
+        server("minus zero: player with his egg", level -> {
+            ServerPlayer player = serverPlayer(level);
+            player.setGameMode(GameType.CREATIVE);
+            player.teleportTo(level, 650.5, -60.0, 100.5, 0.0F, 5.0F);
+            player.getInventory().clearContent();
+            player.getInventory().setItem(0, new ItemStack(ModItems.GODZILLA_MINUS_ZERO_SPAWN_EGG.get()));
+            player.getInventory().selected = 0;
+        });
+        once("minus zero: hud on", () -> {
+            view(null, null);
+            mc().options.hideGui = false;
+            mc().options.setCameraType(CameraType.FIRST_PERSON);
+            if (mc().player != null) {
+                mc().player.getInventory().selected = 0;
+            }
+        });
+        waitTicks(40);
+        shot("minus_zero_spawn_egg_hotbar");
+        once("minus zero: hud off", () -> mc().options.hideGui = true);
+        commands("fill 690 -60 0 690 -14 0 minecraft:air", "fill 780 -60 0 780 33 0 minecraft:air");
+        server("minus zero: done", level -> serverPlayer(level).getInventory().clearContent());
     }
 
     // ------------------------------------------------------------------ the Shinsei Maru
