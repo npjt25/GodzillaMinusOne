@@ -1401,6 +1401,16 @@ public final class ModGameTests {
             }
             pillars.add(base);
         }
+        // (what else is in his sweep: the tests round this one, built and left there)
+        int around = 0;
+        BlockPos middle = BlockPos.containing(feet);
+        for (BlockPos p : BlockPos.betweenClosed(middle.offset(-60, 0, -60), middle.offset(60, 20, 60))) {
+            int dx = p.getX() - middle.getX();
+            int dz = p.getZ() - middle.getZ();
+            if (dx * dx + dz * dz <= 3600 && dx * dx + dz * dz >= 100 && !level.getBlockState(p).isAir()) {
+                around++;
+            }
+        }
         zero.strikeNow("tail_strike");
         helper.assertTrue(!struck.isAlive(), "his tail strike should hit twice as hard: the pig should be dead, has " + struck.getHealth());
         helper.assertTrue(stand.isRemoved(), "his tail strike should destroy an armor stand");
@@ -1417,7 +1427,8 @@ public final class ModGameTests {
                 ground++;
             }
         }
-        helper.assertTrue(standing == 0, "his tail strike should destroy every block it sweeps through, " + standing + " of 32 left");
+        helper.assertTrue(standing == 0, "his tail strike should destroy every block it sweeps through, " + standing + " of 32 left ("
+                + around + " blocks in his sweep before it)");
         helper.assertTrue(ground == pillars.size() && helper.getBlockState(new BlockPos(4, floor, 4)).is(Blocks.STONE),
                 "the ground he stands on should stay, " + ground + " of " + pillars.size());
         remove(zero, struck);
