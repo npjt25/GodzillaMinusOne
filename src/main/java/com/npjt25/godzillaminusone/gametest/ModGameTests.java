@@ -97,7 +97,10 @@ public final class ModGameTests {
         return godzilla;
     }
 
-    /** Air in place of everything round {@code center} (absolute), {@code radius} out and from its row to {@code height} above. */
+    /**
+     * Air in place of everything round {@code center} (absolute), {@code radius} out and from its row to {@code height}
+     * above. (A Godzilla spawned at y 1 stands in the floor's own row: clear from the row above his feet.)
+     */
     private static void clearAround(GameTestHelper helper, Vec3 center, int radius, int height) {
         BlockPos middle = BlockPos.containing(center);
         for (BlockPos pos : BlockPos.betweenClosed(middle.offset(-radius, 0, -radius), middle.offset(radius, height, radius))) {
@@ -1338,7 +1341,7 @@ public final class ModGameTests {
         int floor = floorY(helper);
         GodzillaEntity godzilla = spawnActiveGodzilla(helper);
         // (the rock round the tests' pocket is something his tail breaks now too: cleared, so the pillars are what it reaches)
-        clearAround(helper, godzilla.position(), 30, 11);
+        clearAround(helper, godzilla.position().add(0.0, 1.0, 0.0), 30, 11);
         Vec3 claws = godzilla.clawPosition(1.0);
         BlockPos rake = BlockPos.containing(claws);
         // a wall of stone bricks where his claws rake...
@@ -1396,7 +1399,7 @@ public final class ModGameTests {
         godzilla.setYRot(0.0F);
         godzilla.setYBodyRot(0.0F);
         Vec3 feet = godzilla.position();
-        clearAround(helper, feet, 16, 12);
+        clearAround(helper, feet.add(0.0, 1.0, 0.0), 16, 12);
         int feetY = BlockPos.containing(feet).getY();
         // a wall in his path, 6 high: rock, earth, logs, terracotta, mud...
         BlockState[] kinds = {Blocks.DIRT.defaultBlockState(), Blocks.STONE.defaultBlockState(), Blocks.GRANITE.defaultBlockState(),
