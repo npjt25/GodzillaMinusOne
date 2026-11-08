@@ -1359,7 +1359,7 @@ public final class ModGameTests {
      * (which no mob's blow breaks), and every block in its sweep, rock, earth and trees as well as what's built, but not
      * the ground he stands on.
      */
-    @GameTest(template = FLOOR, batch = "gmo_minus_zero_tail_strike", timeoutTicks = 40)
+    @GameTest(template = FLOOR, batch = "gmo_minus_zero_tail_strike", timeoutTicks = 120)
     public static void minusZerosTailStrikeDestroysWhatItHits(GameTestHelper helper) {
         removeLeftoverGodzillas(helper);
         int floor = floorY(helper);
@@ -1387,13 +1387,15 @@ public final class ModGameTests {
         net.minecraft.world.entity.vehicle.Boat boat = EntityType.BOAT.create(level);
         boat.moveTo(feet.x - 22.0, feet.y, feet.z + 4.0, 0.0F, 0.0F);
         level.addFreshEntity(boat);
-        // pillars of rock, earth and tree round him, 14 to 28 blocks out, on ground of stone
+        // pillars of rock, earth and tree round him, 11 to 16 blocks out, on ground of stone (what it takes at once,
+        // however much else is round him), and a block further out, 45 blocks off, on its own high up (what it goes on to
+        // clear over the next ticks, here, where the tests round this one have left it close to 200,000 blocks to sweep)
         List<BlockPos> pillars = new ArrayList<>();
         BlockState[] layers = {Blocks.STONE.defaultBlockState(), Blocks.DIRT.defaultBlockState(), Blocks.OAK_LOG.defaultBlockState(),
                 Blocks.OAK_LEAVES.defaultBlockState().setValue(net.minecraft.world.level.block.LeavesBlock.PERSISTENT, true)};
         for (int i = 0; i < 8; i++) {
             double a = i * Math.PI / 4.0 + 0.3;
-            double r = 14.0 + i * 2.0;
+            double r = 11.5 + i * 0.6;
             BlockPos base = BlockPos.containing(feet.x + Math.cos(a) * r, feet.y, feet.z + Math.sin(a) * r);
             level.setBlockAndUpdate(base.below(), Blocks.STONE.defaultBlockState());
             for (int y = 0; y < layers.length; y++) {
@@ -1401,6 +1403,8 @@ public final class ModGameTests {
             }
             pillars.add(base);
         }
+        BlockPos far = BlockPos.containing(feet.x - 45.0, feet.y + 10.0, feet.z + 3.0);
+        level.setBlockAndUpdate(far, Blocks.OAK_LOG.defaultBlockState());
         // (what else is in his sweep: the tests round this one, built and left there)
         int around = 0;
         BlockPos middle = BlockPos.containing(feet);
@@ -1431,8 +1435,14 @@ public final class ModGameTests {
                 + around + " blocks in his sweep before it)");
         helper.assertTrue(ground == pillars.size() && helper.getBlockState(new BlockPos(4, floor, 4)).is(Blocks.STONE),
                 "the ground he stands on should stay, " + ground + " of " + pillars.size());
-        remove(zero, struck);
-        helper.succeed();
+        int[] waited = {0};
+        helper.onEachTick(() -> waited[0]++);
+        helper.succeedWhen(() -> {
+            helper.assertTrue(level.getBlockState(far).isAir(), "his tail strike should go on to clear its whole sweep, 45 blocks out too ("
+                    + around + " blocks in it)");
+            GodzillaMinusOne.LOGGER.info("tail strike test: its sweep cleared {} blocks out {} ticks after, {} blocks in it", 45, waited[0], around);
+            remove(zero, struck);
+        });
     }
 
     private static Pig toughPig(ServerLevel level, Vec3 at) {

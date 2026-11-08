@@ -151,11 +151,15 @@ public final class Destruction {
                 }
             }
         }
+        if (!SWEEPS.isEmpty()) {
+            SWEEPS.removeIf(sweep -> sweep.level == level && (sweep.run(TailSweep.PER_TICK) >= 0 && sweep.done()));
+        }
     }
 
     @SubscribeEvent
     public static void onServerStopped(ServerStoppedEvent event) {
         WAVES.clear();
+        SWEEPS.clear();
     }
 
     /**
@@ -164,6 +168,7 @@ public final class Destruction {
      */
     public static void stopBlasts(ServerLevel level) {
         WAVES.removeIf(wave -> wave.level == level);
+        SWEEPS.removeIf(sweep -> sweep.level == level);
     }
 
     private static final class BlastWave {
@@ -512,58 +517,96 @@ public final class Destruction {
     /**
      * The same; {@code everything}: not only what's built but every block there (above the ground he stands on: his
      * feet's row and up), the ground of a hill, trees and all (Minus Zero's tail strike), but liquids and what can't
-     * be broken (bedrock). The first few hundred break with their effects, the rest just go. Nearest him first, so
-     * that if it takes as many blocks as it can at once (a mountainside) it has cleared evenly all round him as far
-     * out as it got.
+     * be broken (bedrock). Nearest him first; the first few hundred break with their effects, the rest just go. A
+     * sweep through more than {@link TailSweep#FIRST} blocks (into a hillside) goes on over the next ticks,
+     * {@link TailSweep#PER_TICK} a tick, outwards, until all of it is cleared.
      */
     static int tailSweep(ServerLevel level, LivingEntity breaker, Vec3 center, double inner, double outer, int height, boolean everything) {
-        int r = Mth.ceil(outer);
-        int cx = Mth.floor(center.x);
-        int cz = Mth.floor(center.z);
-        int y0 = Mth.floor(center.y);
-        List<int[]> columns = new ArrayList<>();
-        for (int dx = -r; dx <= r; dx++) {
-            for (int dz = -r; dz <= r; dz++) {
-                int d2 = dx * dx + dz * dz;
-                if (d2 <= outer * outer && d2 >= inner * inner) {
-                    columns.add(new int[] {dx, dz, d2});
-                }
-            }
-        }
-        columns.sort((a, b) -> Integer.compare(a[2], b[2]));
-        int cap = everything ? 20000 : 1500;
-        BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
-        int taken = 0;
-        int toppled = 0;
-        for (int[] column : columns) {
-            int dx = column[0];
-            int dz = column[1];
-            if (!level.hasChunkAt(pos.set(cx + dx, y0, cz + dz))) {
-                continue;
-            }
-            double d = Math.sqrt(column[2]);
-            Vec3 push = new Vec3(dx / d * 1.2 - dz / d * 0.8, 0.6, dz / d * 1.2 + dx / d * 0.8);
-            for (int y = y0; y <= y0 + height; y++) {
-                BlockState state = level.getBlockState(pos.set(cx + dx, y, cz + dz));
-                if (everything ? state.isAir() || !state.getFluidState().isEmpty() : !GodzillaEntity.isBuilt(state)) {
-                    continue;
-                }
-                if (!canBreak(level, pos, state, breaker)) {
-                    continue;
-                }
-                if (everything && taken >= 400) {
-                    level.removeBlock(pos, false);
-                } else if (topple(level, pos, state, push, toppled < 60)) {
-                    toppled++;
-                }
-                if (++taken >= cap) {
-                    GodzillaMinusOne.LOGGER.debug("tail sweep at {}: {} blocks at once, the most it takes; out to {} blocks",
-                            BlockPos.containing(center), taken, String.format("%.1f", d));
-                    return taken;
-                }
-            }
+        TailSweep sweep = new TailSweep(level, breaker, center, inner, outer, height, everything);
+        int taken = sweep.run(everything ? TailSweep.FIRST : 1500);
+        if (everything && !sweep.done()) {
+            SWEEPS.add(sweep);
         }
         return taken;
+    }
+
+    private static final List<TailSweep> SWEEPS = new ArrayList<>();
+
+    private static final class TailSweep {
+        /** Blocks a sweep takes at once, as the tail hits... */
+        static final int FIRST = 20000;
+        /** ...and each tick after that, if there's more. */
+        static final int PER_TICK = 8000;
+
+        final ServerLevel level;
+        final LivingEntity breaker;
+        final boolean everything;
+        final int cx;
+        final int cz;
+        final int y0;
+        final int height;
+        final List<int[]> columns = new ArrayList<>();
+        int next;
+        int taken;
+        int toppled;
+
+        TailSweep(ServerLevel level, LivingEntity breaker, Vec3 center, double inner, double outer, int height, boolean everything) {
+            this.level = level;
+            this.breaker = breaker;
+            this.everything = everything;
+            this.cx = Mth.floor(center.x);
+            this.cz = Mth.floor(center.z);
+            this.y0 = Mth.floor(center.y);
+            this.height = height;
+            int r = Mth.ceil(outer);
+            for (int dx = -r; dx <= r; dx++) {
+                for (int dz = -r; dz <= r; dz++) {
+                    int d2 = dx * dx + dz * dz;
+                    if (d2 <= outer * outer && d2 >= inner * inner) {
+                        this.columns.add(new int[] {dx, dz, d2});
+                    }
+                }
+            }
+            this.columns.sort((a, b) -> Integer.compare(a[2], b[2]));
+        }
+
+        boolean done() {
+            return this.next >= this.columns.size();
+        }
+
+        /** Up to {@code budget} more blocks (whole columns, nearest first); how many it took. */
+        int run(int budget) {
+            LivingEntity by = this.breaker.isRemoved() ? null : this.breaker;
+            BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
+            int now = 0;
+            while (!done() && now < budget) {
+                int[] column = this.columns.get(this.next++);
+                int dx = column[0];
+                int dz = column[1];
+                if (!this.level.hasChunkAt(pos.set(this.cx + dx, this.y0, this.cz + dz))) {
+                    continue;
+                }
+                double d = Math.sqrt(column[2]);
+                Vec3 push = new Vec3(dx / d * 1.2 - dz / d * 0.8, 0.6, dz / d * 1.2 + dx / d * 0.8);
+                for (int y = this.y0; y <= this.y0 + this.height; y++) {
+                    BlockState state = this.level.getBlockState(pos.set(this.cx + dx, y, this.cz + dz));
+                    if (this.everything ? state.isAir() || !state.getFluidState().isEmpty() : !GodzillaEntity.isBuilt(state)) {
+                        continue;
+                    }
+                    if (!canBreak(this.level, pos, state, by)) {
+                        continue;
+                    }
+                    if (this.everything && this.taken >= 400) {
+                        this.level.setBlock(pos, Blocks.AIR.defaultBlockState(), FLAGS);
+                    } else if (topple(this.level, pos, state, push, this.toppled < 60)) {
+                        this.toppled++;
+                    }
+                    this.taken++;
+                    now++;
+                }
+            }
+            return now;
+        }
     }
 
     @Nullable
