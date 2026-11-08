@@ -618,7 +618,8 @@ final class Scenes {
     private static void minusZero() {
         commands("gamerule mobGriefing false", "time set 6000", "kill @e[type=minecraft:pig]",
                 "kill @e[type=godzillaminusone:godzilla]", "kill @e[type=godzillaminusone:nuclear_cloud]");
-        camera("minus zero", new Vec3(730.5, -20.0, 230.0), new Vec3(730.5, -22.0, 0.5), 70);
+        // (within 90 blocks: further off, the game neither runs them nor sends them to the client)
+        camera("minus zero", new Vec3(735.5, -12.0, 92.0), new Vec3(735.5, -14.0, 0.5), 70);
         waitTicks(60);
         commands("fill 690 -60 0 690 -14 0 minecraft:gold_block", "fill 780 -60 0 780 33 0 minecraft:gold_block");
         server("minus zero: beside Minus One", level -> {
@@ -649,13 +650,13 @@ final class Scenes {
             return Math.abs(zero.getBbHeight() - 2.0F * one.getBbHeight()) < 1.0E-3 && zero.bodyScale() == 2.0 ? null : "not twice";
         });
         shot("minus_zero_beside_minus_one");
-        camera("minus zero: close", new Vec3(760.5, 10.0, 120.0), new Vec3(760.5, -10.0, 0.5), 70);
+        camera("minus zero: close", new Vec3(760.5, -12.0, 85.0), new Vec3(760.5, -14.0, 0.5), 70);
         waitTicks(40);
         shot("minus_zero_front");
-        camera("minus zero: side", new Vec3(880.0, 0.0, 0.5), new Vec3(760.5, -15.0, 0.5), 70);
+        camera("minus zero: side", new Vec3(845.0, -12.0, 0.5), new Vec3(760.5, -14.0, 0.5), 70);
         waitTicks(40);
         shot("minus_zero_side");
-        camera("minus zero: behind", new Vec3(760.5, 10.0, -120.0), new Vec3(760.5, -10.0, 0.5), 70);
+        camera("minus zero: behind", new Vec3(760.5, -12.0, -85.0), new Vec3(760.5, -14.0, 0.5), 70);
         waitTicks(40);
         shot("minus_zero_back");
 
@@ -670,7 +671,7 @@ final class Scenes {
                 g.die(level.damageSources().generic());
             }
         });
-        camera("minus zero: the evolution", new Vec3(700.5, 10.0, 150.0), new Vec3(700.5, -15.0, 0.5), 70);
+        camera("minus zero: the evolution", new Vec3(700.5, -12.0, 85.0), new Vec3(700.5, -14.0, 0.5), 70);
         waitTicks(60);
         shot("minus_one_collapsed");
         until("minus zero: Minus Zero gets up where Minus One lay", () -> find(GodzillaMinusZeroEntity.class) != null, 400);
@@ -698,7 +699,7 @@ final class Scenes {
                 z.startInhaling();
             }
         });
-        camera("minus zero: the beam", new Vec3(820.0, 30.0, 140.0), new Vec3(700.5, 20.0, 60.0), 70);
+        camera("minus zero: the beam", new Vec3(775.0, -5.0, 70.0), new Vec3(700.5, 10.0, 40.0), 70);
         waitTicks(40);
         shot("minus_zero_charging");
         waitTicks(50);
