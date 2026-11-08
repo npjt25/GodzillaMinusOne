@@ -1436,11 +1436,12 @@ public final class ModGameTests {
         helper.assertTrue(ground == pillars.size() && helper.getBlockState(new BlockPos(4, floor, 4)).is(Blocks.STONE),
                 "the ground he stands on should stay, " + ground + " of " + pillars.size());
         int[] waited = {0};
+        int inSweep = around;
         helper.onEachTick(() -> waited[0]++);
         helper.succeedWhen(() -> {
             helper.assertTrue(level.getBlockState(far).isAir(), "his tail strike should go on to clear its whole sweep, 45 blocks out too ("
-                    + around + " blocks in it)");
-            GodzillaMinusOne.LOGGER.info("tail strike test: its sweep cleared {} blocks out {} ticks after, {} blocks in it", 45, waited[0], around);
+                    + inSweep + " blocks in it)");
+            GodzillaMinusOne.LOGGER.info("tail strike test: its sweep cleared {} blocks out {} ticks after, {} blocks in it", 45, waited[0], inSweep);
             remove(zero, struck);
         });
     }
