@@ -8,7 +8,9 @@ animation plays on him as on Minus One), plus
   - a row of spines along either side of his tail,
   - every plate (his own and the new ones) drawn out into a sharp point, and the plate at the end of his tail into
     the longest and sharpest of all his tail's,
-  - and a darker, heavier skin (the scorched skin he collapses in too).
+  - thicker thighs and shins,
+  - a darker, heavier skin (the scorched skin he collapses in too),
+  - and burns from his own breath down his throat and over his chest as well as round his mouth.
 
 The new parts' texture goes where Minus One's texture sheet has room (none of his own is moved), so the overlays
 Minus One's renderer draws (eyes, mouth, burns, beam) fit Minus Zero unchanged; his plates' charge glow has his own
@@ -41,6 +43,9 @@ PX = 2  # texture pixels per texture unit (512 x 512 for a 256 x 256 sheet)
 # plates of his tail and lower back that get a smaller plate either side
 FLANKED = ["T12", "T15", "T16", "T17", "T18", "T19", "T20", "T21", "T22"]
 TAIL = ["bone13", "bone14", "bone16", "bone17", "bone18"]
+THICKER = {"Leg": 1.0, "Leg2": 1.0, "Leg_bone": 0.7, "Leg_bone2": 0.7}   # (inflate, texture units all round)
+CHEST_BURN_BONES = ("Neck", "Chest", "Metalbody")
+CHEST = np.array([0.0, 60.0, -27.0])   # where his chest burns are worst (GeckoLib space: in front of his breastbone)
 
 
 def cube(origin, size, uv=None, pivot=None, rotation=None, kind=None):
@@ -165,12 +170,14 @@ def cap_heights(bones_list, tips, ceiling, tw, th):
     """Points that would stand above Minus One's highest point are cut short to it (or left off)."""
     pose = rp.animation_pose(ANIM, "animation.gojira.idle", 0.0)
     m = rp.bone_matrices(bones_list, pose)
+    by_name = {b["name"]: b for b in bones_list}
     kept = {}
     cut = 0
     for name, cs in tips.items():
         for c in cs:
             while True:
-                top = max((np.c_[corners, np.ones(4)] @ m[name].T)[:, 1].max() for _, corners, _ in rp.face_list(c, tw, th))
+                C = cube_matrix(m, by_name[name], c)
+                top = max((np.c_[corners, np.ones(4)] @ C.T)[:, 1].max() for _, corners, _ in rp.face_list(c, tw, th))
                 if top <= ceiling - 0.05:
                     kept.setdefault(name, []).append(c)
                     break
@@ -297,21 +304,131 @@ def paint_glow(img, cubes):
     return Image.fromarray(a.astype(np.uint8), "RGBA")
 
 
+# ------------------------------------------------------------------------------------------------ legs
+
+def thicken_legs(bones):
+    """Heavier legs: his thighs (Leg, Leg2) and shins (Leg_bone, Leg_bone2) a little thicker all round (inflated:
+    the same texture on them), his feet as they were (so he stands where he did)."""
+    for name, extra in THICKER.items():
+        for c in bones[name]["cubes"]:
+            c["inflate"] = round(c.get("inflate", 0) + extra, 3)
+
+
+# ------------------------------------------------------------------------------------------------ chest burns
+
+def cube_matrix(m, bone, c):
+    C = m[bone["name"]]
+    if "rotation" in c:
+        px, py, pz = c.get("pivot", [0, 0, 0])
+        rx, ry, rz = c["rotation"]
+        C = C @ rp.about_pivot([-px, py, pz], rp.rot_matrix(math.radians(-rx), math.radians(-ry), math.radians(rz)))
+    return C
+
+
+def chest_burns(bones, tw, th):
+    """The burns his breath leaves on him: Minus One's round his mouth (tools/godzilla_burns.py), and his own down his
+    throat and over the front of his chest (Neck, Chest, Metalbody, which his renderer burns too), painted the same
+    way (raw, blistered, charred flesh; the alpha the order they heal in; the glowing cracks just after the beam)."""
+    import noise
+    size = 256 * PX
+    m = rp.bone_matrices(bones)
+    total = np.zeros((size, size))
+    count = np.zeros((size, size))
+    for b in bones:
+        if b["name"] not in CHEST_BURN_BONES:
+            continue
+        for c in b.get("cubes", []):
+            C = cube_matrix(m, b, c)
+            faces = [(name, (C @ np.c_[corners, np.ones(4)].T).T[:, :3], uvs) for name, corners, uvs in rp.face_list(c, tw, th)]
+            centre = np.mean([p.mean(0) for _, p, _ in faces], axis=0)
+            for _, p4, uvs in faces:
+                n = np.cross(p4[1] - p4[0], p4[3] - p4[0])
+                if np.dot(n, p4.mean(0) - centre) < 0:
+                    n = -n
+                n = n / (np.linalg.norm(n) + 1e-9)
+                front = np.clip(-n[2] * 1.2 + 0.15, 0.0, 1.0)      # facing forward (-z), as his mouth does
+                px = uvs * size
+                u0, v0 = np.floor(px.min(0)).astype(int)
+                u1, v1 = np.ceil(px.max(0)).astype(int)
+                u0, v0, u1, v1 = max(u0, 0), max(v0, 0), min(u1, size), min(v1, size)
+                if u1 <= u0 or v1 <= v0:
+                    continue
+                uu, vv = np.meshgrid(np.linspace(0, 1, u1 - u0), np.linspace(0, 1, v1 - v0))
+                p = (p4[0] * ((1 - uu) * (1 - vv))[..., None] + p4[1] * (uu * (1 - vv))[..., None]
+                     + p4[2] * (uu * vv)[..., None] + p4[3] * ((1 - uu) * vv)[..., None])
+                d = np.linalg.norm((p - CHEST) * np.array([1.0, 0.55, 0.8]), axis=-1)
+                w = np.exp(-(d / 8.0) ** 2) * front
+                total[v0:v1, u0:u1] += w
+                count[v0:v1, u0:u1] += 1
+    weight = np.where(count > 0, total / np.maximum(count, 1), 0.0)
+    # (texels his head, jaw or upper neck use too keep Minus One's burns: the add-on's sheet shares a few)
+    for b in bones:
+        if b["name"] in CHEST_BURN_BONES:
+            continue
+        for c in b.get("cubes", []):
+            for _, _, uvs in rp.face_list(c, tw, th):
+                px = uvs * size
+                u0, v0 = np.floor(px.min(0)).astype(int)
+                u1, v1 = np.ceil(px.max(0)).astype(int)
+                if b["name"] in ("Head", "Jew", "neck2"):
+                    weight[max(v0, 0):max(v1, 0), max(u0, 0):max(u1, 0)] = 0.0
+
+    r = np.random.default_rng(57)
+    from_hide = noise.hide_detail(size, r, cell=5)
+    blotch = noise.smooth_noise(size, 24, r) * 0.6 + noise.smooth_noise(size, 55, r) * 0.4
+    wound = weight * 1.2 + (blotch - 0.5) * 1.1
+    burnt = (wound > 0.32) & (weight > 0.04)
+    core = np.clip((wound - 0.32) / 0.7, 0.0, 1.0) ** 1.2   # (more of it charred than raw)
+    char = np.array([34.0, 26.0, 24.0])
+    raw_dark = np.array([96.0, 18.0, 16.0])
+    raw = np.array([188.0, 58.0, 46.0])
+    pink = np.array([222.0, 128.0, 112.0])
+    col = (char[None, None] * (1 - np.clip(core * 3, 0, 1))[..., None]
+           + raw_dark[None, None] * np.clip(core * 3, 0, 1)[..., None] * (1 - np.clip(core * 2 - 0.6, 0, 1))[..., None]
+           + raw[None, None] * np.clip(core * 2 - 0.6, 0, 1)[..., None])
+    col *= np.clip(from_hide, 0.6, 1.35)[..., None]
+    f1, _ = noise.worley(size, 4, r)
+    blister = (f1 < 0.9) & (r.random((size, size)) < 0.5) & (core > 0.15) & (core < 0.85)
+    col[blister] = pink * (0.9 + 0.2 * r.random((int(blister.sum()), 1)))
+    col[blister & (f1 < 0.4)] = [246, 220, 196]
+    alpha = np.where(burnt, 0.22 + 0.78 * core ** 0.8, 0.0) * 255
+
+    img = np.array(Image.open(os.path.join(TEX, "godzilla_burns.png")).convert("RGBA")).astype(float)
+    mine = burnt & (img[..., 3] == 0)
+    img[mine, :3] = np.clip(col[mine], 0, 255)
+    img[mine, 3] = alpha[mine]
+    Image.fromarray(img.astype(np.uint8), "RGBA").save(os.path.join(TEX, "godzilla_minus_zero_burns.png"))
+
+    glow = np.array(Image.open(os.path.join(TEX, "godzilla_burns_glow.png")).convert("RGBA")).astype(float)
+    g1, g2 = noise.worley(size, 6, r)
+    crack = mine & (np.abs(g2 - g1) < 0.8) & (core > 0.35) & (glow[..., 3] == 0)
+    glow[crack] = [255, 118, 34, 255]
+    glow[crack & (core > 0.7)] = [255, 196, 90, 255]
+    Image.fromarray(glow.astype(np.uint8), "RGBA").save(os.path.join(TEX, "godzilla_minus_zero_burns_glow.png"))
+    return int(mine.sum())
+
+
 # ------------------------------------------------------------------------------------------------ height
 
-def highest(bones, tw, th):
-    """His highest point (texture units above his feet) in his standing pose, the beam (bone B) left out."""
+def extent(bones, tw, th):
+    """His lowest and highest points (texture units above his feet) in his standing pose, the beam (bone B) left out."""
     pose = rp.animation_pose(ANIM, "animation.gojira.idle", 0.0)
     m = rp.bone_matrices(bones, pose)
-    top = -1e9
+    low, top = 1e9, -1e9
     for b in bones:
         if b["name"] == "B":
             continue
         for c in b.get("cubes", []):
+            C = cube_matrix(m, b, c)
             for _, corners, _ in rp.face_list(c, tw, th):
-                pts = np.c_[corners, np.ones(4)] @ m[b["name"]].T
+                pts = np.c_[corners, np.ones(4)] @ C.T
                 top = max(top, pts[:, 1].max())
-    return top
+                low = min(low, pts[:, 1].min())
+    return low, top
+
+
+def highest(bones, tw, th):
+    return extent(bones, tw, th)[1]
 
 
 def main():
@@ -320,7 +437,7 @@ def main():
     bones = {b["name"]: b for b in geo["bones"]}
     adds = additions(bones)
     tw, th = geo["description"]["texture_width"], geo["description"]["texture_height"]
-    ceiling = highest(geo["bones"], tw, th)
+    floor, ceiling = extent(geo["bones"], tw, th)
     tips, cut = cap_heights(geo["bones"], sharpen(bones, adds), ceiling, tw, th)
     for name, cs in tips.items():
         adds.setdefault(name, []).extend(cs)
@@ -334,6 +451,7 @@ def main():
     for b in ogeo["bones"]:
         for c in adds.get(b["name"], []):
             b["cubes"].append({k: v for k, v in c.items() if k != "kind"})
+    thicken_legs({b["name"]: b for b in ogeo["bones"]})
     with open(GEO_OUT, "w") as f:
         json.dump(out, f, indent=1)
         f.write("\n")
@@ -344,9 +462,14 @@ def main():
     paint(darken(dead), new, rng, scorched=True).save(os.path.join(TEX, "godzilla_minus_zero_dead.png"))
     glow = Image.open(os.path.join(TEX, "godzilla_charged_glow.png")).convert("RGBA")
     paint_glow(glow, new).save(os.path.join(TEX, "godzilla_minus_zero_charged_glow.png"))
+    burnt = chest_burns(geo["bones"], tw, th)
 
     before = ceiling
-    after = highest(ogeo["bones"], tw, th)
+    low, after = extent(ogeo["bones"], tw, th)
+    print("chest burns: %d texels" % burnt)
+    print("lowest point: Minus One %.3f, Minus Zero's model %.3f" % (floor, low))
+    if low < floor - 1e-6:
+        raise SystemExit("his thicker legs reach below his feet")
     print("added %d cubes (%s); points cut short to stay under his top: %d steps" % (len(new), ", ".join(
         "%s %d" % (k, sum(1 for c in new if c["kind"] == k)) for k in ("plate", "band", "cap", "spine", "tip")), cut))
     print("highest point: Minus One %.3f, Minus Zero's model %.3f (texture units)" % (before, after))

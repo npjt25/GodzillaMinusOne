@@ -7,6 +7,8 @@ import net.minecraft.client.renderer.entity.EntityRendererProvider;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.Mth;
 
+import java.util.Set;
+
 /**
  * Godzilla Minus Zero: Godzilla's renderer (his plates lighting up in the charge, his glowing mouth, his beam, his
  * burns) with his own look (client.render.GodzillaMinusZeroModel), scaled up to twice Minus One's height
@@ -22,6 +24,26 @@ public class GodzillaMinusZeroRenderer extends GodzillaRenderer {
     /** Charge animation seconds his second laser joins the first (for his model: the beam widening). */
     static final float SURGE_SECONDS = SURGE;
 
+    /** His breath burns his chest too (tools/make_minus_zero.py: the burns over it). */
+    private static final Set<String> BURN_BONES = Set.of("Head", "Jew", "neck2", "Neck", "Chest", "Metalbody");
+    private static final ResourceLocation BURNS = GodzillaMinusOne.id("textures/entity/godzilla_minus_zero_burns.png");
+    private static final ResourceLocation BURNS_GLOW = GodzillaMinusOne.id("textures/entity/godzilla_minus_zero_burns_glow.png");
+
+    @Override
+    protected Set<String> burnBones() {
+        return BURN_BONES;
+    }
+
+    @Override
+    protected ResourceLocation burns() {
+        return BURNS;
+    }
+
+    @Override
+    protected ResourceLocation burnsGlow() {
+        return BURNS_GLOW;
+    }
+
     private static final ResourceLocation PLATE_GLOW = GodzillaMinusOne.id("textures/entity/godzilla_minus_zero_charged_glow.png");
 
     @Override
@@ -29,22 +51,28 @@ public class GodzillaMinusZeroRenderer extends GodzillaRenderer {
         return PLATE_GLOW;
     }
 
-    /** His glow fades out over the 2 s after he fires, then comes back in 0.3 s as his second laser joins the first. */
+    /**
+     * His glow, once he's fired: on through his first beam, until its explosion; dimming out over 2 s; lighting up
+     * again over 2 s; on through his second beam.
+     */
     @Override
     protected float firedGlow(float seconds) {
-        if (seconds < FIRE) {
+        if (seconds < FIRST_BLAST) {
             return 1.0F;
         }
-        if (seconds < SURGE_DIM) {
-            float x = (seconds - FIRE) / (SURGE_DIM - FIRE);
+        if (seconds < DIMMED) {
+            float x = (seconds - FIRST_BLAST) / (DIMMED - FIRST_BLAST);
             return 1.0F - x * x * (3.0F - 2.0F * x);
         }
-        return Mth.clamp((seconds - SURGE_DIM) / (SURGE - SURGE_DIM), 0.0F, 1.0F);
+        float x = Mth.clamp((seconds - DIMMED) / (SURGE - DIMMED), 0.0F, 1.0F);
+        return x * x * (3.0F - 2.0F * x);
     }
 
+    /** As they light up again, a sharper blue over them, full by his second beam and on through it. */
     @Override
     protected float sharpGlow(float seconds) {
-        return Mth.clamp((seconds - SURGE_DIM) / (SURGE - SURGE_DIM), 0.0F, 1.0F);
+        float x = Mth.clamp((seconds - DIMMED) / (SURGE - DIMMED), 0.0F, 1.0F);
+        return x * x * (3.0F - 2.0F * x);
     }
 
     @Override

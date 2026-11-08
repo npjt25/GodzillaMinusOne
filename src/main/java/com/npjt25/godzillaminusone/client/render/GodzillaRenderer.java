@@ -50,6 +50,8 @@ public class GodzillaRenderer extends GeoEntityRenderer<GodzillaEntity> {
     private static final ResourceLocation BURNS = GodzillaMinusOne.id("textures/entity/godzilla_burns.png");
     private static final ResourceLocation BURNS_GLOW = GodzillaMinusOne.id("textures/entity/godzilla_burns_glow.png");
     private static final String BEAM_BONE = "B";
+    /** The plate at the tip of his tail (Minus Zero's tail strike: punched up and glowing). */
+    private static final String TAIL_TIP_BONE = "T22";
     private static final Set<String> BURN_BONES = Set.of("Head", "Jew", "neck2");
     /** Seconds the burnt flesh keeps glowing hot. */
     private static final float BURN_HEAT_SECONDS = 8.0F;
@@ -65,7 +67,7 @@ public class GodzillaRenderer extends GeoEntityRenderer<GodzillaEntity> {
             Map.entry("T10", 8.54F), Map.entry("T11", 8.54F));
 
     private enum Pass {
-        MODEL, EYES, BURNS, PLATES, MOUTH, BEAM
+        MODEL, EYES, BURNS, PLATES, MOUTH, BEAM, TAIL_TIP
     }
 
     private Pass pass = Pass.MODEL;
@@ -96,7 +98,7 @@ public class GodzillaRenderer extends GeoEntityRenderer<GodzillaEntity> {
                 }
             }
             case BURNS -> {
-                if (BURN_BONES.contains(name)) {
+                if (burnBones().contains(name)) {
                     super.renderCubesOfBone(poseStack, bone, buffer, packedLight, packedOverlay, red, green, blue, alpha);
                 }
             }
@@ -119,7 +121,25 @@ public class GodzillaRenderer extends GeoEntityRenderer<GodzillaEntity> {
                     super.renderCubesOfBone(poseStack, bone, buffer, packedLight, packedOverlay, red, green, blue, alpha);
                 }
             }
+            case TAIL_TIP -> {
+                if (TAIL_TIP_BONE.equals(name)) {
+                    super.renderCubesOfBone(poseStack, bone, buffer, packedLight, packedOverlay, red, green, blue, alpha);
+                }
+            }
         }
+    }
+
+    /** Where his breath burns him: his mouth (Minus Zero: his chest too). */
+    protected Set<String> burnBones() {
+        return BURN_BONES;
+    }
+
+    protected ResourceLocation burns() {
+        return BURNS;
+    }
+
+    protected ResourceLocation burnsGlow() {
+        return BURNS_GLOW;
     }
 
     /** His plates' charge glow (Minus Zero's has his own plates in it). */
@@ -136,10 +156,15 @@ public class GodzillaRenderer extends GeoEntityRenderer<GodzillaEntity> {
         return x * x * (3.0F - 2.0F * x) * (0.85F + 0.15F * Mth.sin(this.chargeSeconds * 7.0F)) * firedGlow(this.chargeSeconds);
     }
 
-    /** Charge animation seconds: Minus Zero's glow has faded out (2 s after he fires)... */
-    protected static final float SURGE_DIM = FIRE + 2.0F;
-    /** ...and is back, sharper, as his second laser joins the first (entity.GodzillaEntity.SURGE_TICK). */
-    protected static final float SURGE = FIRE + 2.3F;
+    /**
+     * Charge animation seconds of Minus Zero's second blast (entity.GodzillaEntity's ticks, less the blend into the
+     * charge): his first explosion, when his plates start to dim...
+     */
+    protected static final float FIRST_BLAST = FIRE + (GodzillaEntity.CHARGE_BLAST_TICK - GodzillaEntity.BEAM_START_TICK) / 20.0F;
+    /** ...dark 2 s later, when they start to light up again (and rise)... */
+    protected static final float DIMMED = FIRST_BLAST + 2.0F;
+    /** ...lit up again 2 s after that, when they punch down and he fires his second beam. */
+    protected static final float SURGE = FIRE + (GodzillaEntity.SURGE_TICK - GodzillaEntity.BEAM_START_TICK) / 20.0F;
 
     /** How much of the plates' glow is left once he's fired (Minus One's stays; Minus Zero's fades, then comes back). */
     protected float firedGlow(float seconds) {
@@ -209,15 +234,23 @@ public class GodzillaRenderer extends GeoEntityRenderer<GodzillaEntity> {
                 // the wounds close up from their edges; the flesh still writhes as it knits
                 float time = entity.tickCount + partialTick;
                 float heal = (float) Math.pow(burns, 0.6) * (0.94F + 0.06F * Mth.sin(time * 0.9F));
-                this.godzilla.renderPass(Pass.BURNS, poseStack, entity, model, buffers, RenderType.entityTranslucent(BURNS), partialTick,
+                this.godzilla.renderPass(Pass.BURNS, poseStack, entity, model, buffers, RenderType.entityTranslucent(this.godzilla.burns()), partialTick,
                         packedLight, 1.0F, 1.0F, 1.0F, heal);
                 float seconds = (1.0F - burns) * GodzillaEntity.BURN_TICKS / 20.0F;
                 float heat = Mth.clamp(1.0F - seconds / BURN_HEAT_SECONDS, 0.0F, 1.0F);
                 if (heat > 0.0F) {
                     heat = heat * heat * (0.85F + 0.15F * Mth.sin(time * 1.7F));
-                    this.godzilla.renderPass(Pass.BURNS, poseStack, entity, model, buffers, RenderType.eyes(BURNS_GLOW), partialTick,
+                    this.godzilla.renderPass(Pass.BURNS, poseStack, entity, model, buffers, RenderType.eyes(this.godzilla.burnsGlow()), partialTick,
                             heat, heat, heat);
                 }
+            }
+            if (entity.isTailGlowing()) {
+                // Minus Zero's tail strike wound up: the plate at the tip of his tail, a sharp blue
+                float pulse = 0.85F + 0.15F * Mth.sin((entity.tickCount + partialTick) * 0.9F);
+                this.godzilla.renderPass(Pass.TAIL_TIP, poseStack, entity, model, buffers, RenderType.eyes(this.godzilla.plateGlow()), partialTick,
+                        0.45F * pulse, 0.8F * pulse, 1.0F * pulse);
+                this.godzilla.renderPass(Pass.TAIL_TIP, poseStack, entity, model, buffers, RenderType.eyes(this.godzilla.plateGlow()), partialTick,
+                        0.25F * pulse, 0.55F * pulse, 1.0F * pulse);
             }
             int state = entity.getChargeState();
             if (state == GodzillaEntity.CHARGE_NONE) {

@@ -13,11 +13,13 @@ import software.bernie.geckolib.core.animation.AnimationState;
  */
 public class GodzillaMinusZeroModel extends GodzillaModel {
     private static final ResourceLocation MODEL = GodzillaMinusOne.id("geo/entity/godzilla_minus_zero.geo.json");
+    /** Minus One's animations and his own: his charge with its second blast, his tail strike (tools/make_minus_zero_animations.py). */
+    private static final ResourceLocation ANIMATIONS = GodzillaMinusOne.id("animations/entity/godzilla_minus_zero.animation.json");
     private static final ResourceLocation NORMAL = GodzillaMinusOne.id("textures/entity/godzilla_minus_zero.png");
     private static final ResourceLocation DEAD = GodzillaMinusOne.id("textures/entity/godzilla_minus_zero_dead.png");
 
     /**
-     * As in Minus One's, his head aimed at what he's breathing at; and once his second laser has joined the first
+     * As in Minus One's, his head aimed at what he's breathing at; and once he fires his second beam
      * (GodzillaMinusZeroRenderer.SURGE seconds into his charge), the beam (bone "B") as much wider as it then hits
      * (GodzillaEntity.SURGE_WIDTH), growing out over 0.15 s.
      */
@@ -36,6 +38,11 @@ public class GodzillaMinusZeroModel extends GodzillaModel {
                 beam.setScaleY(beam.getScaleY() * wider);
             });
         }
+    }
+
+    @Override
+    public ResourceLocation getAnimationResource(GodzillaEntity entity) {
+        return ANIMATIONS;
     }
 
     @Override

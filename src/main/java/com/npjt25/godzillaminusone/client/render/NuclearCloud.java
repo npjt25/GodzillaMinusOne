@@ -126,11 +126,11 @@ public final class NuclearCloud {
     private final float windZ;
     private int age;
 
-    private NuclearCloud(ResourceKey<Level> dimension, Vec3 zero, boolean grounded) {
+    private NuclearCloud(ResourceKey<Level> dimension, Vec3 zero, boolean grounded, float scale) {
         this.dimension = dimension;
         this.zero = zero;
         this.grounded = grounded;
-        this.time = new BlastTimeline(ClientConfig.CLOUD_HEIGHT.get(), ClientConfig.FLASH_SECONDS.get().floatValue(),
+        this.time = new BlastTimeline(ClientConfig.CLOUD_HEIGHT.get() * scale, ClientConfig.FLASH_SECONDS.get().floatValue(),
                 ClientConfig.FIREBALL_SECONDS.get().floatValue(), ClientConfig.SHOCKWAVE_SECONDS.get().floatValue(),
                 ClientConfig.RISE_SECONDS.get(), ClientConfig.COOLING_SECONDS.get(), ClientConfig.MATURE_SECONDS.get(),
                 ClientConfig.DISSIPATE_SECONDS.get());
@@ -148,12 +148,17 @@ public final class NuclearCloud {
 
     /** The blast at ground zero (one cloud per ATOMIC_BLAST packet, for Godzilla's atomic breath and the nuclear bomb alike). */
     public static void spawn(Vec3 zero, boolean grounded) {
+        spawn(zero, grounded, 1.0F);
+    }
+
+    /** The same, the whole cloud {@code scale} times as big (Godzilla Minus Zero's: twice). */
+    public static void spawn(Vec3 zero, boolean grounded, float scale) {
         Minecraft mc = Minecraft.getInstance();
         ClientLevel level = mc.level;
         if (level == null) {
             return;
         }
-        NuclearCloud cloud = new NuclearCloud(level.dimension(), zero, grounded);
+        NuclearCloud cloud = new NuclearCloud(level.dimension(), zero, grounded, scale);
         CLOUDS.add(cloud);
         // the light of it (like lightning's: Minecraft's "Hide Lightning Flashes" option turns it off)
         if (mc.gameRenderer.getMainCamera().getPosition().distanceTo(zero) < 6.0 * cloud.time.height) {

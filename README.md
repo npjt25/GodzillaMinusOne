@@ -172,8 +172,8 @@ the blue one a player.*
   and his pending evolution is saved with him (the world saving, or his chunk unloading and loading, neither loses
   it nor makes two). It all happens on the server; everyone sees the one Minus Zero. `/kill` and the void just remove
   Minus One, no evolution. Bringing Minus One down still unlocks his shape with ReMorphed, once.
-- **Twice Minus One's standing height**: Minus One stands 46.83 blocks from the ground to his highest point (his
-  standing pose, plates included); Minus Zero 93.66. His whole body is scaled (not just stretched upwards), his
+- **Twice Minus One's standing height**: Minus One stands 45.37 blocks from the ground to his highest point (his
+  standing pose, plates included); Minus Zero 90.74. His whole body is scaled (not just stretched upwards), his
   hitbox is twice Minus One's (20 wide, 80 tall), and every point on his body and every reach that comes from it is
   twice as far out: his mouth (where the atomic breath's beam starts), his claws and their reach, his tail sweep (60
   and 76 blocks), his feet and footprints, his stomp, his face (where a Shinden strikes), the depth of water he swims
@@ -182,7 +182,7 @@ the blue one a player.*
   spin and tail whip, bite, stomp, the swimming bite), the atomic breath's charge (plates lighting up, the
   in-breath), his roars and sounds, radiation aura, regeneration while calm, swimming,
   breaking and demolishing buildings (the same 23-block rule), the Shinsei Maru and Shinden rules, and the config
-  (his breath's surge and bigger blast, below, are his own).
+  (his breath's second blast, his bigger blasts and his tail strike, below, are his own).
 - **Brought down, Minus Zero falls for good**: he collapses, lies there 3 seconds and dies (no Godzilla after him, no
   getting up again). That ends the encounter.
 - **His spawn egg** ("Spawn Godzilla Minus Zero", creative tab, no recipe): a vanilla-style egg, charcoal with
@@ -193,14 +193,26 @@ the blue one a player.*
   **second, staggered row of plates** along his lower back and tail, smaller than the first and tilted out (they light
   up with the rest in his charge), **overlapping armour bands** round his upper arms and forearms and **layered caps**
   on his shoulders, a **row of spines along either side of his tail**, **every plate drawn out into a sharp point**
-  (the plate at the end of his tail into the longest, finest point on his tail), and a **darker, heavier skin** (his
-  scorched skin when he's down too).
-- **His atomic breath surges**: the charge is Minus One's, but once his beam fires, the blue glow on his plates
-  **fades out over 2 seconds**, then **comes back in a sharper, brighter blue**, and **a second laser joins the
-  first**: the beam grows about a third wider and twice as bright, hits a wider band round it, twice as often, and
-  his nuclear blast goes off with it, **twice the size of Minus One's** (twice every radius: kill, fallout, crater,
-  scorch, ruins and flattening). Minus One's breath is unchanged. Every bone is Minus One's, so all of Minus One's animations play on him. None of the new
-  parts reaches above Minus One's highest point, so at exactly twice the scale he stands exactly twice as tall.
+  (the plate at the end of his tail into the longest, finest point on his tail), **thicker thighs and shins**, and a
+  **darker, heavier skin** (his scorched skin when he's down too).
+- **His atomic breath has a second blast**: the charge is Minus One's; his beam fires and, 2 seconds later, the
+  first nuclear explosion goes up where it lands. His beam stays on (his first breath lasts longer than Minus One's)
+  while the blue glow on his plates **dims out over 2 seconds**, then **lights up again over 2 seconds** in a sharper,
+  brighter blue as his plates **punch back up**; then they **punch back down** and he **fires a second blast**: the
+  beam grows about a third wider and twice as bright, hits a wider band round it, twice as often, and 2 seconds after
+  it lands **a second nuclear explosion** goes up. Each explosion is **twice the size of Minus One's**: twice every
+  radius (kill, fallout, crater, scorch, ruins and flattening), and **a mushroom cloud twice as big** (twice as tall
+  and wide). After the beam his **mouth, throat and chest** are left burnt raw (Minus One's: his mouth), healing as
+  Minus One's burns do. Minus One's breath is unchanged.
+- **His tail strike**: every other spin of his is his tail strike instead. The plate at the very end of his tail
+  **punches up and glows blue** for a second, then he spins and whips his tail round as in his spin, **twice as hard**:
+  what's alive takes **double damage** and is flung away, and **anything else it hits is destroyed**: boats wrecked, a
+  manned Shinden blown up, armor stands and any other thing gone, and **every block in its sweep**, from the ground he
+  stands on up to as high as his tail goes (rock, earth and trees as well as what's built; not liquids or bedrock;
+  with `breaksBlocks` and mobGriefing on, as all his block breaking).
+- Every bone is Minus One's, so all of Minus One's animations play on him (his second blast and tail strike are
+  Minus One's charge and spin with his own parts added: `tools/make_minus_zero_animations.py`). None of the new parts
+  reaches above Minus One's highest point, so at exactly twice the scale he stands exactly twice as tall.
 
 ### Kyushu J7W1 Shinden
 

@@ -82,9 +82,11 @@ public final class ClientFx {
         switch (msg.type()) {
             case MINE_BLAST -> Fx.mineBlast(msg.pos());
             case ATOMIC_BLAST -> {
-                boolean grounded = msg.b() > 0.5F;
+                // b: the cloud's size (1 Minus One's and a bomb's, 2 Minus Zero's), negative when it went off in the air
+                boolean grounded = msg.b() > 0.0F;
+                float scale = Math.abs(msg.b()) < 1.0E-3F ? 1.0F : Math.abs(msg.b());
                 Fx.atomicBlast(msg.pos(), grounded);
-                NuclearCloud.spawn(msg.pos(), grounded);
+                NuclearCloud.spawn(msg.pos(), grounded, scale);
             }
             case STOMP -> Fx.stomp(msg.pos(), Math.max(0.5F, msg.a()));
             case BOAT_GUN -> Fx.boatGun(msg.pos(), msg.a(), msg.b());

@@ -374,12 +374,17 @@ public final class ModGameTests {
         helper.assertTrue(zero.clawPosition(1.0).subtract(at).distanceTo(one.clawPosition(1.0).subtract(at).scale(2.0)) < 1.0E-6, "his claws");
         helper.assertTrue(zero.getMaxHealth() == one.getMaxHealth() && zero.getAttributeValue(net.minecraft.world.entity.ai.attributes.Attributes.ATTACK_DAMAGE)
                 == one.getAttributeValue(net.minecraft.world.entity.ai.attributes.Attributes.ATTACK_DAMAGE), "his numbers are Minus One's");
-        // his breath: Minus One's as it was; Minus Zero's surges (a second laser, wider and hitting twice as often, with
-        // the blast going off with it) and his blast is twice as big
-        helper.assertTrue(!one.surges() && one.blastScale() == 1.0 && one.blastTick() == GodzillaEntity.CHARGE_BLAST_TICK
-                && one.beamRadius(GodzillaEntity.SURGE_TICK) == 4.0, "Minus One's breath should be as it was");
-        helper.assertTrue(zero.surges() && zero.blastScale() == 2.0 && zero.blastTick() == GodzillaEntity.SURGE_TICK + 10
-                && zero.blastTick() < GodzillaEntity.BEAM_END_TICK, "Minus Zero's blast should go off with his second laser, twice as big");
+        // his breath: Minus One's as it was (one blast); Minus Zero's first beam lasts until his plates are lit again, then
+        // he fires a second laser (wider, hitting twice as often) and a second blast goes up: both twice as big
+        helper.assertTrue(!one.surges() && one.blastScale() == 1.0 && one.blastsAt(GodzillaEntity.CHARGE_BLAST_TICK)
+                && !one.blastsAt(GodzillaEntity.SECOND_BLAST_TICK) && one.beamEndTick() == GodzillaEntity.BEAM_END_TICK
+                && one.chargeLength() == GodzillaEntity.CHARGE_LENGTH && one.beamRadius(GodzillaEntity.SURGE_TICK) == 4.0,
+                "Minus One's breath should be as it was");
+        helper.assertTrue(zero.surges() && zero.blastScale() == 2.0 && zero.blastsAt(GodzillaEntity.CHARGE_BLAST_TICK)
+                && zero.blastsAt(GodzillaEntity.SECOND_BLAST_TICK) && !zero.blastsAt(GodzillaEntity.SURGE_TICK)
+                && GodzillaEntity.SURGE_TICK == GodzillaEntity.CHARGE_BLAST_TICK + 80
+                && zero.beamEndTick() > GodzillaEntity.SECOND_BLAST_TICK && zero.chargeLength() == zero.beamEndTick() + GodzillaEntity.ROAR_TICKS,
+                "Minus Zero's breath: a blast, his plates dimmed and lit again (4 s), his second laser and a second blast, twice as big");
         helper.assertTrue(zero.beamRadius(GodzillaEntity.SURGE_TICK) > zero.beamRadius(GodzillaEntity.SURGE_TICK - 1)
                 && zero.beamRadius(GodzillaEntity.SURGE_TICK - 1) == 8.0, "his second laser should hit wider than his first");
         one.discard();
@@ -1347,6 +1352,85 @@ public final class ModGameTests {
         helper.assertTrue(helper.getBlockState(new BlockPos(4, floor, 4)).is(Blocks.STONE), "the ground should stay");
         remove(godzilla);
         helper.succeed();
+    }
+
+    /**
+     * Minus Zero's tail strike hits twice as hard as his spin, and destroys whatever it hits: an armor stand and a boat
+     * (which no mob's blow breaks), and every block in its sweep, rock, earth and trees as well as what's built, but not
+     * the ground he stands on.
+     */
+    @GameTest(template = FLOOR, batch = "gmo_minus_zero_tail_strike", timeoutTicks = 40)
+    public static void minusZerosTailStrikeDestroysWhatItHits(GameTestHelper helper) {
+        removeLeftoverGodzillas(helper);
+        int floor = floorY(helper);
+        ServerLevel level = helper.getLevel();
+        GodzillaMinusZeroEntity zero = helper.spawn(ModEntities.GODZILLA_MINUS_ZERO.get(), 4, floor + 1, 4);
+        zero.skipIntro();
+        GodzillaEntity one = helper.spawn(ModEntities.GODZILLA.get(), 4, floor + 1, 4);
+        helper.assertTrue(zero.tailStrikes() && !one.tailStrikes(), "only Minus Zero should have the tail strike");
+        one.discard();
+        Vec3 feet = zero.position();
+        // his spin, on a pig as tough as a pig can be made (1024 health): it takes his spin's blow (0.4 of his attack) and lives...
+        float blow = (float) zero.getAttributeValue(net.minecraft.world.entity.ai.attributes.Attributes.ATTACK_DAMAGE) * 0.4F;
+        Pig spun = toughPig(level, feet.add(0.0, 0.0, 20.0));
+        helper.assertTrue(blow < 1024.0F && blow * GodzillaEntity.TAIL_STRIKE_POWER >= 1024.0F && GodzillaEntity.TAIL_STRIKE_POWER == 2.0F,
+                "(the test's pig: his spin's blow should leave it standing, twice that not)");
+        zero.strikeNow("spin_whip");
+        helper.assertTrue(spun.isAlive() && Math.abs(spun.getHealth() - (1024.0F - blow)) < 1.0F,
+                "his spin should take " + blow + " of the pig's 1024 health, left " + spun.getHealth());
+        spun.discard();
+        // ...his tail strike, twice as hard: the same pig doesn't
+        Pig struck = toughPig(level, feet.add(0.0, 0.0, 20.0));
+        net.minecraft.world.entity.decoration.ArmorStand stand = EntityType.ARMOR_STAND.create(level);
+        stand.moveTo(feet.x + 18.0, feet.y, feet.z + 6.0, 0.0F, 0.0F);
+        level.addFreshEntity(stand);
+        net.minecraft.world.entity.vehicle.Boat boat = EntityType.BOAT.create(level);
+        boat.moveTo(feet.x - 22.0, feet.y, feet.z + 4.0, 0.0F, 0.0F);
+        level.addFreshEntity(boat);
+        // pillars of rock, earth and tree round him, 14 to 28 blocks out, on ground of stone
+        List<BlockPos> pillars = new ArrayList<>();
+        BlockState[] layers = {Blocks.STONE.defaultBlockState(), Blocks.DIRT.defaultBlockState(), Blocks.OAK_LOG.defaultBlockState(),
+                Blocks.OAK_LEAVES.defaultBlockState().setValue(net.minecraft.world.level.block.LeavesBlock.PERSISTENT, true)};
+        for (int i = 0; i < 8; i++) {
+            double a = i * Math.PI / 4.0 + 0.3;
+            double r = 14.0 + i * 2.0;
+            BlockPos base = BlockPos.containing(feet.x + Math.cos(a) * r, feet.y, feet.z + Math.sin(a) * r);
+            level.setBlockAndUpdate(base.below(), Blocks.STONE.defaultBlockState());
+            for (int y = 0; y < layers.length; y++) {
+                level.setBlockAndUpdate(base.above(y), layers[y]);
+            }
+            pillars.add(base);
+        }
+        zero.strikeNow("tail_strike");
+        helper.assertTrue(!struck.isAlive(), "his tail strike should hit twice as hard: the pig should be dead, has " + struck.getHealth());
+        helper.assertTrue(stand.isRemoved(), "his tail strike should destroy an armor stand");
+        helper.assertTrue(boat.isRemoved(), "his tail strike should destroy a boat");
+        int standing = 0;
+        int ground = 0;
+        for (BlockPos base : pillars) {
+            for (int y = 0; y < layers.length; y++) {
+                if (!level.getBlockState(base.above(y)).isAir()) {
+                    standing++;
+                }
+            }
+            if (level.getBlockState(base.below()).is(Blocks.STONE)) {
+                ground++;
+            }
+        }
+        helper.assertTrue(standing == 0, "his tail strike should destroy every block it sweeps through, " + standing + " of 32 left");
+        helper.assertTrue(ground == pillars.size() && helper.getBlockState(new BlockPos(4, floor, 4)).is(Blocks.STONE),
+                "the ground he stands on should stay, " + ground + " of " + pillars.size());
+        remove(zero, struck);
+        helper.succeed();
+    }
+
+    private static Pig toughPig(ServerLevel level, Vec3 at) {
+        Pig pig = EntityType.PIG.create(level);
+        pig.moveTo(at.x, at.y, at.z, 0.0F, 0.0F);
+        pig.getAttribute(net.minecraft.world.entity.ai.attributes.Attributes.MAX_HEALTH).setBaseValue(1024.0);
+        pig.setHealth(1024.0F);
+        level.addFreshEntity(pig);
+        return pig;
     }
 
     private static final java.util.Set<String> ODO_TOWERS_DONE = new java.util.HashSet<>();

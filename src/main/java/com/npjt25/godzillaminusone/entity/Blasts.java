@@ -152,7 +152,8 @@ public final class Blasts {
                         (int) Math.round(Config.ATOMIC_BLAST_DESTRUCTION_RADIUS.get() * scale), (int) Math.round(Config.ATOMIC_BLAST_RUIN_RADIUS.get() * scale));
             }
         }
-        ModNetwork.sendNear(level, zero, 1024.0, new FxPacket(FxPacket.Type.ATOMIC_BLAST, zero, yaw, grounded ? 1.0F : 0.0F));
+        float cloud = (float) Math.max(1.0, scale);   // (its size: negative, in the air)
+        ModNetwork.sendNear(level, zero, 1024.0 * cloud, new FxPacket(FxPacket.Type.ATOMIC_BLAST, zero, yaw, grounded ? cloud : -cloud));
         level.playSound(null, impact.x, impact.y, impact.z, ModSounds.GODZILLA_ATOMIC_BLAST.get(), SoundSource.HOSTILE, 24.0F, 1.0F);
         ModNetwork.shake(level, impact, 640.0, 4.0F, 6.0F);
         ModNetwork.blur(level, impact, 320.0, 1.0F, 0.15F, 2.5F, 4.0F);

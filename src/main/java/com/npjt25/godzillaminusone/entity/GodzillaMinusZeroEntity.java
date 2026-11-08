@@ -4,6 +4,7 @@ import com.npjt25.godzillaminusone.GodzillaMinusOne;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.level.Level;
+import software.bernie.geckolib.core.animation.RawAnimation;
 
 /**
  * Godzilla Minus Zero: what Godzilla Minus One becomes when he's brought down (GodzillaEntity's evolve, once per Minus
@@ -28,18 +29,33 @@ public class GodzillaMinusZeroEntity extends GodzillaEntity {
     }
 
     /**
-     * His breath surges: his beam fires, his plates' glow fades for 2 s and comes back a sharper blue, and a second
-     * laser joins the first, wider (by SURGE_WIDTH) and hitting twice as often, and his blast goes off with it...
+     * His breath has a second blast: his first beam lasts 2 s longer; after its explosion his plates dim for 2 s, light
+     * up again for 2 s, then punch down as he fires a second beam (wider by SURGE_WIDTH, hitting twice as often), and 2
+     * s after it lands, a second explosion...
      */
     @Override
     public boolean surges() {
         return true;
     }
 
-    /** ...twice as big as Minus One's (every radius of it: kill, radiation, crater, scorch, ruins, flattening). */
+    /** ...each twice as big as Minus One's (every radius: kill, radiation, crater, scorch, ruins, flattening; the cloud). */
     @Override
     public double blastScale() {
         return 2.0;
+    }
+
+    /** Every other spin of his, his tail strike instead (the tip of his tail punched up and glowing, then twice as hard). */
+    @Override
+    public boolean tailStrikes() {
+        return true;
+    }
+
+    private static final RawAnimation CHARGE = RawAnimation.begin().thenPlayAndHold("animation.gojira.charge_zero");
+
+    /** His charge with his second blast in it (tools/make_minus_zero_animations.py). */
+    @Override
+    protected RawAnimation chargeAnimation() {
+        return CHARGE;
     }
 
     /** Brought down, he falls for good: no Godzilla after him, and he doesn't regenerate. */

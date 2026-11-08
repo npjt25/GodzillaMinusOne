@@ -506,6 +506,15 @@ public final class Destruction {
      * round the way the tail goes. Returns how many blocks it took.
      */
     static int tailSweep(ServerLevel level, LivingEntity breaker, Vec3 center, double inner, double outer, int height) {
+        return tailSweep(level, breaker, center, inner, outer, height, false);
+    }
+
+    /**
+     * The same; {@code everything}: not only what's built but every block there (above the ground he stands on: his
+     * feet's row and up), the ground of a hill, trees and all (Minus Zero's tail strike), but liquids and what can't
+     * be broken (bedrock). The first few hundred break with their effects, the rest just go.
+     */
+    static int tailSweep(ServerLevel level, LivingEntity breaker, Vec3 center, double inner, double outer, int height, boolean everything) {
         int r = Mth.ceil(outer);
         int cx = Mth.floor(center.x);
         int cz = Mth.floor(center.z);
@@ -523,13 +532,18 @@ public final class Destruction {
                 Vec3 push = new Vec3(dx / d * 1.2 - dz / d * 0.8, 0.6, dz / d * 1.2 + dx / d * 0.8);
                 for (int y = y0; y <= y0 + height; y++) {
                     BlockState state = level.getBlockState(pos.set(cx + dx, y, cz + dz));
-                    if (!GodzillaEntity.isBuilt(state) || !canBreak(level, pos, state, breaker)) {
+                    if (everything ? state.isAir() || !state.getFluidState().isEmpty() : !GodzillaEntity.isBuilt(state)) {
                         continue;
                     }
-                    if (topple(level, pos, state, push, toppled < 60)) {
+                    if (!canBreak(level, pos, state, breaker)) {
+                        continue;
+                    }
+                    if (everything && taken >= 400) {
+                        level.removeBlock(pos, false);
+                    } else if (topple(level, pos, state, push, toppled < 60)) {
                         toppled++;
                     }
-                    if (++taken >= 1500) {
+                    if (++taken >= (everything ? 20000 : 1500)) {
                         return taken;
                     }
                 }

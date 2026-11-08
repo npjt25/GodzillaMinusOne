@@ -123,10 +123,15 @@ public class GodzillaEntity extends Monster implements GeoEntity {
     public static final int INHALE_TICKS = 80;          // ...the in-breath: his last 4 s before it
     public static final int CHARGE_BLAST_TICK = 344;   // ...and 2 s later its impact goes up in a nuclear blast
     /**
-     * Minus Zero's surge: 2 s after his beam appears (his plates' glow fading out meanwhile) and 0.3 s more (it coming
-     * back, a sharper blue), a second laser joins the first: wider, hitting harder, and his blast goes off with it.
+     * Minus Zero's second blast: his first beam lasts 2 s longer than Minus One's; after its explosion (CHARGE_BLAST_TICK)
+     * his plates dim for 2 s, light up again for 2 s (rising as they do), then punch back down as he fires again: a
+     * second beam, wider and hitting harder (from this tick), and 2 s after it lands a second explosion.
      */
-    public static final int SURGE_TICK = BEAM_START_TICK + 46;
+    public static final int SURGE_TICK = CHARGE_BLAST_TICK + 80;
+    /** ...his second explosion... */
+    public static final int SECOND_BLAST_TICK = SURGE_TICK + (CHARGE_BLAST_TICK - BEAM_START_TICK);
+    /** ...and his second beam as long as his first would have been, ending here (then his roar, as Minus One's). */
+    public static final int SECOND_BEAM_END_TICK = SURGE_TICK + (BEAM_END_TICK - BEAM_START_TICK);
     public static final int BEAM_END_TICK = 388;       // charge animation: the beam is gone at 19.17 s
     public static final int ROAR_TICKS = 109;           // animation.gojira.roar: 5.46 s
     /**
@@ -195,6 +200,7 @@ public class GodzillaEntity extends Monster implements GeoEntity {
     private static final RawAnimation SWIPE_RIGHT = RawAnimation.begin().thenPlay("animation.gojira.swipe_right");
     private static final RawAnimation SWIPE_LEFT = RawAnimation.begin().thenPlay("animation.gojira.swipe_left");
     private static final RawAnimation SPIN_WHIP = RawAnimation.begin().thenPlay("animation.gojira.spin_whip");
+    private static final RawAnimation TAIL_STRIKE_ANIM = RawAnimation.begin().thenPlay("animation.gojira.tail_strike");
     private static final RawAnimation SWIM_PEEK = RawAnimation.begin().thenPlay("animation.gojira.swim_peek");
     /** While he swims, his head comes up out of the water every 10 seconds to glare around (for 4 of them). */
     public static final int SWIM_PEEK_INTERVAL = 10 * 20;
@@ -208,6 +214,8 @@ public class GodzillaEntity extends Monster implements GeoEntity {
     private static final EntityDataAccessor<Float> DATA_AIM_YAW = SynchedEntityData.defineId(GodzillaEntity.class, EntityDataSerializers.FLOAT);
     private static final EntityDataAccessor<Boolean> DATA_SWIMMING = SynchedEntityData.defineId(GodzillaEntity.class, EntityDataSerializers.BOOLEAN);
     private static final EntityDataAccessor<Integer> DATA_BURNS = SynchedEntityData.defineId(GodzillaEntity.class, EntityDataSerializers.INT);
+    /** Minus Zero's tail strike wound up: the plate at the end of his tail punched up and glowing. */
+    private static final EntityDataAccessor<Boolean> DATA_TAIL_GLOW = SynchedEntityData.defineId(GodzillaEntity.class, EntityDataSerializers.BOOLEAN);
 
     /** After the beam his mouth is left burnt raw: it smokes, blisters and heals over this many ticks. */
     public static final int BURN_TICKS = 40 * 20;
@@ -288,7 +296,10 @@ public class GodzillaEntity extends Monster implements GeoEntity {
     private enum Attack {
         BITE("bite", 10, 20), STOMP("stomp", 25, 65), SWIM_BITE("swim_bite", 14, 26),
         // the melee combo: two claw swipes, then a heavy spin whose tail sweeps round him and then snaps
-        SWIPE_RIGHT("swipe_right", 10, 22), SWIPE_LEFT("swipe_left", 10, 22), SPIN("spin_whip", 17, 44), TAIL_SNAP(null, 9, 0);
+        SWIPE_RIGHT("swipe_right", 10, 22), SWIPE_LEFT("swipe_left", 10, 22), SPIN("spin_whip", 17, 44), TAIL_SNAP(null, 9, 0),
+        // Minus Zero's tail strike: the plate at the tip of his tail punches up and glows (1 s), then the spin and whip,
+        // twice as hard, destroying whatever it hits
+        TAIL_STRIKE("tail_strike", 37, 64), TAIL_STRIKE_SNAP(null, 9, 0);
 
         final String anim;
         final int hitDelay;
@@ -349,6 +360,7 @@ public class GodzillaEntity extends Monster implements GeoEntity {
         this.entityData.define(DATA_AIM_YAW, 0.0F);
         this.entityData.define(DATA_SWIMMING, false);
         this.entityData.define(DATA_BURNS, 0);
+        this.entityData.define(DATA_TAIL_GLOW, false);
     }
 
     @Override
@@ -518,6 +530,7 @@ public class GodzillaEntity extends Monster implements GeoEntity {
             case COLLAPSING -> {
                 this.chargeTicks = -1;
                 this.pendingHitTicks = -1;
+                this.entityData.set(DATA_TAIL_GLOW, false);
                 this.stunTicks = 0;
                 setChargeState(CHARGE_NONE);
                 this.entityData.set(DATA_AIM, 0.0F);
@@ -641,6 +654,9 @@ public class GodzillaEntity extends Monster implements GeoEntity {
 
         if (this.tickCount % AURA_INTERVAL == 0) {
             radiationAura(level);
+        }
+        if (isTailGlowing() && this.pendingAttack != Attack.TAIL_STRIKE && this.pendingAttack != Attack.TAIL_STRIKE_SNAP) {
+            this.entityData.set(DATA_TAIL_GLOW, false); // (a tail strike cut short)
         }
         tickFaceStrikes(level);
 
@@ -927,11 +943,11 @@ public class GodzillaEntity extends Monster implements GeoEntity {
         if (target != null) {
             if (this.chargeTicks < BEAM_START_TICK) {
                 faceTowards(target, 4.0F, BEAM_YAW);
-            } else if (this.chargeTicks < BEAM_END_TICK) {
+            } else if (this.chargeTicks < beamEndTick()) {
                 faceTowards(target, 1.0F, BEAM_YAW); // the beam follows, slowly
             }
         }
-        updateAim(this.chargeTicks < BEAM_END_TICK ? target : null);
+        updateAim(this.chargeTicks < beamEndTick() ? target : null);
 
         if (this.chargeTicks % 4 == 0 && this.chargeTicks < BEAM_START_TICK) {
             // animation.gojira.powered timeline: everything freezes, and it burns to stand close to him.
@@ -952,17 +968,19 @@ public class GodzillaEntity extends Monster implements GeoEntity {
         }
 
         boolean surging = surges() && this.chargeTicks >= SURGE_TICK;
-        if (this.chargeTicks >= BEAM_START_TICK && this.chargeTicks < BEAM_END_TICK
+        if (this.chargeTicks >= BEAM_START_TICK && this.chargeTicks < beamEndTick()
                 && (this.chargeTicks - BEAM_START_TICK) % (surging ? 2 : 4) == 0) {
             beamHits(level);
         }
         if (surges() && this.chargeTicks == SURGE_TICK) {
-            // the second laser: the ground shakes again as it joins the first
+            // his second blast: plates punched down, and the ground shakes again as it fires
             ModNetwork.shake(level, position(), 220.0, 1.2F, 3.0F);
+            level.playSound(null, getX(), getY() + 30.0 * bodyScale(), getZ(), ModSounds.GODZILLA_ROAR2.get(), SoundSource.HOSTILE, 12.0F, 1.2F);
         }
-        if (this.chargeTicks == blastTick()) {
+        if (blastsAt(this.chargeTicks)) {
             fireAtomicBlast(level);
-        } else if (this.chargeTicks == BEAM_END_TICK) {
+        }
+        if (this.chargeTicks == beamEndTick()) {
             setChargeState(CHARGE_COOLING);
             // His roar as the beam dies out is a roar like any other: he stands until it's over (the charge ends with it),
             // and the roar he'd have let out on his own meanwhile is not owed afterwards.
@@ -973,7 +991,7 @@ public class GodzillaEntity extends Monster implements GeoEntity {
             this.entityData.set(DATA_BURNS, BURN_TICKS);
             Vec3 mouth = locator(BEAM_NEAR.x, BEAM_NEAR.y, BEAM_NEAR.z);
             level.playSound(null, mouth.x, mouth.y, mouth.z, SoundEvents.LAVA_EXTINGUISH, SoundSource.HOSTILE, 8.0F, 0.5F);
-        } else if (this.chargeTicks >= CHARGE_LENGTH) {
+        } else if (this.chargeTicks >= chargeLength()) {
             // back to his normal stance: nothing left over from before the charge, and on his way again
             this.chargeTicks = -1;
             this.angryTicks = 0;
@@ -1120,9 +1138,19 @@ public class GodzillaEntity extends Monster implements GeoEntity {
         return 1.0;
     }
 
-    /** The tick of his charge his beam's blast goes off: 2 s after the beam lands, or with Minus Zero's second laser. */
-    public int blastTick() {
-        return surges() ? SURGE_TICK + 10 : CHARGE_BLAST_TICK;
+    /** Whether his beam's blast goes off at this tick of his charge: 2 s after it lands (Minus Zero: after each beam). */
+    public boolean blastsAt(int chargeTick) {
+        return chargeTick == CHARGE_BLAST_TICK || surges() && chargeTick == SECOND_BLAST_TICK;
+    }
+
+    /** The tick of his charge his beam ends (Minus Zero's, his second beam's), and his roar begins. */
+    public int beamEndTick() {
+        return surges() ? SECOND_BEAM_END_TICK : BEAM_END_TICK;
+    }
+
+    /** His whole charge, to the end of the roar after his beam. */
+    public int chargeLength() {
+        return beamEndTick() + ROAR_TICKS;
     }
 
     private void atomicHit(LivingEntity entity, DamageSource source) {
@@ -1432,17 +1460,44 @@ public class GodzillaEntity extends Monster implements GeoEntity {
             } else if (offset.normalize().dot(facing) < -0.3) {
                 attack = Attack.SPIN;           // behind him: the tail comes round
                 this.comboStep = 0;
+                attack = spinOrStrike(attack);
             } else if (offset.length() < getBbWidth() * 0.5 + 4.0 * bodyScale()) {
                 attack = Attack.STOMP;          // right under his feet
             } else {
-                attack = COMBO[this.comboStep];
+                attack = spinOrStrike(COMBO[this.comboStep]);
                 this.comboStep = (this.comboStep + 1) % COMBO.length;
             }
         }
         this.pendingAttack = attack;
+        if (attack == Attack.TAIL_STRIKE) {
+            this.entityData.set(DATA_TAIL_GLOW, true);
+        }
         this.pendingHitTicks = attack.hitDelay;
         this.attackCooldown = attack.length + (attack == Attack.SWIPE_RIGHT || attack == Attack.SWIPE_LEFT ? 4 : 10);
         triggerAnim("action", attack.anim);
+    }
+
+    /** Minus Zero's spins: every other one is his tail strike instead. */
+    private Attack spinOrStrike(Attack attack) {
+        if (attack != Attack.SPIN || !tailStrikes()) {
+            return attack;
+        }
+        return (this.spins++ & 1) == 1 ? Attack.TAIL_STRIKE : Attack.SPIN;
+    }
+
+    private int spins;
+
+    /** His tail strike hits this many times as hard as his spin. */
+    public static final float TAIL_STRIKE_POWER = 2.0F;
+
+    /** Whether he has the tail strike (Minus Zero). */
+    public boolean tailStrikes() {
+        return false;
+    }
+
+    /** Client side: the plate at the tip of his tail punched up and glowing for his tail strike. */
+    public boolean isTailGlowing() {
+        return this.entityData.get(DATA_TAIL_GLOW);
     }
 
     /** For the game tests: how many times his head has come up to peek while swimming. */
@@ -1460,6 +1515,15 @@ public class GodzillaEntity extends Monster implements GeoEntity {
                 }
             }
         }
+    }
+
+    /** For the harness: his tail strike from its start (the plate at the tip of his tail up and glowing, then the whip). */
+    public void startTailStrike() {
+        this.pendingAttack = Attack.TAIL_STRIKE;
+        this.entityData.set(DATA_TAIL_GLOW, true);
+        this.pendingHitTicks = Attack.TAIL_STRIKE.hitDelay;
+        this.attackCooldown = Attack.TAIL_STRIKE.length + 10;
+        triggerAnim("action", Attack.TAIL_STRIKE.anim);
     }
 
     /** For the game tests: where his claws rake in a swipe (right: 1, left: -1). */
@@ -1528,7 +1592,63 @@ public class GodzillaEntity extends Monster implements GeoEntity {
                 level.playSound(null, getX(), getY() + 4.0, getZ(), SoundEvents.PLAYER_ATTACK_CRIT, SoundSource.HOSTILE, 12.0F, 0.4F);
                 ModNetwork.shake(level, position(), 96.0, 1.0F, 1.0F);
             }
+            case TAIL_STRIKE -> {
+                // the tail sweeps round him, twice as hard as his spin, and destroys whatever it hits...
+                float damage = (float) getAttributeValue(Attributes.ATTACK_DAMAGE) * 0.4F * TAIL_STRIKE_POWER;
+                tailStrike(level, getBbWidth() / 2.0, 30.0 * bodyScale(), damage);
+                level.playSound(null, getX(), getY() + 4.0, getZ(), SoundEvents.PLAYER_ATTACK_SWEEP, SoundSource.HOSTILE, 14.0F, 0.25F);
+                ModNetwork.shake(level, position(), 96.0, 1.2F, 1.4F);
+                this.pendingAttack = Attack.TAIL_STRIKE_SNAP;
+                this.pendingHitTicks = Attack.TAIL_STRIKE_SNAP.hitDelay;
+            }
+            case TAIL_STRIKE_SNAP -> {
+                // ...and then snaps, its tip as far out as his tail reaches
+                float damage = (float) getAttributeValue(Attributes.ATTACK_DAMAGE) * 0.35F * TAIL_STRIKE_POWER;
+                tailStrike(level, 30.0 * bodyScale(), 38.0 * bodyScale(), damage);
+                level.playSound(null, getX(), getY() + 4.0, getZ(), SoundEvents.PLAYER_ATTACK_CRIT, SoundSource.HOSTILE, 16.0F, 0.3F);
+                ModNetwork.shake(level, position(), 128.0, 1.5F, 1.2F);
+                this.entityData.set(DATA_TAIL_GLOW, false);
+            }
             case SWIM_BITE -> swimBite(level, target);
+        }
+    }
+
+    /**
+     * Minus Zero's tail strike, between {@code inner} and {@code outer} blocks round him: what's alive takes
+     * {@code damage} (twice his spin's) and is flung; whatever else is there is destroyed (boats wrecked, a manned
+     * Shinden blown up, anything else gone) and so is every block above the ground he stands on, built or not, up to
+     * as high as his tail sweeps (needs breaksBlocks and mobGriefing for the blocks).
+     */
+    private void tailStrike(ServerLevel level, double inner, double outer, float damage) {
+        double height = TAIL_HEIGHT * bodyScale();
+        Vec3 c = position();
+        DamageSource source = damageSources().mobAttack(this);
+        AABB box = new AABB(c.x - outer, c.y - 2.0, c.z - outer, c.x + outer, c.y + height + 2.0, c.z + outer);
+        for (Entity e : level.getEntities(this, box, e -> e.isAlive() && !(e instanceof GodzillaEntity))) {
+            double d = Math.sqrt(e.position().subtract(c).horizontalDistanceSqr());
+            if (d < inner - 2.0 || d > outer + 2.0) {
+                continue;
+            }
+            if (e instanceof net.minecraft.world.entity.decoration.ArmorStand stand) {
+                stand.kill(); // (no mob's blow breaks one)
+            } else if (e instanceof LivingEntity living) {
+                if (Blasts.isPilot(living)) {
+                    continue;
+                }
+                living.hurt(source, damage);
+                Vec3 away = e.position().subtract(c).multiply(1.0, 0.0, 1.0).normalize().scale(3.0).add(0.0, 1.0, 0.0);
+                living.setDeltaMovement(living.getDeltaMovement().add(away));
+                living.hurtMarked = true;
+            } else if (e instanceof ShindenEntity plane && plane.isVehicle()) {
+                plane.explode();
+            } else if (e instanceof ShinseiMaruEntity boat) {
+                boat.hurt(source, 100000.0F);
+            } else if (!(e instanceof ShinseiMaruPart)) {
+                e.kill();
+            }
+        }
+        if (meleeBreaks(level)) {
+            Destruction.tailSweep(level, this, c, inner, outer, (int) Math.round(height), true);
         }
     }
 
@@ -2268,6 +2388,7 @@ public class GodzillaEntity extends Monster implements GeoEntity {
                 .triggerableAnim("swipe_right", SWIPE_RIGHT)
                 .triggerableAnim("swipe_left", SWIPE_LEFT)
                 .triggerableAnim("spin_whip", SPIN_WHIP)
+                .triggerableAnim("tail_strike", TAIL_STRIKE_ANIM)
                 .triggerableAnim("swim_peek", SWIM_PEEK)
                 .triggerableAnim("swim_bite", SWIM_BITE_ANIM)
                 .triggerableAnim("roar", ROAR)
@@ -2290,7 +2411,7 @@ public class GodzillaEntity extends Monster implements GeoEntity {
                 break;
         }
         if (isCharging()) {
-            return state.setAndContinue(CHARGE);
+            return state.setAndContinue(chargeAnimation());
         }
         if (isSwimmingAtSurface() || this.shapeSwimming) {
             return state.setAndContinue(SWIM);
@@ -2300,6 +2421,11 @@ public class GodzillaEntity extends Monster implements GeoEntity {
             return state.setAndContinue(WALK);
         }
         return state.setAndContinue(IDLE);
+    }
+
+    /** His charge (Minus Zero's has his second blast in it: animation.gojira.charge_zero). */
+    protected RawAnimation chargeAnimation() {
+        return CHARGE;
     }
 
     // ------------------------------------------------------------------ played by a player (Walkers: entity.PlayerGodzilla)
