@@ -149,6 +149,11 @@ public final class PlayerGodzilla {
         return state == null ? -1 : state.lastAt;
     }
 
+    /** For the in-game checks: {@code player}'s atomic breath ready again now. */
+    public static void rechargeBreath(ServerPlayer player) {
+        player.getPersistentData().remove(BREATH_READY);
+    }
+
     /** Ticks until {@code player}'s atomic breath is ready again. */
     public static int breathCooldown(ServerPlayer player) {
         long ready = player.getPersistentData().getLong(BREATH_READY);

@@ -401,6 +401,42 @@ public final class ShotsHarness {
         });
     }
 
+    /**
+     * Waits until {@code condition}, asked on the server's thread once a tick, holds (a check: it fails if it doesn't
+     * within {@code timeout} ticks). For what the server times (a blast going off), when the client may be running behind.
+     */
+    static void untilServer(String name, Function<ServerLevel, Boolean> condition, int timeout) {
+        @SuppressWarnings("unchecked")
+        CompletableFuture<Boolean>[] future = new CompletableFuture[1];
+        int[] waited = {0};
+        add(name, () -> {
+            IntegratedServer server = Minecraft.getInstance().getSingleplayerServer();
+            if (future[0] == null) {
+                future[0] = server.submit(() -> condition.apply(server.overworld()));
+                return false;
+            }
+            if (!future[0].isDone()) {
+                return false;
+            }
+            boolean holds;
+            try {
+                holds = Boolean.TRUE.equals(future[0].join());
+            } catch (CompletionException e) {
+                holds = false;
+            }
+            future[0] = null;
+            if (holds) {
+                pass(name, "after " + waited[0] + " ticks");
+                return true;
+            }
+            if (++waited[0] >= timeout) {
+                fail(name, "not within " + timeout + " ticks");
+                return true;
+            }
+            return false;
+        });
+    }
+
     /** Waits until {@code condition} holds (a check: it fails if it doesn't within {@code timeout} ticks). */
     static void until(String name, BooleanSupplier condition, int timeout) {
         int[] waited = {0};

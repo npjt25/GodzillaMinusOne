@@ -422,6 +422,7 @@ final class ShapeScenes {
         once("shapes: mark Minus Zero's breath", () -> pressed[0] = now());
         server("shapes: /godzilla breath", level -> {
             ServerPlayer player = serverPlayer(level);
+            PlayerGodzilla.rechargeBreath(player); // (he breathed as Minus One a minute ago: no waiting out its recharge)
             level.getServer().getCommands().performPrefixedCommand(player.createCommandSourceStack(), "godzilla breath");
         });
         waitTicks(20);

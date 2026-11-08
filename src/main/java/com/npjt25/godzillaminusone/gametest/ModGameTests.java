@@ -1340,8 +1340,10 @@ public final class ModGameTests {
     public static void godzillasClawsAndTailTearDownBuildings(GameTestHelper helper) {
         int floor = floorY(helper);
         GodzillaEntity godzilla = spawnActiveGodzilla(helper);
-        // (the rock round the tests' pocket is something his tail breaks now too: cleared, so the pillars are what it reaches)
-        clearAround(helper, godzilla.position().add(0.0, 1.0, 0.0), 30, 11);
+        // standing on the floor (his tail sweeps from his feet up: the ground he stands on stays), and the rock round the
+        // tests' pocket, something his tail breaks now too, cleared, so the pillars are what it reaches
+        godzilla.moveTo(helper.absoluteVec(new Vec3(4.5, floor + 1, 4.5)));
+        clearAround(helper, godzilla.position(), 30, 11);
         Vec3 claws = godzilla.clawPosition(1.0);
         BlockPos rake = BlockPos.containing(claws);
         // a wall of stone bricks where his claws rake...
