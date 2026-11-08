@@ -236,7 +236,8 @@ public final class ModGameTests {
     public static void godzillaCollapsesAndRegenerates(GameTestHelper helper) {
         GodzillaEntity godzilla = spawnActiveGodzilla(helper);
         godzilla.setHealth(10.0F);
-        withoutEvolving(() -> detonateMine(helper, 4, 14));
+        godzilla.setEvolves(false);
+        detonateMine(helper, 4, 14);
         helper.assertTrue(godzilla.getDefeat() == GodzillaEntity.Defeat.REGENERATE, "evolving off, he should regenerate, was " + godzilla.getDefeat());
         helper.assertTrue(godzilla.getPhase() == GodzillaEntity.Phase.COLLAPSING, "at zero health he should collapse, was " + godzilla.getPhase());
         helper.assertTrue(godzilla.isAlive(), "he should not really die");
@@ -254,17 +255,6 @@ public final class ModGameTests {
         });
     }
 
-    /** {@code blow}, with evolvesIntoMinusZero off (and back as it was after). */
-    private static void withoutEvolving(Runnable blow) {
-        boolean was = Config.EVOLVES_INTO_MINUS_ZERO.get();
-        Config.EVOLVES_INTO_MINUS_ZERO.set(false);
-        try {
-            blow.run();
-        } finally {
-            Config.EVOLVES_INTO_MINUS_ZERO.set(was);
-        }
-    }
-
     /** The Minus Zeros (alive) in the world within {@code radius} of {@code at}. */
     private static List<GodzillaMinusZeroEntity> minusZeros(GameTestHelper helper, Vec3 at, double radius) {
         return new ArrayList<>(helper.getLevel().getEntities(ModEntities.GODZILLA_MINUS_ZERO.get(),
@@ -278,9 +268,9 @@ public final class ModGameTests {
      */
     @GameTest(template = FLOOR, batch = "gmo_evolve", timeoutTicks = 900)
     public static void oneDefeatMakesExactlyOneMinusZero(GameTestHelper helper) {
-        int downed = Config.DOWNED_SECONDS.get();
-        Config.DOWNED_SECONDS.set(1);
         GodzillaEntity godzilla = spawnActiveGodzilla(helper);
+        godzilla.setEvolves(true);
+        godzilla.setDownedTicks(20);
         godzilla.setYRot(37.0F);
         godzilla.setYBodyRot(37.0F);
         Vec3 at = godzilla.position();
@@ -298,7 +288,6 @@ public final class ModGameTests {
         helper.onEachTick(() -> {
             List<GodzillaMinusZeroEntity> zeros = minusZeros(helper, at, 64.0);
             if (zeros.size() > 1) {
-                Config.DOWNED_SECONDS.set(downed);
                 helper.fail(zeros.size() + " Minus Zeros");
             }
             if (zero[0] == null && !zeros.isEmpty()) {
@@ -317,7 +306,6 @@ public final class ModGameTests {
         helper.succeedWhen(() -> {
             helper.assertTrue(zero[0] != null && zero[0].isActive(), "Minus Zero should be up and about");
             helper.assertTrue(minusZeros(helper, at, 64.0).size() == 1, "exactly one Minus Zero");
-            Config.DOWNED_SECONDS.set(downed);
             remove(zero[0]);
         });
     }
@@ -328,13 +316,12 @@ public final class ModGameTests {
      */
     @GameTest(template = FLOOR, batch = "gmo_evolve_reload", timeoutTicks = 900)
     public static void aPendingEvolutionSurvivesSavingAndLoading(GameTestHelper helper) {
-        int downed = Config.DOWNED_SECONDS.get();
         GodzillaEntity godzilla = spawnActiveGodzilla(helper);
         Vec3 at = godzilla.position();
+        godzilla.setEvolves(true);
         godzilla.setHealth(10.0F);
         detonateMine(helper, 4, 14);
         helper.assertTrue(godzilla.getDefeat() == GodzillaEntity.Defeat.EVOLVE, "he should be going to evolve");
-        Config.DOWNED_SECONDS.set(1);
         GodzillaEntity[] loaded = {null};
         helper.onEachTick(() -> {
             if (loaded[0] == null && godzilla.getPhase() == GodzillaEntity.Phase.DEAD) {
@@ -344,13 +331,13 @@ public final class ModGameTests {
                 godzilla.discard();
                 GodzillaEntity copy = ModEntities.GODZILLA.get().create(helper.getLevel());
                 copy.load(tag);
+                copy.setDownedTicks(20); // (the test's own short rest; the evolution is what was saved)
                 helper.getLevel().addFreshEntity(copy);
                 loaded[0] = copy;
                 helper.assertTrue(copy.getDefeat() == GodzillaEntity.Defeat.EVOLVE && copy.getPhase() == GodzillaEntity.Phase.DEAD,
                         "read back, he should still be lying there to evolve, was " + copy.getPhase() + " / " + copy.getDefeat());
             }
             if (minusZeros(helper, at, 64.0).size() > 1) {
-                Config.DOWNED_SECONDS.set(downed);
                 helper.fail("more than one Minus Zero");
             }
         });
@@ -358,7 +345,6 @@ public final class ModGameTests {
             List<GodzillaMinusZeroEntity> zeros = minusZeros(helper, at, 64.0);
             helper.assertTrue(loaded[0] != null && loaded[0].isRemoved() && zeros.size() == 1,
                     "one Minus Zero, from the Minus One read back, was " + zeros.size());
-            Config.DOWNED_SECONDS.set(downed);
             remove(zeros.get(0));
         });
     }
@@ -444,7 +430,8 @@ public final class ModGameTests {
         Config.DOWNED_SECONDS.set(3);
         GodzillaEntity godzilla = spawnActiveGodzilla(helper);
         godzilla.setHealth(10.0F);
-        withoutEvolving(() -> detonateMine(helper, 4, 14));
+        godzilla.setEvolves(false);
+        detonateMine(helper, 4, 14);
         helper.assertTrue(godzilla.getPhase() == GodzillaEntity.Phase.COLLAPSING, "at zero health he should collapse, was " + godzilla.getPhase());
         Map<GodzillaEntity.Phase, Integer> starts = phaseStarts(helper, godzilla);
         helper.onEachTick(() -> {

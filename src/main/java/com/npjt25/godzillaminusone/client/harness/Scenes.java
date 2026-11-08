@@ -662,12 +662,11 @@ final class Scenes {
 
         // Minus One brought down: one Minus Zero gets up where he lay, and Minus One is gone
         commands("kill @e[type=godzillaminusone:godzilla_minus_zero]");
-        int[] downed = {0};
         server("minus zero: Minus One brought down", level -> {
-            downed[0] = com.npjt25.godzillaminusone.Config.DOWNED_SECONDS.get();
-            com.npjt25.godzillaminusone.Config.DOWNED_SECONDS.set(1);
             for (GodzillaEntity g : level.getEntitiesOfClass(GodzillaEntity.class, new AABB(ONE_AT, ONE_AT).inflate(20.0))) {
                 g.setNoAi(false);
+                g.setEvolves(true);
+                g.setDownedTicks(20);
                 g.die(level.damageSources().generic());
             }
         });
@@ -678,7 +677,6 @@ final class Scenes {
         checkServer("minus zero: exactly one, and no Minus One", level -> {
             List<GodzillaEntity> all = level.getEntitiesOfClass(GodzillaEntity.class, new AABB(ONE_AT, ONE_AT).inflate(200.0), Entity::isAlive);
             long zeros = all.stream().filter(g -> g instanceof GodzillaMinusZeroEntity).count();
-            com.npjt25.godzillaminusone.Config.DOWNED_SECONDS.set(downed[0]);
             return zeros == 1 && all.size() == 1 ? null : zeros + " Minus Zeros, " + (all.size() - zeros) + " Minus Ones";
         });
         waitTicks(80);

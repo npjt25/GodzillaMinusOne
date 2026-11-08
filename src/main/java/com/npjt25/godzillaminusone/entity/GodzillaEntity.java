@@ -258,6 +258,10 @@ public class GodzillaEntity extends Monster implements GeoEntity {
     /** The blow that brought him down (Minus Zero, falling for good: who gets the credit). */
     @Nullable
     private DamageSource finalBlow;
+    /** For the tests: his own evolvesIntoMinusZero and downed time, instead of the config's (null / -1: the config's). */
+    @Nullable
+    private Boolean evolvesOverride;
+    private int downedTicksOverride = -1;
 
     /**
      * What happens when his health runs out: he collapses (5 s), lies there, and then...
@@ -608,7 +612,7 @@ public class GodzillaEntity extends Monster implements GeoEntity {
                     if (this.phaseTicks >= FALLEN_TICKS) {
                         fallForGood();
                     }
-                } else if (this.phaseTicks >= Config.DOWNED_SECONDS.get() * 20) {
+                } else if (this.phaseTicks >= downedTicks()) {
                     if (this.defeat == Defeat.EVOLVE) {
                         evolve(level);
                     } else {
@@ -1655,7 +1659,27 @@ public class GodzillaEntity extends Monster implements GeoEntity {
 
     /** What becomes of him once he's down: Minus One evolves (evolvesIntoMinusZero) or gets up again (regenerates). */
     protected Defeat defeatOutcome() {
-        return Config.EVOLVES_INTO_MINUS_ZERO.get() ? Defeat.EVOLVE : Config.GODZILLA_REGENERATES.get() ? Defeat.REGENERATE : Defeat.NONE;
+        boolean evolves = this.evolvesOverride != null ? this.evolvesOverride : Config.EVOLVES_INTO_MINUS_ZERO.get();
+        return evolves ? Defeat.EVOLVE : Config.GODZILLA_REGENERATES.get() ? Defeat.REGENERATE : Defeat.NONE;
+    }
+
+    /** How long he lies there once down (downedSeconds), before he gets up or evolves. */
+    private int downedTicks() {
+        return this.downedTicksOverride >= 0 ? this.downedTicksOverride : Config.DOWNED_SECONDS.get() * 20;
+    }
+
+    /**
+     * For the tests: whether this Godzilla evolves when brought down, whatever the config says (null: as it says).
+     * (Setting the config itself in a test isn't safe: Forge saves it and reads it back from the file a moment later, on
+     * a thread of its own, and the value then lands in whatever test runs next.)
+     */
+    public void setEvolves(@Nullable Boolean evolves) {
+        this.evolvesOverride = evolves;
+    }
+
+    /** For the tests and the in-game checks: how long this Godzilla lies there once down (ticks; -1: the config's). */
+    public void setDownedTicks(int ticks) {
+        this.downedTicksOverride = ticks;
     }
 
     /** Whether bringing him down unlocks his shape (ReMorphed): Minus One's. */
