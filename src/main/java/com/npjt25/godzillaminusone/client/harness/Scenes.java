@@ -747,7 +747,7 @@ final class Scenes {
         // a wall 100 blocks ahead of him, across his beam: it stops there (drawn no further, its impact on the wall), not
         // through it; taken down before his blast goes off (out where his beam reaches, in the air)
         commands("fill 684 -60 100 717 30 100 minecraft:stone_bricks");
-        zeroChargeShot("beam_stops_at_wall", 334, wallCam, true);
+        zeroChargeShot("beam_stops_at_wall", 326, wallCam, true); // (well before 344: the wall must be gone by his blast)
         commands("fill 684 -60 100 717 30 100 minecraft:air");
         zeroChargeShot("first_blast", GodzillaEntity.CHARGE_BLAST_TICK + 10, cloudCam, true);
         zeroChargeShot("first_blast_cloud", GodzillaEntity.CHARGE_BLAST_TICK + 34, cloudCam, true);
