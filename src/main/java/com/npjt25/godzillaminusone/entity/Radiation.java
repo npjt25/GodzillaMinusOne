@@ -42,9 +42,14 @@ public final class Radiation {
         }
     }
 
+    /**
+     * Server side only: the client takes whatever effects the server sends it (its copy of the armour can lag behind:
+     * deciding there too, a player just out of the suit could have Radiation without seeing it).
+     */
     @SubscribeEvent
     public static void onEffectApplicable(MobEffectEvent.Applicable event) {
-        if (event.getEffectInstance().getEffect() == ModEffects.RADIATION.get() && shielded(event.getEntity())) {
+        if (!event.getEntity().level().isClientSide && event.getEffectInstance().getEffect() == ModEffects.RADIATION.get()
+                && shielded(event.getEntity())) {
             event.setResult(Event.Result.DENY);
         }
     }
