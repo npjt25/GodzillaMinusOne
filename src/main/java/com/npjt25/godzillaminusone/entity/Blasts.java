@@ -127,11 +127,17 @@ public final class Blasts {
      */
     public static Vec3 nuclear(ServerLevel level, Vec3 impact, boolean grounded, DamageSource source, @Nullable Entity except,
                                @Nullable LivingEntity breaker, boolean destroyBlocks, boolean burnsOdo, float yaw) {
-        for (LivingEntity entity : livingNear(level, impact, Config.ATOMIC_BLAST_KILL_RADIUS.get(), except)) {
+        return nuclear(level, impact, grounded, source, except, breaker, destroyBlocks, burnsOdo, yaw, 1.0);
+    }
+
+    /** The same, its radii (kill, radiation, crater, scorch, ruins) {@code scale} times the config's (Minus Zero's: twice). */
+    public static Vec3 nuclear(ServerLevel level, Vec3 impact, boolean grounded, DamageSource source, @Nullable Entity except,
+                               @Nullable LivingEntity breaker, boolean destroyBlocks, boolean burnsOdo, float yaw, double scale) {
+        for (LivingEntity entity : livingNear(level, impact, Config.ATOMIC_BLAST_KILL_RADIUS.get() * scale, except)) {
             nuclearHit(entity, source, burnsOdo);
         }
         int amplifier = Config.ATOMIC_BLAST_RADIATION_AMPLIFIER.get();
-        for (LivingEntity entity : livingNear(level, impact, Config.ATOMIC_BLAST_RADIATION_RADIUS.get(), except)) {
+        for (LivingEntity entity : livingNear(level, impact, Config.ATOMIC_BLAST_RADIATION_RADIUS.get() * scale, except)) {
             if (!(entity instanceof GodzillaEntity) && !(entity instanceof OdoIslandMonsterEntity odo && odo.isBurnt())) {
                 Radiation.irradiate(entity, 600, amplifier, source.getEntity());
             }
@@ -142,8 +148,8 @@ public final class Blasts {
             int ground = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, Mth.floor(impact.x), Mth.floor(impact.z));
             zero = new Vec3(impact.x, Math.min(impact.y, ground), impact.z);
             if (destroyBlocks) {
-                Destruction.atomicBlast(level, breaker, zero, Config.ATOMIC_BLAST_CRATER_RADIUS.get(), Config.ATOMIC_BLAST_DESTRUCTION_RADIUS.get(),
-                        Config.ATOMIC_BLAST_RUIN_RADIUS.get());
+                Destruction.atomicBlast(level, breaker, zero, (int) Math.round(Config.ATOMIC_BLAST_CRATER_RADIUS.get() * scale),
+                        (int) Math.round(Config.ATOMIC_BLAST_DESTRUCTION_RADIUS.get() * scale), (int) Math.round(Config.ATOMIC_BLAST_RUIN_RADIUS.get() * scale));
             }
         }
         ModNetwork.sendNear(level, zero, 1024.0, new FxPacket(FxPacket.Type.ATOMIC_BLAST, zero, yaw, grounded ? 1.0F : 0.0F));

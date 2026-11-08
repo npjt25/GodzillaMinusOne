@@ -44,7 +44,7 @@ public class GodzillaRenderer extends GeoEntityRenderer<GodzillaEntity> {
     private static final Set<String> MOUTH_BONES = Set.of("Head", "Jew");
     /** Charge animation seconds: the in-breath begins (jaw opening), and the beam appears (tools/edit_animations.py). */
     private static final float INHALE_START = 10.42F;
-    private static final float FIRE = 14.92F;
+    protected static final float FIRE = 14.92F;
     private static final ResourceLocation BEAM_CORE = GodzillaMinusOne.id("textures/entity/godzilla_beam.png");
     private static final ResourceLocation BEAM_SWIRL = new ResourceLocation("textures/entity/creeper/creeper_armor.png");
     private static final ResourceLocation BURNS = GodzillaMinusOne.id("textures/entity/godzilla_burns.png");
@@ -105,7 +105,7 @@ public class GodzillaRenderer extends GeoEntityRenderer<GodzillaEntity> {
                 if (time != null) {
                     float glow = plateGlow(time);
                     if (glow > 0.01F) {
-                        super.renderCubesOfBone(poseStack, bone, buffer, packedLight, packedOverlay, glow, glow, glow, 1.0F);
+                        super.renderCubesOfBone(poseStack, bone, buffer, packedLight, packedOverlay, glow * red, glow * green, glow * blue, 1.0F);
                     }
                 }
             }
@@ -133,7 +133,27 @@ public class GodzillaRenderer extends GeoEntityRenderer<GodzillaEntity> {
             return this.coolingFade;
         }
         float x = Mth.clamp((this.chargeSeconds - time) / 0.4F, 0.0F, 1.0F);
-        return x * x * (3.0F - 2.0F * x) * (0.85F + 0.15F * Mth.sin(this.chargeSeconds * 7.0F));
+        return x * x * (3.0F - 2.0F * x) * (0.85F + 0.15F * Mth.sin(this.chargeSeconds * 7.0F)) * firedGlow(this.chargeSeconds);
+    }
+
+    /** Charge animation seconds: Minus Zero's glow has faded out (2 s after he fires)... */
+    protected static final float SURGE_DIM = FIRE + 2.0F;
+    /** ...and is back, sharper, as his second laser joins the first (entity.GodzillaEntity.SURGE_TICK). */
+    protected static final float SURGE = FIRE + 2.3F;
+
+    /** How much of the plates' glow is left once he's fired (Minus One's stays; Minus Zero's fades, then comes back). */
+    protected float firedGlow(float seconds) {
+        return 1.0F;
+    }
+
+    /** How strong the sharper blue over his plates is (Minus Zero's, once his glow comes back: 0 to 1). */
+    protected float sharpGlow(float seconds) {
+        return 0.0F;
+    }
+
+    /** How strong the second laser is (Minus Zero's: 0 to 1; a second, brighter layer of the beam). */
+    protected float secondLaser(float seconds) {
+        return 0.0F;
     }
 
     /**
@@ -208,6 +228,12 @@ public class GodzillaRenderer extends GeoEntityRenderer<GodzillaEntity> {
                     ? Mth.clamp(1.0F - entity.getCoolingSeconds(partialTick) / 1.5F, 0.0F, 1.0F) : -1.0F;
             this.godzilla.renderPass(Pass.PLATES, poseStack, entity, model, buffers, RenderType.eyes(this.godzilla.plateGlow()), partialTick,
                     1.0F, 1.0F, 1.0F);
+            float sharp = this.godzilla.sharpGlow(this.godzilla.chargeSeconds) * (this.godzilla.coolingFade >= 0.0F ? this.godzilla.coolingFade : 1.0F);
+            if (sharp > 0.01F) {
+                // Minus Zero's glow back, a sharper blue: a second layer over it, cold and bright
+                this.godzilla.renderPass(Pass.PLATES, poseStack, entity, model, buffers, RenderType.eyes(this.godzilla.plateGlow()), partialTick,
+                        0.35F * sharp, 0.75F * sharp, 1.0F * sharp);
+            }
             float mouth = this.godzilla.mouthGlow();
             if (mouth > 0.01F) {
                 this.godzilla.renderPass(Pass.MOUTH, poseStack, entity, model, buffers, RenderType.eyes(MOUTH_GLOW), partialTick, mouth, mouth, mouth);
@@ -237,6 +263,12 @@ public class GodzillaRenderer extends GeoEntityRenderer<GodzillaEntity> {
             }
             float t = entity.tickCount + partialTick;
             this.godzilla.renderPass(Pass.BEAM, poseStack, entity, model, buffers, RenderType.eyes(BEAM_CORE), partialTick, 1.0F, 1.0F, 1.0F);
+            float second = entity.getChargeState() == GodzillaEntity.CHARGE_GLOWING ? this.godzilla.secondLaser(entity.getChargeSeconds(partialTick)) : 0.0F;
+            if (second > 0.01F) {
+                // Minus Zero's second laser joining the first: the beam's core twice as bright
+                this.godzilla.renderPass(Pass.BEAM, poseStack, entity, model, buffers, RenderType.eyes(BEAM_CORE), partialTick,
+                        0.6F * second, 0.85F * second, 1.0F * second);
+            }
             this.godzilla.renderPass(Pass.BEAM, poseStack, entity, model, buffers,
                     RenderType.energySwirl(BEAM_SWIRL, (t * 0.03F) % 1.0F, (t * 0.02F) % 1.0F), partialTick, 0.3F, 0.7F, 1.0F);
         }

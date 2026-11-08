@@ -27,6 +27,21 @@ public class GodzillaMinusZeroEntity extends GodzillaEntity {
         return SCALE;
     }
 
+    /**
+     * His breath surges: his beam fires, his plates' glow fades for 2 s and comes back a sharper blue, and a second
+     * laser joins the first, wider (by SURGE_WIDTH) and hitting twice as often, and his blast goes off with it...
+     */
+    @Override
+    public boolean surges() {
+        return true;
+    }
+
+    /** ...twice as big as Minus One's (every radius of it: kill, radiation, crater, scorch, ruins, flattening). */
+    @Override
+    public double blastScale() {
+        return 2.0;
+    }
+
     /** Brought down, he falls for good: no Godzilla after him, and he doesn't regenerate. */
     @Override
     protected Defeat defeatOutcome() {

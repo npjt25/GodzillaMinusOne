@@ -388,6 +388,14 @@ public final class ModGameTests {
         helper.assertTrue(zero.clawPosition(1.0).subtract(at).distanceTo(one.clawPosition(1.0).subtract(at).scale(2.0)) < 1.0E-6, "his claws");
         helper.assertTrue(zero.getMaxHealth() == one.getMaxHealth() && zero.getAttributeValue(net.minecraft.world.entity.ai.attributes.Attributes.ATTACK_DAMAGE)
                 == one.getAttributeValue(net.minecraft.world.entity.ai.attributes.Attributes.ATTACK_DAMAGE), "his numbers are Minus One's");
+        // his breath: Minus One's as it was; Minus Zero's surges (a second laser, wider and hitting twice as often, with
+        // the blast going off with it) and his blast is twice as big
+        helper.assertTrue(!one.surges() && one.blastScale() == 1.0 && one.blastTick() == GodzillaEntity.CHARGE_BLAST_TICK
+                && one.beamRadius(GodzillaEntity.SURGE_TICK) == 4.0, "Minus One's breath should be as it was");
+        helper.assertTrue(zero.surges() && zero.blastScale() == 2.0 && zero.blastTick() == GodzillaEntity.SURGE_TICK + 10
+                && zero.blastTick() < GodzillaEntity.BEAM_END_TICK, "Minus Zero's blast should go off with his second laser, twice as big");
+        helper.assertTrue(zero.beamRadius(GodzillaEntity.SURGE_TICK) > zero.beamRadius(GodzillaEntity.SURGE_TICK - 1)
+                && zero.beamRadius(GodzillaEntity.SURGE_TICK - 1) == 8.0, "his second laser should hit wider than his first");
         one.discard();
         zero.setHealth(10.0F);
         detonateMine(helper, 4, 14);

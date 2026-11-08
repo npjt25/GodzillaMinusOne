@@ -6,12 +6,15 @@ animation plays on him as on Minus One), plus
     on the same plate bones (so they light up with them in his charge),
   - overlapping armour bands round his upper arms and forearms, and layered caps on his shoulders,
   - a row of spines along either side of his tail,
+  - every plate (his own and the new ones) drawn out into a sharp point, and the plate at the end of his tail into
+    the longest and sharpest of all his tail's,
   - and a darker, heavier skin (the scorched skin he collapses in too).
 
 The new parts' texture goes where Minus One's texture sheet has room (none of his own is moved), so the overlays
 Minus One's renderer draws (eyes, mouth, burns, beam) fit Minus Zero unchanged; his plates' charge glow has his own
-sheet with the new plates in it. None of the new parts reaches above Minus One's highest point (checked here), so
-Minus Zero, this model at exactly twice Minus One's scale, stands exactly twice his height.
+sheet with the new plates in it. None of the new parts reaches above Minus One's highest point (the points on the plates
+that would are cut short to it), so Minus Zero, this model at exactly twice Minus One's scale, stands exactly twice
+his height.
 
     python3 tools/make_minus_zero.py
 """
@@ -120,6 +123,64 @@ def tail_spines(bone):
     return out
 
 
+def is_plate_bone(name):
+    return name == "T" or (name.startswith("T") and name[1:].isdigit())
+
+
+def is_blade(c):
+    return c["size"][0] <= 1 and c["size"][1] >= 7
+
+
+def tip(blade, length, depth, kind="tip"):
+    """A point drawn out of the top of a plate: narrower than the plate, along it (its pivot and tilt)."""
+    ox, oy, oz = blade["origin"]
+    sx, sy, sz = blade["size"]
+    t = cube([ox, oy + sy - 0.2, oz + (sz - depth) / 2.0], [sx, length, depth], kind=kind)
+    if "pivot" in blade:
+        t["pivot"] = list(blade["pivot"])
+    if "rotation" in blade:
+        t["rotation"] = list(blade["rotation"])
+    return t
+
+
+def sharpen(bones, adds):
+    """Every plate drawn out into a point (half its height again, half as deep); the end of his tail (T22) into the
+    longest and finest: as long as the plate, and a needle beyond that."""
+    out = {}
+    for name, bone in bones.items():
+        if not is_plate_bone(name):
+            continue
+        for b in [c for c in bone["cubes"] if is_blade(c)] + [c for c in adds.get(name, []) if c["kind"] == "plate"]:
+            sy, sz = b["size"][1], b["size"][2]
+            if name == "T22":
+                first = tip(b, max(4, int(round(sy * 1.0))), 1)
+                needle = tip(first, max(3, int(round(sy * 0.6))), 0.5)
+                out.setdefault(name, []).extend([first, needle])
+            else:
+                out.setdefault(name, []).append(tip(b, max(2, int(round(sy * 0.5))), max(0.5, round(sz / 2.0, 1))))
+    return out
+
+
+def cap_heights(bones_list, tips, ceiling, tw, th):
+    """Points that would stand above Minus One's highest point are cut short to it (or left off)."""
+    pose = rp.animation_pose(ANIM, "animation.gojira.idle", 0.0)
+    m = rp.bone_matrices(bones_list, pose)
+    kept = {}
+    cut = 0
+    for name, cs in tips.items():
+        for c in cs:
+            while True:
+                top = max((np.c_[corners, np.ones(4)] @ m[name].T)[:, 1].max() for _, corners, _ in rp.face_list(c, tw, th))
+                if top <= ceiling - 0.05:
+                    kept.setdefault(name, []).append(c)
+                    break
+                cut += 1
+                if c["size"][1] <= 1:
+                    break
+                c["size"][1] -= 1
+    return kept, cut
+
+
 def additions(bones):
     adds = {}
     for name in FLANKED:
@@ -160,7 +221,7 @@ def pack(cubes, free):
     h, w = free.shape
     taken = ~free.copy()
     for c in sorted(cubes, key=lambda c: -(c["size"][1] + c["size"][2]) * (c["size"][0] + c["size"][2])):
-        sx, sy, sz = c["size"]
+        sx, sy, sz = (max(1, math.ceil(k)) for k in c["size"])   # (room for its net, whatever GeckoLib rounds it to)
         nw, nh = 2 * (sx + sz), sy + sz
         placed = False
         for v in range(0, h - nh + 1):
@@ -192,14 +253,14 @@ def paint(img, cubes, rng, scorched=False):
     base = np.array([44.0, 46.0, 50.0]) if not scorched else np.array([30.0, 26.0, 24.0])
     for c in cubes:
         u, v = c["uv"]
-        sx, sy, sz = c["size"]
+        sx, sy, sz = (max(1, math.ceil(k)) for k in c["size"])
         x0, y0 = u * PX, v * PX
         w, h = 2 * (sx + sz) * PX, (sy + sz) * PX
         region = np.empty((h, w, 3))
         region[:] = base
         region *= (0.85 + 0.3 * rng.random((h, w)))[..., None]
         ys = np.arange(h)[:, None] / max(1, h - 1)
-        if c["kind"] == "plate":
+        if c["kind"] in ("plate", "tip"):
             # paler towards the edge it points up with, scratched
             region += (np.clip(1.0 - ys * 3.0, 0, 1) * 40.0)[..., None]
             region[rng.random((h, w)) < 0.05] *= 1.6
@@ -223,10 +284,10 @@ def paint_glow(img, cubes):
     lit = a[a[..., 3] > 0][:, :3]
     colour = np.median(lit, axis=0) if len(lit) else np.array([120.0, 200.0, 255.0])
     for c in cubes:
-        if c["kind"] != "plate":
+        if c["kind"] not in ("plate", "tip"):
             continue
         u, v = c["uv"]
-        sx, sy, sz = c["size"]
+        sx, sy, sz = (max(1, math.ceil(k)) for k in c["size"])
         x0, y0 = u * PX, v * PX
         w, h = 2 * (sx + sz) * PX, (sy + sz) * PX
         ys = np.arange(h)[:, None] / max(1, h - 1)
@@ -258,6 +319,11 @@ def main():
     geo = data["minecraft:geometry"][0]
     bones = {b["name"]: b for b in geo["bones"]}
     adds = additions(bones)
+    tw, th = geo["description"]["texture_width"], geo["description"]["texture_height"]
+    ceiling = highest(geo["bones"], tw, th)
+    tips, cut = cap_heights(geo["bones"], sharpen(bones, adds), ceiling, tw, th)
+    for name, cs in tips.items():
+        adds.setdefault(name, []).extend(cs)
     new = [c for cs in adds.values() for c in cs]
     skin = Image.open(os.path.join(TEX, "godzilla.png")).convert("RGBA")
     pack(new, free_mask(geo, skin))
@@ -279,11 +345,10 @@ def main():
     glow = Image.open(os.path.join(TEX, "godzilla_charged_glow.png")).convert("RGBA")
     paint_glow(glow, new).save(os.path.join(TEX, "godzilla_minus_zero_charged_glow.png"))
 
-    tw, th = geo["description"]["texture_width"], geo["description"]["texture_height"]
-    before = highest(geo["bones"], tw, th)
+    before = ceiling
     after = highest(ogeo["bones"], tw, th)
-    print("added %d cubes (%s)" % (len(new), ", ".join("%s %d" % (k, sum(1 for c in new if c["kind"] == k))
-                                                      for k in ("plate", "band", "cap", "spine"))))
+    print("added %d cubes (%s); points cut short to stay under his top: %d steps" % (len(new), ", ".join(
+        "%s %d" % (k, sum(1 for c in new if c["kind"] == k)) for k in ("plate", "band", "cap", "spine", "tip")), cut))
     print("highest point: Minus One %.3f, Minus Zero's model %.3f (texture units)" % (before, after))
     if after > before + 1e-6:
         raise SystemExit("the new parts reach above Minus One's highest point: Minus Zero would stand more than twice his height")

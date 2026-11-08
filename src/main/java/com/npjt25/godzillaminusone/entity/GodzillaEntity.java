@@ -122,6 +122,11 @@ public class GodzillaEntity extends Monster implements GeoEntity {
     public static final int BEAM_START_TICK = 304;     // charge animation: the beam appears at 14.96 s (after the 4 s in-breath)
     public static final int INHALE_TICKS = 80;          // ...the in-breath: his last 4 s before it
     public static final int CHARGE_BLAST_TICK = 344;   // ...and 2 s later its impact goes up in a nuclear blast
+    /**
+     * Minus Zero's surge: 2 s after his beam appears (his plates' glow fading out meanwhile) and 0.3 s more (it coming
+     * back, a sharper blue), a second laser joins the first: wider, hitting harder, and his blast goes off with it.
+     */
+    public static final int SURGE_TICK = BEAM_START_TICK + 46;
     public static final int BEAM_END_TICK = 388;       // charge animation: the beam is gone at 19.17 s
     public static final int ROAR_TICKS = 109;           // animation.gojira.roar: 5.46 s
     /**
@@ -931,10 +936,16 @@ public class GodzillaEntity extends Monster implements GeoEntity {
             ModNetwork.shake(level, position(), 150.0, 0.15F, 0.5F);
         }
 
-        if (this.chargeTicks >= BEAM_START_TICK && this.chargeTicks < BEAM_END_TICK && (this.chargeTicks - BEAM_START_TICK) % 4 == 0) {
+        boolean surging = surges() && this.chargeTicks >= SURGE_TICK;
+        if (this.chargeTicks >= BEAM_START_TICK && this.chargeTicks < BEAM_END_TICK
+                && (this.chargeTicks - BEAM_START_TICK) % (surging ? 2 : 4) == 0) {
             beamHits(level);
         }
-        if (this.chargeTicks == CHARGE_BLAST_TICK) {
+        if (surges() && this.chargeTicks == SURGE_TICK) {
+            // the second laser: the ground shakes again as it joins the first
+            ModNetwork.shake(level, position(), 220.0, 1.2F, 3.0F);
+        }
+        if (this.chargeTicks == blastTick()) {
             fireAtomicBlast(level);
         } else if (this.chargeTicks == BEAM_END_TICK) {
             setChargeState(CHARGE_COOLING);
@@ -1030,9 +1041,10 @@ public class GodzillaEntity extends Monster implements GeoEntity {
         Vec3 start = line[0];
         Vec3 end = beamHit(level, line).getLocation();
         DamageSource source = ModDamageTypes.source(level, ModDamageTypes.ATOMIC_BREATH, this);
-        AABB box = new AABB(start, end).inflate(4.0);
+        double radius = beamRadius(this.chargeTicks);
+        AABB box = new AABB(start, end).inflate(radius);
         for (LivingEntity entity : level.getEntitiesOfClass(LivingEntity.class, box, e -> e != this && e.isAlive())) {
-            if (distanceSqrToSegment(entity.getBoundingBox().getCenter(), start, end) > 16.0) {
+            if (distanceSqrToSegment(entity.getBoundingBox().getCenter(), start, end) > radius * radius) {
                 continue;
             }
             if (entity instanceof ShindenEntity plane && plane.isVehicle()) {
@@ -1063,16 +1075,39 @@ public class GodzillaEntity extends Monster implements GeoEntity {
 
         DamageSource source = ModDamageTypes.source(level, ModDamageTypes.ATOMIC_BREATH, this);
         boolean grief = ForgeEventFactory.getMobGriefingEvent(level, this);
-        Blasts.nuclear(level, impact, grounded, source, this, this, grief, false, getYRot());
+        Blasts.nuclear(level, impact, grounded, source, this, this, grief, false, getYRot(), blastScale());
         if (grief) {
             // and for hundreds of blocks around, everything standing above the flatten level is swept away
-            Flattening.start(level, impact, Config.ATOMIC_FLATTEN_RADIUS.get(), Config.ATOMIC_FLATTEN_LEVEL.get());
+            Flattening.start(level, impact, (int) Math.round(Config.ATOMIC_FLATTEN_RADIUS.get() * blastScale()), Config.ATOMIC_FLATTEN_LEVEL.get());
         }
         ModNetwork.blur(level, position(), 120.0, 1.0F, 0.15F, 2.5F, 4.0F);
 
         this.breathCooldown = Config.ATOMIC_BREATH_COOLDOWN.get() * 20;
         this.blackRainPos = impact;
         this.blackRainTicks = 80;
+    }
+
+    /** How far round his beam it hits (as wide as he is big; once Minus Zero's second laser joins it, wider still). */
+    public double beamRadius(int chargeTick) {
+        return 4.0 * bodyScale() * (surges() && chargeTick >= SURGE_TICK ? SURGE_WIDTH : 1.0);
+    }
+
+    /** How much wider Minus Zero's beam is once his second laser joins it (client.render: the beam drawn as much wider). */
+    public static final double SURGE_WIDTH = 1.35;
+
+    /** Whether his breath surges: a second laser joining the first (Minus Zero's; Minus One's doesn't). */
+    public boolean surges() {
+        return false;
+    }
+
+    /** How much bigger his nuclear blast is than the config's (Minus Zero's: twice). */
+    public double blastScale() {
+        return 1.0;
+    }
+
+    /** The tick of his charge his beam's blast goes off: 2 s after the beam lands, or with Minus Zero's second laser. */
+    public int blastTick() {
+        return surges() ? SURGE_TICK + 10 : CHARGE_BLAST_TICK;
     }
 
     private void atomicHit(LivingEntity entity, DamageSource source) {
