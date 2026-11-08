@@ -95,7 +95,9 @@ the blue one a player.*
   icon; it hurts every 2 seconds, faster at higher levels), instead of Wither, and there's no on-screen warning any
   more. A whole **hazmat suit** keeps it off (see **Hazmat suit** below). An atomic blast's fallout gives Radiation too.
 - Every footfall shakes the camera, hurts everything near him and **crushes a footprint** of rubble into the
-  ground. He smashes through blocks (needs `mobGriefing`), and **buildings fall over** as he wades through them
+  ground. **Walking, he destroys everything in his path at Y 60 or above** (buildings, trees, the hillside: anything
+  but liquids and bedrock) **and nothing below Y 60** (`walkBreaksFromY`; his footprints too; needs `mobGriefing`), and
+  **buildings fall over** as he wades through them
   or swipes at them: the walls high up beside him topple as falling blocks, thrown the way he's going (or away
   from his swipe), and come crashing down; what's below them breaks apart.
 - **He knocks down tall buildings**: when there's nothing in sight for him to kill and he sees anything built
@@ -108,8 +110,12 @@ the blue one a player.*
 - Up close he attacks in a combo: a **claw swipe with each hand**, then a **heavy spin** of his whole body with
   the tail sweeping round him and **snapping like a whip**. **His claws tear through what's built** where they rake
   (7 blocks round them, through walls too), and **his tail knocks away what's built round him**, low down (up to 10
-  blocks above his feet, out to 30 blocks as it sweeps round and 38 as it snaps), the blocks flung outwards; the
-  ground is left (needs `breaksBlocks` and `mobGriefing`). He bites at things above him, stomps on things
+  blocks above his feet, out to 30 blocks as it sweeps round and 38 as it snaps), the blocks flung outwards (needs
+  `breaksBlocks` and `mobGriefing`). **What his blows break** (Minus One's and Minus Zero's alike): everything built,
+  and the rest of Minecraft's **Building Blocks** too, though the world makes them: **terracotta** of every colour
+  (glazed too), **mud** (mud, packed mud, mud bricks, muddy mangrove roots), **andesite, granite, diorite, stone, tuff,
+  deepslate**, **logs and wood, stripped or not**, sandstone, basalt, blackstone and end stone. The ground proper
+  (dirt, grass, sand, gravel, clay, ores, ice) is left. He bites at things above him, stomps on things
   under his feet, and swings the tail round at anything behind him. His **bite** is a real bite now (head rearing
   back, jaws gaping, then a lunge and a snap), with its own sound as the jaws close.
 - For the first **2 to 3 minutes after he appears** he can't use his atomic breath yet.
@@ -195,6 +201,9 @@ the blue one a player.*
   on his shoulders, a **row of spines along either side of his tail**, **every plate drawn out into a sharp point**
   (the plate at the end of his tail into the longest, finest point on his tail), **thicker thighs and shins**, and a
   **darker, heavier skin** (his scorched skin when he's down too).
+- **His beam stops at whatever is in its way** (Minus One's and Minus Zero's): a building, a hillside, any block. It's
+  drawn only as far as that block, its impact blazing there (a blue-white flash, blue fire spraying off it, debris and
+  smoke), its blast goes off there, and nothing beyond it is hit.
 - **His atomic breath has a second blast**: the charge is Minus One's; his beam fires and, 2 seconds later, the
   first nuclear explosion goes up where it lands. His beam stays on (his first breath lasts longer than Minus One's)
   while the blue glow on his plates **dims out over 2 seconds**, then **lights up again over 2 seconds** in a sharper,
@@ -205,7 +214,7 @@ the blue one a player.*
   and wide). After the beam his **mouth, throat and chest** are left burnt raw (Minus One's: his mouth), healing as
   Minus One's burns do. Minus One's breath is unchanged.
 - **His tail strike**: every other spin of his is his tail strike instead. The plate at the very end of his tail
-  **punches up and glows blue** for a second, then he spins and whips his tail round as in his spin, **twice as hard**:
+  **punches up and blazes blue-white**, its glow spilling out round it in a broad pulsing halo, for a second, then he spins and whips his tail round as in his spin, **twice as hard**:
   what's alive takes **double damage** and is flung away, and **anything else it hits is destroyed**: boats wrecked, a
   manned Shinden blown up, armor stands and any other thing gone, and **every block in its sweep**, from the ground he
   stands on up to as high as his tail goes (rock, earth and trees as well as what's built; not liquids or bedrock;
@@ -455,9 +464,14 @@ With [Walkers](https://www.curseforge.com/minecraft/mc-mods/woodwalkers) install
   `/walkers change2ndShape <player> godzillaminusone:godzilla` (then **G** switches to him and back); with
   ReMorphed, **bringing him down** counts as killing him (he never really dies) and unlocks his shape, or use
   `/remorphed addShape <player> godzillaminusone:godzilla`, then pick him from ReMorphed's menu.
-- Walking as him, you **break through what's built in your way** (as he does: not hills and cliffs) and **crush a
-  footprint** where each foot comes down (`playerGodzillaBreaksBlocks`, `playerGodzillaFootprints`; also needs
-  `breaksBlocks`, the `mobGriefing` gamerule and being allowed to build there). Charging the breath, his head follows
+- **Godzilla Minus Zero** too: bringing him down unlocks his shape in ReMorphed, or use
+  `/remorphed addShape <player> godzillaminusone:godzilla_minus_zero` (Walkers:
+  `/walkers change2ndShape <player> godzillaminusone:godzilla_minus_zero`). As him you're twice Minus One's size,
+  every move reaches twice as far, his breath is **his breath with its second blast** (both blasts twice as big), and
+  you have his **tail strike** (below).
+- Walking as him, you **destroy everything in your way at Y 60 or above** and **nothing below it** (as he does:
+  `walkBreaksFromY`), and **crush a footprint** where each foot comes down (`playerGodzillaBreaksBlocks`,
+  `playerGodzillaFootprints`; also needs `breaksBlocks`, the `mobGriefing` gamerule and being allowed to build there). Charging the breath, his head follows
   where you look.
 - As him you're always in **third person** (the camera pulled far enough back to show all of him; F5 still turns
   it round to face you), back to first person when you change back.
@@ -477,11 +491,18 @@ With [Walkers](https://www.curseforge.com/minecraft/mc-mods/woodwalkers) install
     `mobGriefing`), then a **3 minute** recharge, counted down beside it (change it in the config: it's his
     breath interval). You stand rooted from the start of the charge until the roar after the beam is over, then
     you're free to move again.
+  - **X: Tail Strike** (as Godzilla Minus Zero): the plate at the tip of his tail punches up and blazes blue for a
+    second, then the whip, **twice as hard** as his tail whip: whatever it hits is destroyed, every block in its sweep
+    too.
   - **M: Walk Through / Climb** (above).
-  His **tail whip and scratch tear down what's built**, as the mob's do.
-  These are the defaults. All five are ordinary key bindings: change them in **Options, Controls, Key Binds,
+  His **tail whip and scratch tear down what's built** (and the rest of the Building Blocks), as the mob's do.
+- **Every move is also a command**, for whoever is playing as him: **`/godzilla tailstrike`** (Minus Zero's tail
+  strike), **`/godzilla breath`** (the atomic breath: as Minus Zero, his special breath with its second blast),
+  `/godzilla tailwhip`, `/godzilla scratch`, `/godzilla bite`, `/godzilla roar`. The same move as the key, with the
+  same waits and recharge (and a message if you can't make it: not Godzilla, not Minus Zero, still busy, recharging).
+  These are the defaults. All six are ordinary key bindings: change them in **Options, Controls, Key Binds,
   Godzilla Minus One** ("Godzilla: Tail Whip", "Godzilla: Scratch", "Godzilla: Bite", "Godzilla: Roar",
-  "Godzilla: Atomic Breath"). They're saved with the rest of your controls (`options.txt`), there's no other key
+  "Godzilla: Atomic Breath", "Godzilla Minus Zero: Tail Strike"). They're saved with the rest of your controls (`options.txt`), there's no other key
   setting anywhere, and the list on screen shows whatever they're bound to. They only count while you're playing as
   Godzilla (whether Walkers or ReMorphed made you him), so as yourself those keys are free for anything else; and
   Controls marks one red if it shares a key with one of the game's own. (Before this version these five, the
@@ -585,6 +606,7 @@ mod's part:
   | Setting | Section | Default | What it does |
   | --- | --- | --- | --- |
   | `evolvesIntoMinusZero` | `godzilla` | true | Minus One brought down rises as Godzilla Minus Zero (once); off: he regenerates (or dies) as before. |
+  | `walkBreaksFromY` | `godzilla` | 60 | Walking (Godzilla, Minus Zero, and a player playing as either), he destroys everything in his path at this Y level or above, and nothing below it (his footprints too). |
   | `downedSeconds` | `godzilla` | 15 | Resting time: seconds (0 to 3600) he lies defeated, counted from the end of his 5 s collapse, before he regenerates and gets up. Kept by the server. |
   | `demolishFromHeight` | `godzilla` | -1 (23) | How tall a building must be for him to demolish it; -1 = half his real height. |
   | `demolishDownToHeight` | `godzilla` | -1 (11) | How tall he leaves it; -1 = a quarter of his real height. |

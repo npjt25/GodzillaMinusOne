@@ -15,6 +15,16 @@ public final class EffectHooks {
     public static ParticleKeyframe particleKeyframe = (entity, effect, locator) -> {
     };
 
+    /** Where Godzilla's beam is stopped by a block: its impact (client.particle.Fx.beamImpact). */
+    @FunctionalInterface
+    public interface BeamImpact {
+        void spawn(GodzillaEntity godzilla, net.minecraft.world.phys.Vec3 at, net.minecraft.world.phys.Vec3 normal,
+                   net.minecraft.world.level.block.state.BlockState block);
+    }
+
+    public static BeamImpact beamImpact = (godzilla, at, normal, block) -> {
+    };
+
     private EffectHooks() {
     }
 }

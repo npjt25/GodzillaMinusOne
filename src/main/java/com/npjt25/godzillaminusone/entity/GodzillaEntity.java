@@ -580,6 +580,7 @@ public class GodzillaEntity extends Monster implements GeoEntity {
             this.aimClient = Mth.approach(this.aimClient, this.entityData.get(DATA_AIM), 4.0F);
             this.aimYawO = this.aimYawClient;
             this.aimYawClient = Mth.approach(this.aimYawClient, this.entityData.get(DATA_AIM_YAW), 5.0F);
+            updateBeamReach(getChargeState() == CHARGE_GLOWING && getChargeSeconds(0.0F) >= BEAM_SECONDS);
             if (getBurnTicks() > 0) {
                 burnEffects();
             }
@@ -1061,6 +1062,45 @@ public class GodzillaEntity extends Monster implements GeoEntity {
         double up = p.y - HEAD.y;
         double fwd = p.z - HEAD.z;
         return new Vec3(p.x, HEAD.y + up * cos + fwd * sin, HEAD.z + fwd * cos - up * sin);
+    }
+
+    /** Client side: how much of the beam's full length is drawn (0 to 1), last tick and this: up to the first block it hits. */
+    private float beamReachO = 1.0F;
+    private float beamReach = 1.0F;
+    /** Charge animation seconds the beam appears (BEAM_START_TICK, less the blend into the charge). */
+    private static final float BEAM_SECONDS = (BEAM_START_TICK - ANIM_TRANSITION) / 20.0F;
+
+    /** Client side: how much of his beam's full length is drawn (0 to 1): it stops at the first block in its way. */
+    public float getBeamReach(float partialTick) {
+        return Mth.lerp(partialTick, this.beamReachO, this.beamReach);
+    }
+
+    /**
+     * Client side, each tick (the mob's own; a player's shape, from client.PlayerGodzillaControls): where his beam is
+     * stopped, as the server stops it (beamHit: the first block in its way, a building, a hillside, anything; it never
+     * goes through), so it's drawn that far and no further; {@code beamOn}: while it's firing, its impact there.
+     */
+    public void updateBeamReach(boolean beamOn) {
+        this.beamReachO = this.beamReach;
+        if (getChargeState() != CHARGE_GLOWING) {
+            this.beamReach = 1.0F;
+            return;
+        }
+        Vec3[] line = beamLine(getAimPitch(1.0F));
+        BlockHitResult hit = level().clip(new ClipContext(line[0], line[1], ClipContext.Block.COLLIDER, ClipContext.Fluid.ANY, this));
+        double full = line[0].distanceTo(line[1]);
+        if (hit.getType() == HitResult.Type.MISS || full < 1.0E-3) {
+            this.beamReach = 1.0F;
+            return;
+        }
+        this.beamReach = (float) Mth.clamp(line[0].distanceTo(hit.getLocation()) / full, 0.005, 1.0);
+        if (this.beamReachO >= 0.999F) {
+            this.beamReachO = this.beamReach; // (not drawn growing back from its full length)
+        }
+        if (beamOn) {
+            Vec3 normal = Vec3.atLowerCornerOf(hit.getDirection().getNormal());
+            EffectHooks.beamImpact.spawn(this, hit.getLocation(), normal, level().getBlockState(hit.getBlockPos()));
+        }
     }
 
     /** Where the beam currently ends: the first block it hits, or its far end. */
@@ -1621,10 +1661,22 @@ public class GodzillaEntity extends Monster implements GeoEntity {
      */
     private void tailStrike(ServerLevel level, double inner, double outer, float damage) {
         double height = TAIL_HEIGHT * bodyScale();
-        Vec3 c = position();
-        DamageSource source = damageSources().mobAttack(this);
+        strikeAround(level, this, position(), inner, outer, height, damage, damageSources().mobAttack(this));
+        if (meleeBreaks(level)) {
+            Destruction.tailSweep(level, this, position(), inner, outer, (int) Math.round(height), true);
+        }
+    }
+
+    /**
+     * The tail strike's blow (Minus Zero's, or a player's playing as him: entity.PlayerGodzilla), between {@code inner}
+     * and {@code outer} blocks round {@code c}, up to {@code height} above it: what's alive takes {@code damage} and is
+     * flung; whatever else is there is destroyed (an armor stand, boats wrecked, a manned Shinden blown up, anything else
+     * gone). Not {@code striker}, any Godzilla, a pilot (his plane takes the blow) or a spectator.
+     */
+    static void strikeAround(ServerLevel level, Entity striker, Vec3 c, double inner, double outer, double height, float damage,
+                             DamageSource source) {
         AABB box = new AABB(c.x - outer, c.y - 2.0, c.z - outer, c.x + outer, c.y + height + 2.0, c.z + outer);
-        for (Entity e : level.getEntities(this, box, e -> e.isAlive() && !e.isSpectator() && !(e instanceof GodzillaEntity))) {
+        for (Entity e : level.getEntities(striker, box, e -> e.isAlive() && !e.isSpectator() && !(e instanceof GodzillaEntity))) {
             double d = Math.sqrt(e.position().subtract(c).horizontalDistanceSqr());
             if (d < inner - 2.0 || d > outer + 2.0) {
                 continue;
@@ -1643,12 +1695,16 @@ public class GodzillaEntity extends Monster implements GeoEntity {
                 plane.explode();
             } else if (e instanceof ShinseiMaruEntity boat) {
                 boat.hurt(source, 100000.0F);
-            } else if (!(e instanceof ShinseiMaruPart)) {
+            } else if (!(e instanceof ShinseiMaruPart) && !e.hasPassenger(striker) && e != striker.getVehicle()) {
                 e.kill();
             }
         }
-        if (meleeBreaks(level)) {
-            Destruction.tailSweep(level, this, c, inner, outer, (int) Math.round(height), true);
+    }
+
+    /** Client side, as a player's shape: the tip of his tail glowing for his tail strike (Minus Zero). */
+    public void setShapeTailGlow(boolean on) {
+        if (isTailGlowing() != on) {
+            this.entityData.set(DATA_TAIL_GLOW, on);
         }
     }
 
@@ -1795,6 +1851,26 @@ public class GodzillaEntity extends Monster implements GeoEntity {
      */
     public void setEvolves(@Nullable Boolean evolves) {
         this.evolvesOverride = evolves;
+    }
+
+    /** For the game tests: the lowest Y he destroys anything at as he walks, on him alone (null: walkBreaksFromY). */
+    public void setWalkFloorY(@Nullable Integer y) {
+        this.walkFloorYOverride = y;
+    }
+
+    @Nullable
+    private Integer walkFloorYOverride;
+
+    /** The lowest Y he destroys anything at as he walks (walkBreaksFromY: 60): his path and his footprints. */
+    public int walkFloorY() {
+        return this.walkFloorYOverride != null ? this.walkFloorYOverride : Config.WALK_BREAKS_FROM_Y.get();
+    }
+
+    /** For the game tests: what's in his path cleared now, as he does it every few ticks while he walks. */
+    public void smashPathNow() {
+        if (level() instanceof ServerLevel level) {
+            smashBlocks(level);
+        }
     }
 
     /** For the tests and the in-game checks: how long this Godzilla lies there once down (ticks; -1: the config's). */
@@ -1979,7 +2055,10 @@ public class GodzillaEntity extends Monster implements GeoEntity {
         return p.distanceToSqr(a.add(ab.scale(t)));
     }
 
-    /** Clears blocks in his path (the add-on clears a column in front of him when he attacks). */
+    /**
+     * Clears blocks in his path (the add-on clears a column in front of him when he attacks): everything there, as high
+     * as he stands, but nothing below {@link #walkFloorY} (walkBreaksFromY, 60).
+     */
     private void smashBlocks(ServerLevel level) {
         if (!Config.GODZILLA_BREAKS_BLOCKS.get() || !ForgeEventFactory.getMobGriefingEvent(level, this)) {
             return;
@@ -1988,8 +2067,11 @@ public class GodzillaEntity extends Monster implements GeoEntity {
         AABB box = getBoundingBox().expandTowards(forward.x * 3.0, 0.0, forward.z * 3.0).inflate(1.5, 0.0, 1.5);
         int minX = Mth.floor(box.minX);
         int maxX = Mth.floor(box.maxX);
-        int minY = Mth.floor(getY()) + 1;
+        int minY = Math.max(Mth.floor(getY()) + 1, walkFloorY());
         int maxY = Mth.floor(box.maxY);
+        if (maxY < minY) {
+            return;
+        }
         int minZ = Mth.floor(box.minZ);
         int maxZ = Mth.floor(box.maxZ);
         BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
@@ -2011,7 +2093,7 @@ public class GodzillaEntity extends Monster implements GeoEntity {
                     }
                     if (Destruction.canBreak(level, pos, state, this)) {
                         // what he barges through high up is flung on ahead of him; the rest crumbles
-                        boolean high = y > getY() + 6.0 && isBuilt(state) && this.random.nextInt(3) == 0;
+                        boolean high = y > getY() + 6.0 && Destruction.godzillaBreaks(state) && this.random.nextInt(3) == 0;
                         if (high && Destruction.topple(level, pos, state, throwAhead(forward, y - getY()), toppled < 48)) {
                             toppled++;
                         } else if (!high) {
@@ -2030,7 +2112,7 @@ public class GodzillaEntity extends Monster implements GeoEntity {
             for (int z = minZ; z <= maxZ && over < 64; z++) {
                 for (int y = maxY + 1; y <= maxY + 24 && over < 64; y++) {
                     BlockState state = level.getBlockState(pos.set(x, y, z));
-                    if (!isBuilt(state) || !Destruction.canBreak(level, pos, state, this)) {
+                    if (!Destruction.godzillaBreaks(state) || !Destruction.canBreak(level, pos, state, this)) {
                         break;
                     }
                     if (Destruction.topple(level, pos, state, throwAhead(forward, y - getY()).scale(0.4), true)) {
@@ -2190,7 +2272,7 @@ public class GodzillaEntity extends Monster implements GeoEntity {
                         continue;
                     }
                     BlockState state = level.getBlockState(pos.set(building.x() + dx, y, building.z() + dz));
-                    if (state.isAir() || state.getBlock() instanceof LiquidBlock || Destruction.isGround(state)
+                    if (state.isAir() || state.getBlock() instanceof LiquidBlock || !Destruction.godzillaBreaks(state)
                             || !Destruction.canBreak(level, pos, state, this)) {
                         continue;
                     }

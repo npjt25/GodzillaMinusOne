@@ -41,7 +41,8 @@ import java.util.Map;
  * as him: Walkers draws him in their place but never runs him, so here he's told what they're doing.
  *
  * <p>His moves are ordinary key bindings, the only say in which key does what: Options, Controls, Key Binds, Godzilla
- * Minus One ("Godzilla: Tail Whip" Z, "Scratch" H, "Bite" J, "Roar" K, "Atomic Breath" B by default; Walkers' own keys
+ * Minus One ("Godzilla: Tail Whip" Z, "Scratch" H, "Bite" J, "Roar" K, "Atomic Breath" B, and as Godzilla Minus Zero
+ * "Tail Strike" X, by default; each is also a command, entity.GodzillaCommands; Walkers' own keys
  * are G, U, R and V, ReMorphed's `), saved with the rest of the game's (options.txt), and the list on screen shows
  * whatever they're bound to. They only count while you're playing as him ({@link ModKeyContexts#GODZILLA_SHAPE}), as
  * whichever of Walkers or ReMorphed made you him: otherwise their keys are free for whatever else is bound to them.
@@ -59,9 +60,12 @@ public final class PlayerGodzillaControls {
     public static final KeyMapping BITE = key("bite", GLFW.GLFW_KEY_J);
     public static final KeyMapping ROAR = key("roar", GLFW.GLFW_KEY_K);
     public static final KeyMapping ATOMIC_BREATH = key("atomic_breath", GLFW.GLFW_KEY_B);
+    /** Godzilla Minus Zero's tail strike (PlayerGodzilla.Move.TAIL_STRIKE; as Minus One it does nothing). */
+    public static final KeyMapping TAIL_STRIKE = key("tail_strike", GLFW.GLFW_KEY_X);
     /** Walk through things, or climb them (entity.GodzillaStride; ClientConfig.PLAYER_GODZILLA_WALK_THROUGH). */
     public static final KeyMapping STRIDE = key("stride", GLFW.GLFW_KEY_M);
-    private static final KeyMapping[] KEYS = {TAIL_WHIP, SCRATCH, BITE, ROAR, ATOMIC_BREATH};
+    /** In the order of PlayerGodzilla.Move (each key asks for the move of its place in it). */
+    private static final KeyMapping[] KEYS = {TAIL_WHIP, SCRATCH, BITE, ROAR, ATOMIC_BREATH, TAIL_STRIKE};
     private static final String HUD = "hud." + GodzillaMinusOne.MODID + ".godzilla.";
     private static final float HUD_SCALE = 0.7F;
 
@@ -74,6 +78,10 @@ public final class PlayerGodzillaControls {
     private static boolean wasGodzilla;
     /** Players playing as Godzilla who are charging their breath: when they started (client ticks). */
     private static final Map<Integer, Integer> CHARGING = new HashMap<>();
+    /** Players playing as Minus Zero making his tail strike: when they started (client ticks). */
+    private static final Map<Integer, Integer> STRIKING = new HashMap<>();
+    /** How long the tip of his tail glows in his tail strike: until its snap (GodzillaEntity's TAIL_STRIKE and its snap). */
+    private static final int TAIL_GLOW_TICKS = 46;
 
     private static KeyMapping key(String name, int key) {
         return new KeyMapping(KEY + name, ModKeyContexts.GODZILLA_SHAPE, InputConstants.Type.KEYSYM, key, CATEGORY);
@@ -118,6 +126,7 @@ public final class PlayerGodzillaControls {
         wasGodzilla = godzilla;
         if (mc.level == null) {
             CHARGING.clear();
+            STRIKING.clear();
             return;
         }
         // the charge of a played Godzilla runs as the mob's does: glowing, the beam, cooling down
@@ -128,11 +137,26 @@ public final class PlayerGodzillaControls {
             int t = clientTicks - charge.getValue();
             if (shape == null) {
                 it.remove();
-            } else if (t >= GodzillaEntity.CHARGE_LENGTH) {
+            } else if (t >= shape.chargeLength()) {
                 shape.setShapeCharge(GodzillaEntity.CHARGE_NONE);
                 it.remove();
             } else {
-                shape.setShapeCharge(t >= GodzillaEntity.BEAM_END_TICK ? GodzillaEntity.CHARGE_COOLING : GodzillaEntity.CHARGE_GLOWING);
+                shape.setShapeCharge(t >= shape.beamEndTick() ? GodzillaEntity.CHARGE_COOLING : GodzillaEntity.CHARGE_GLOWING);
+                // (his beam stopped by what's in its way, as the mob's: Walkers never ticks him)
+                shape.updateBeamReach(t >= GodzillaEntity.BEAM_START_TICK && t < shape.beamEndTick());
+            }
+        }
+        // Minus Zero's tail strike: the tip of his tail glowing until the whip has snapped
+        for (Iterator<Map.Entry<Integer, Integer>> it = STRIKING.entrySet().iterator(); it.hasNext(); ) {
+            Map.Entry<Integer, Integer> strike = it.next();
+            Entity entity = mc.level.getEntity(strike.getKey());
+            GodzillaEntity shape = entity instanceof Player player ? Shapes.godzillaOf(player) : null;
+            boolean over = clientTicks - strike.getValue() >= TAIL_GLOW_TICKS;
+            if (shape != null) {
+                shape.setShapeTailGlow(!over);
+            }
+            if (shape == null || over) {
+                it.remove();
             }
         }
     }
@@ -208,6 +232,10 @@ public final class PlayerGodzillaControls {
         if (!msg.animation().isEmpty()) {
             shape.playShapeMove(msg.animation());
         }
+        if (msg.move() == PlayerGodzilla.Move.TAIL_STRIKE.ordinal()) {
+            STRIKING.put(player.getId(), clientTicks);
+            shape.setShapeTailGlow(true);
+        }
         if (msg.move() == PlayerGodzilla.Move.ATOMIC_BREATH.ordinal()) {
             CHARGING.put(player.getId(), clientTicks);
             shape.setShapeCharge(GodzillaEntity.CHARGE_GLOWING);
@@ -237,10 +265,15 @@ public final class PlayerGodzillaControls {
             graphics.drawString(mc.font, line(KEYS[i], Component.translatable(HUD + names[i])), 0, y, 0xFFFFFF);
             y += 10;
         }
+        GodzillaEntity shape = Shapes.godzillaOf(mc.player);
+        if (shape.tailStrikes()) {
+            graphics.drawString(mc.font, line(TAIL_STRIKE, Component.translatable(HUD + "tail_strike")), 0, y, 0xFFFFFF);
+            y += 10;
+        }
         Component breath;
         Integer charging = CHARGING.get(mc.player.getId());
         int left = breathReadyAt - clientTicks;
-        if (charging != null && clientTicks - charging < GodzillaEntity.BEAM_END_TICK) {
+        if (charging != null && clientTicks - charging < shape.beamEndTick()) {
             breath = Component.translatable(HUD + "charging").withStyle(ChatFormatting.AQUA);
         } else if (left > 0) {
             int seconds = (left + 19) / 20;
@@ -265,6 +298,7 @@ public final class PlayerGodzillaControls {
     @SubscribeEvent
     public static void onLogout(ClientPlayerNetworkEvent.LoggingOut event) {
         CHARGING.clear();
+        STRIKING.clear();
         forcedThirdPerson = false;
         breathReadyAt = 0;
         wasGodzilla = false;

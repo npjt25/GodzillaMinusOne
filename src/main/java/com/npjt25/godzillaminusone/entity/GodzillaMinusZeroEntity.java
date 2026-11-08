@@ -64,9 +64,12 @@ public class GodzillaMinusZeroEntity extends GodzillaEntity {
         return Defeat.FALL;
     }
 
-    /** (Bringing him down doesn't unlock a shape: playing as Minus Zero isn't offered.) */
+    /**
+     * Bringing him down unlocks his shape (ReMorphed), as Minus One's does: a player playing as him has his tail strike
+     * and his breath with its second blast (entity.PlayerGodzilla).
+     */
     @Override
     protected boolean creditsDefeat() {
-        return false;
+        return true;
     }
 }

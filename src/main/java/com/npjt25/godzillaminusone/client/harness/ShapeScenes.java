@@ -6,6 +6,7 @@ import com.npjt25.godzillaminusone.client.ModKeyContexts;
 import com.npjt25.godzillaminusone.client.PlayerGodzillaControls;
 import com.npjt25.godzillaminusone.compat.Shapes;
 import com.npjt25.godzillaminusone.entity.GodzillaEntity;
+import com.npjt25.godzillaminusone.entity.GodzillaMinusZeroEntity;
 import com.npjt25.godzillaminusone.entity.GodzillaStride;
 import com.npjt25.godzillaminusone.entity.PlayerGodzilla;
 import com.npjt25.godzillaminusone.entity.PlayerOdo;
@@ -260,6 +261,9 @@ final class ShapeScenes {
         // walking: through a building in his way (put up only now, so his breath's blast can't have holed it), 17 blocks
         // ahead: 21 wide, 11 high, 2 thick
         commands("fill 290 -60 318 310 -50 319 minecraft:oak_planks");
+        // (walking, he destroys nothing below walkBreaksFromY, 60: this flat world's ground is at -60, so for this walk it's
+        // set below it; back to 60 after)
+        server("shapes: walkBreaksFromY below this world's ground", level -> com.npjt25.godzillaminusone.Config.WALK_BREAKS_FROM_Y.set(-64));
         waitTicks(10);
         once("shapes: walk on", () -> {
             if (mc().player != null) {
@@ -286,7 +290,9 @@ final class ShapeScenes {
             return left < 400 ? null : left + " of 462 planks still standing";
         });
         shot("shape_godzilla_through_the_wall");
+        server("shapes: walkBreaksFromY back to 60", level -> com.npjt25.godzillaminusone.Config.WALK_BREAKS_FROM_Y.set(60));
         stride();
+        minusZero();
         server("shapes: back to himself", level -> log("shapes: back: " + setShape(serverPlayer(level), null)));
         waitTicks(20);
         checkServer("shapes: changing back frees him", level -> !PlayerGodzilla.isGodzilla(serverPlayer(level))
@@ -363,6 +369,84 @@ final class ShapeScenes {
     /**
      * Taps a key as Godzilla: {@code made}, the server should see {@code move} made then (and not, nothing new made).
      */
+    /**
+     * As Godzilla Minus Zero: X makes his tail strike (the tip of his tail glowing), as does /godzilla tailstrike (run as
+     * the player); /godzilla breath his breath, rooted until the roar after his second beam is over (his charge's length,
+     * not Minus One's).
+     */
+    private static void minusZero() {
+        server("shapes: as Minus Zero", level -> {
+            ServerPlayer player = serverPlayer(level);
+            GodzillaMinusZeroEntity shape = ModEntities.GODZILLA_MINUS_ZERO.get().create(level);
+            log("shapes: Minus Zero taken: " + setShape(player, shape));
+        });
+        waitTicks(60);
+        check("shapes: playing as Minus Zero (client)", () -> mc().player != null && Shapes.godzillaOf(mc().player) instanceof GodzillaMinusZeroEntity
+                ? null : "the client doesn't have Minus Zero");
+        checkServer("shapes: Minus Zero on the server too", level -> PlayerGodzilla.canTailStrike(serverPlayer(level)) ? null : "no tail strike");
+        once("shapes: Minus Zero's HUD on", () -> mc().options.hideGui = false);
+        waitTicks(5);
+        shot("shape_minus_zero_hud");
+        once("shapes: Minus Zero's HUD off", () -> mc().options.hideGui = true);
+        once("shapes: Minus Zero looks ahead", () -> {
+            if (mc().player != null) {
+                mc().player.setXRot(10.0F);
+            }
+        });
+        godzillaKey("shapes: X makes Minus Zero's tail strike", GLFW.GLFW_KEY_X, PlayerGodzilla.Move.TAIL_STRIKE, true);
+        waitTicks(6);
+        check("shapes: the tip of his tail glowing", () -> {
+            GodzillaEntity shape = mc().player == null ? null : Shapes.godzillaOf(mc().player);
+            return shape != null && shape.isTailGlowing() ? null : "not glowing";
+        });
+        shot("shape_minus_zero_tail_strike");
+        waitTicks(PlayerGodzilla.Move.TAIL_STRIKE.length);
+        int[] before = {-1};
+        server("shapes: /godzilla tailstrike", level -> {
+            ServerPlayer player = serverPlayer(level);
+            before[0] = PlayerGodzilla.lastMoveAt(player);
+            level.getServer().getCommands().performPrefixedCommand(player.createCommandSourceStack(), "godzilla tailstrike");
+        });
+        waitTicks(4);
+        checkServer("shapes: /godzilla tailstrike makes it too", level -> PlayerGodzilla.lastMove(serverPlayer(level)) == PlayerGodzilla.Move.TAIL_STRIKE
+                && PlayerGodzilla.lastMoveAt(serverPlayer(level)) != before[0] ? null : "last move " + PlayerGodzilla.lastMove(serverPlayer(level)));
+        waitTicks(PlayerGodzilla.Move.TAIL_STRIKE.length);
+
+        once("shapes: Minus Zero looks up", () -> {
+            if (mc().player != null) {
+                mc().player.setXRot(-70.0F);
+            }
+        });
+        waitTicks(5);
+        int[] pressed = {0};
+        once("shapes: mark Minus Zero's breath", () -> pressed[0] = now());
+        server("shapes: /godzilla breath", level -> {
+            ServerPlayer player = serverPlayer(level);
+            level.getServer().getCommands().performPrefixedCommand(player.createCommandSourceStack(), "godzilla breath");
+        });
+        waitTicks(20);
+        checkServer("shapes: /godzilla breath starts Minus Zero's charge: rooted", level -> PlayerGodzilla.isRooted(serverPlayer(level))
+                && PlayerGodzilla.lastMove(serverPlayer(level)) == PlayerGodzilla.Move.ATOMIC_BREATH ? null : "not rooted / not his breath");
+        until("shapes: Minus Zero's second beam", () -> now() - pressed[0] > GodzillaEntity.SURGE_TICK + 8, 700);
+        shot("shape_minus_zero_second_beam");
+        until("shapes: Minus Zero's first beam would be over (Minus One's whole charge)", () -> now() - pressed[0] > GodzillaEntity.CHARGE_LENGTH + 10, 400);
+        checkServer("shapes: still rooted (his breath lasts longer than Minus One's)", level -> PlayerGodzilla.isRooted(serverPlayer(level)) ? null : "free already");
+        until("shapes: Minus Zero's charge and the roar after it are over",
+                () -> now() - pressed[0] > GodzillaEntity.SECOND_BEAM_END_TICK + GodzillaEntity.ROAR_TICKS + 20, 400);
+        checkServer("shapes: Minus Zero free again after the roar", level -> PlayerGodzilla.isRooted(serverPlayer(level)) ? "still rooted" : null);
+        server("shapes: /godzilla tailstrike as Minus One", level -> {
+            ServerPlayer player = serverPlayer(level);
+            log("shapes: back to Minus One: " + setShape(player, ModEntities.GODZILLA.get().create(level)));
+        });
+        waitTicks(30);
+        checkServer("shapes: as Minus One, no tail strike", level -> {
+            ServerPlayer player = serverPlayer(level);
+            int at = PlayerGodzilla.lastMoveAt(player);
+            int result = level.getServer().getCommands().performPrefixedCommand(player.createCommandSourceStack(), "godzilla tailstrike");
+            return !PlayerGodzilla.canTailStrike(player) && PlayerGodzilla.lastMoveAt(player) == at ? null : "made it anyway (" + result + ")";
+        });
+    }
+
     private static void godzillaKey(String name, int key, PlayerGodzilla.Move move, boolean made) {
         int[] before = {-1};
         server(name + ": before", level -> before[0] = PlayerGodzilla.lastMoveAt(serverPlayer(level)));

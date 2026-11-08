@@ -40,9 +40,13 @@ public class GodzillaModel extends DefaultedEntityGeoModel<GodzillaEntity> {
                 head.setRotY(head.getRotY() - yaw * Mth.DEG_TO_RAD);
             });
         }
+        // the beam (a cube on his mouth, stretched out ahead of it) drawn only as far as the first block in its way:
+        // its length and how far it's pushed out ahead cut down alike, so it still starts at his mouth
+        float reach = entity.getBeamReach(animationState.getPartialTick());
         getBone("B").ifPresent(beam -> {
             beam.setPosY(beam.getPosY() - BEAM_DOWN);
-            beam.setPosZ(beam.getPosZ() - BEAM_FORWARD);
+            beam.setPosZ(beam.getPosZ() * reach - BEAM_FORWARD);
+            beam.setScaleZ(beam.getScaleZ() * reach);
         });
     }
 

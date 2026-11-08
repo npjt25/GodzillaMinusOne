@@ -1,5 +1,6 @@
 package com.npjt25.godzillaminusone.entity;
 
+import com.npjt25.godzillaminusone.Config;
 import com.npjt25.godzillaminusone.GodzillaMinusOne;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -11,6 +12,7 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.item.FallingBlockEntity;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.GlazedTerracottaBlock;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.BlockStateProperties;
 import net.minecraft.world.level.levelgen.Heightmap;
@@ -40,10 +42,20 @@ public final class Destruction {
     // ------------------------------------------------------------------ footprints
 
     /**
+     * The lowest Y a walking Godzilla (the mob, or a player playing as him) destroys anything at, walking or stamping out
+     * a footprint: walkBreaksFromY (60), or what a game test set on the Godzilla under test. Below it, nothing.
+     */
+    public static int walkFloorY(LivingEntity breaker) {
+        return breaker instanceof GodzillaEntity godzilla ? godzilla.walkFloorY() : Config.WALK_BREAKS_FROM_Y.get();
+    }
+
+    /**
      * Crushes a footprint (an ellipse {@code halfWidth} x {@code halfLength} along {@code yaw}) into the ground at
-     * {@code foot}: whatever stood there is flattened, the ground sinks one or two blocks and turns to rubble.
+     * {@code foot}: whatever stood there is flattened, the ground sinks one or two blocks and turns to rubble (nothing
+     * below {@link #walkFloorY}).
      */
     public static void footprint(ServerLevel level, LivingEntity breaker, Vec3 foot, float yaw, double halfWidth, double halfLength) {
+        int floorY = walkFloorY(breaker);
         Vec3 fwd = Vec3.directionFromRotation(0.0F, yaw);
         RandomSource random = level.getRandom();
         int footY = Mth.floor(breaker.getY() + 0.01);
@@ -58,13 +70,13 @@ public final class Destruction {
                 double along = px * fwd.x + pz * fwd.z;
                 double e = Mth.square(across / halfWidth) + Mth.square(along / halfLength);
                 if (e <= 1.0) {
-                    crushColumn(level, breaker, x, z, footY, e < 0.45 ? 2 : 1, random);
+                    crushColumn(level, breaker, x, z, footY, e < 0.45 ? 2 : 1, random, floorY);
                 }
             }
         }
     }
 
-    private static void crushColumn(ServerLevel level, LivingEntity breaker, int x, int z, int footY, int depth, RandomSource random) {
+    private static void crushColumn(ServerLevel level, LivingEntity breaker, int x, int z, int footY, int depth, RandomSource random, int floorY) {
         BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
         // Under water (or lava) the ground is left alone.
         for (int y = footY - 1; y <= footY + 1; y++) {
@@ -73,7 +85,7 @@ public final class Destruction {
             }
         }
         // Everything he treads on (plants, fences, walls, the corner of a house...) up to his shins is flattened.
-        for (int y = footY + 10; y >= footY; y--) {
+        for (int y = footY + 10; y >= Math.max(footY, floorY); y--) {
             BlockState state = level.getBlockState(pos.set(x, y, z));
             if (!state.isAir() && state.getFluidState().isEmpty() && canBreak(level, pos, state, breaker)) {
                 level.setBlock(pos, Blocks.AIR.defaultBlockState(), FLAGS);
@@ -90,7 +102,7 @@ public final class Destruction {
                 ground = y;
                 break;
             }
-            if (!state.isAir() && canBreak(level, pos, state, breaker)) {
+            if (!state.isAir() && y >= floorY && canBreak(level, pos, state, breaker)) {
                 level.setBlock(pos, Blocks.AIR.defaultBlockState(), FLAGS);
             }
         }
@@ -99,13 +111,13 @@ public final class Destruction {
         }
         for (int k = 0; k < depth; k++) {
             BlockState state = level.getBlockState(pos.set(x, ground - k, z));
-            if (!canBreak(level, pos, state, breaker)) {
+            if (ground - k < floorY || !canBreak(level, pos, state, breaker)) {
                 return;
             }
             level.setBlock(pos, Blocks.AIR.defaultBlockState(), FLAGS);
         }
         BlockState floor = level.getBlockState(pos.set(x, ground - depth, z));
-        if (floor.isCollisionShapeFullBlock(level, pos) && canBreak(level, pos, floor, breaker)) {
+        if (ground - depth >= floorY && floor.isCollisionShapeFullBlock(level, pos) && canBreak(level, pos, floor, breaker)) {
             level.setBlock(pos, rubble(random), FLAGS);
         }
     }
@@ -460,6 +472,26 @@ public final class Destruction {
     }
 
     /**
+     * What Godzilla's blows break besides what's built ({@link GodzillaEntity#isBuilt}): the rest of Minecraft's Building
+     * Blocks, though the world makes them too (logs and wood, stripped or not; stone, granite, diorite, andesite, tuff and
+     * deepslate; sandstone and red sandstone; basalt and blackstone; end stone), terracotta of every colour (glazed too),
+     * and mud (mud, packed mud, mud bricks, muddy mangrove roots). Not dirt, sand, gravel and the like: the ground proper.
+     */
+    public static boolean isBuildingBlock(BlockState state) {
+        return state.is(BlockTags.LOGS) || state.is(BlockTags.BASE_STONE_OVERWORLD) || state.is(BlockTags.TERRACOTTA)
+                || state.getBlock() instanceof GlazedTerracottaBlock || state.is(Blocks.MUD) || state.is(Blocks.PACKED_MUD)
+                || state.is(Blocks.MUD_BRICKS) || state.is(Blocks.MUD_BRICK_SLAB) || state.is(Blocks.MUD_BRICK_STAIRS)
+                || state.is(Blocks.MUD_BRICK_WALL) || state.is(Blocks.MUDDY_MANGROVE_ROOTS) || state.is(Blocks.SANDSTONE)
+                || state.is(Blocks.RED_SANDSTONE) || state.is(Blocks.BASALT) || state.is(Blocks.BLACKSTONE) || state.is(Blocks.END_STONE)
+                || state.is(Blocks.INFESTED_STONE) || state.is(Blocks.INFESTED_DEEPSLATE);
+    }
+
+    /** Whether Godzilla's blows (claws, jaws, tail) break this: what's built, and the rest of the Building Blocks. */
+    public static boolean godzillaBreaks(BlockState state) {
+        return GodzillaEntity.isBuilt(state) || !state.isAir() && state.getFluidState().isEmpty() && isBuildingBlock(state);
+    }
+
+    /**
      * A block of a building Godzilla hits comes away and topples: a solid block flies off as a falling block, thrown
      * along {@code push}, and lands as rubble wherever it comes down (nothing drops). Anything else, and solid blocks once
      * {@code budget} is used up, just breaks (with Minecraft's own break effects, which a physics mod can pick up).
@@ -478,8 +510,9 @@ public final class Destruction {
     }
 
     /**
-     * Godzilla's claws (or jaws) rake through what's built within {@code radius} of {@code center}: solid blocks topple
-     * along {@code push}, the rest breaks (the ground and liquids are left; nothing drops).
+     * Godzilla's claws (or jaws) rake through what's built (and the rest of the Building Blocks: {@link #godzillaBreaks})
+     * within {@code radius} of {@code center}: solid blocks topple along {@code push}, the rest breaks (the ground and
+     * liquids are left; nothing drops).
      */
     static void tearThrough(ServerLevel level, LivingEntity breaker, Vec3 center, double radius, Vec3 push) {
         int r = Mth.ceil(radius);
@@ -494,7 +527,7 @@ public final class Destruction {
                     }
                     pos.set(middle.getX() + dx, middle.getY() + dy, middle.getZ() + dz);
                     BlockState state = level.getBlockState(pos);
-                    if (!GodzillaEntity.isBuilt(state) || !canBreak(level, pos, state, breaker)) {
+                    if (!godzillaBreaks(state) || !canBreak(level, pos, state, breaker)) {
                         continue;
                     }
                     if (topple(level, pos, state, push, toppled < 60)) {
@@ -590,7 +623,7 @@ public final class Destruction {
                 Vec3 push = new Vec3(dx / d * 1.2 - dz / d * 0.8, 0.6, dz / d * 1.2 + dx / d * 0.8);
                 for (int y = this.y0; y <= this.y0 + this.height; y++) {
                     BlockState state = this.level.getBlockState(pos.set(this.cx + dx, y, this.cz + dz));
-                    if (this.everything ? state.isAir() || !state.getFluidState().isEmpty() : !GodzillaEntity.isBuilt(state)) {
+                    if (this.everything ? state.isAir() || !state.getFluidState().isEmpty() : !godzillaBreaks(state)) {
                         continue;
                     }
                     if (!canBreak(this.level, pos, state, by)) {

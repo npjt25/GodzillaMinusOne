@@ -52,6 +52,13 @@ public class GodzillaRenderer extends GeoEntityRenderer<GodzillaEntity> {
     private static final String BEAM_BONE = "B";
     /** The plate at the tip of his tail (Minus Zero's tail strike: punched up and glowing). */
     private static final String TAIL_TIP_BONE = "T22";
+    /**
+     * Its glow, drawn over itself (additive): {across, up, along} size, as many times the plate's own, and {red, green,
+     * blue}: twice at its own size, white-hot, then ever bigger and bluer.
+     */
+    private static final float[][] TAIL_HALO = {
+            {1.0F, 1.0F, 1.0F, 1.0F, 1.0F, 1.0F}, {1.0F, 1.0F, 1.0F, 0.8F, 0.95F, 1.0F},
+            {2.6F, 1.18F, 1.18F, 0.45F, 0.8F, 1.0F}, {4.5F, 1.4F, 1.4F, 0.3F, 0.6F, 1.0F}, {7.0F, 1.7F, 1.7F, 0.15F, 0.35F, 0.9F}};
     private static final Set<String> BURN_BONES = Set.of("Head", "Jew", "neck2");
     /** Seconds the burnt flesh keeps glowing hot. */
     private static final float BURN_HEAT_SECONDS = 8.0F;
@@ -71,6 +78,8 @@ public class GodzillaRenderer extends GeoEntityRenderer<GodzillaEntity> {
     }
 
     private Pass pass = Pass.MODEL;
+    /** The TAIL_TIP pass's size (across, up, along his tail), as many times the plate's own. */
+    private float[] tipHalo = {1.0F, 1.0F, 1.0F};
     private float chargeSeconds;
     private float coolingFade;
 
@@ -123,7 +132,13 @@ public class GodzillaRenderer extends GeoEntityRenderer<GodzillaEntity> {
             }
             case TAIL_TIP -> {
                 if (TAIL_TIP_BONE.equals(name)) {
+                    // a halo: the plate drawn again, bigger (out from its foot on his tail; thicker most of all)
+                    poseStack.pushPose();
+                    poseStack.translate(bone.getPivotX() / 16.0F, bone.getPivotY() / 16.0F, bone.getPivotZ() / 16.0F);
+                    poseStack.scale(this.tipHalo[0], this.tipHalo[1], this.tipHalo[2]);
+                    poseStack.translate(-bone.getPivotX() / 16.0F, -bone.getPivotY() / 16.0F, -bone.getPivotZ() / 16.0F);
                     super.renderCubesOfBone(poseStack, bone, buffer, packedLight, packedOverlay, red, green, blue, alpha);
+                    poseStack.popPose();
                 }
             }
         }
@@ -245,12 +260,16 @@ public class GodzillaRenderer extends GeoEntityRenderer<GodzillaEntity> {
                 }
             }
             if (entity.isTailGlowing()) {
-                // Minus Zero's tail strike wound up: the plate at the tip of his tail, a sharp blue
+                // Minus Zero's tail strike wound up: the plate at the tip of his tail blazing blue-white, its glow spilling
+                // out round it in a broad halo, pulsing
                 float pulse = 0.85F + 0.15F * Mth.sin((entity.tickCount + partialTick) * 0.9F);
-                this.godzilla.renderPass(Pass.TAIL_TIP, poseStack, entity, model, buffers, RenderType.eyes(this.godzilla.plateGlow()), partialTick,
-                        0.45F * pulse, 0.8F * pulse, 1.0F * pulse);
-                this.godzilla.renderPass(Pass.TAIL_TIP, poseStack, entity, model, buffers, RenderType.eyes(this.godzilla.plateGlow()), partialTick,
-                        0.25F * pulse, 0.55F * pulse, 1.0F * pulse);
+                RenderType glow = RenderType.eyes(this.godzilla.plateGlow());
+                for (float[] layer : TAIL_HALO) {
+                    this.godzilla.tipHalo = new float[] {layer[0], layer[1], layer[2]};
+                    this.godzilla.renderPass(Pass.TAIL_TIP, poseStack, entity, model, buffers, glow, partialTick,
+                            layer[3] * pulse, layer[4] * pulse, layer[5] * pulse);
+                }
+                this.godzilla.tipHalo = new float[] {1.0F, 1.0F, 1.0F};
             }
             int state = entity.getChargeState();
             if (state == GodzillaEntity.CHARGE_NONE) {

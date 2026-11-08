@@ -25,6 +25,7 @@ public final class Config {
     public static final ForgeConfigSpec.DoubleValue STEP_DAMAGE;
     public static final ForgeConfigSpec.IntValue STEP_RADIUS;
     public static final ForgeConfigSpec.BooleanValue FOOTPRINTS;
+    public static final ForgeConfigSpec.IntValue WALK_BREAKS_FROM_Y;
     public static final ForgeConfigSpec.BooleanValue KNOCKS_DOWN_TALL_BUILDINGS;
     public static final ForgeConfigSpec.IntValue TALL_BUILDING_HEIGHT;
     public static final ForgeConfigSpec.IntValue KNOCK_DOWN_TO_HEIGHT;
@@ -114,6 +115,12 @@ public final class Config {
         FOOTPRINTS = BUILDER
                 .comment("Each step crushes what he walks on into a footprint of rubble (also needs breaksBlocks and mobGriefing).")
                 .define("footprints", true);
+        WALK_BREAKS_FROM_Y = BUILDER
+                .comment("Walking (Godzilla, Minus Zero, and a player playing as either), he destroys everything in his path",
+                        "at this Y level or above (buildings, trees, the hillside: anything but liquids and bedrock) and stamps",
+                        "footprints there; below it he destroys nothing as he walks (his blows and his breath are another matter).",
+                        "Also needs breaksBlocks and mobGriefing.")
+                .defineInRange("walkBreaksFromY", 60, -2048, 2048);
         KNOCKS_DOWN_TALL_BUILDINGS = BUILDER
                 .comment("When there's nothing for him to kill and he sees a building (or anything else built) standing",
                         "demolishFromHeight blocks or more above the ground, he goes over and smashes it down to demolishDownToHeight,",

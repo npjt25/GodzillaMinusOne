@@ -731,34 +731,22 @@ final class Scenes {
         Object[] beamCam = {new Vec3(775.0, -5.0, 70.0), new Vec3(700.5, 10.0, 40.0), 70};
         Object[] cloudCam = {new Vec3(730.0, 20.0, 90.0), new Vec3(700.5, 110.0, 423.0), 90};
         Object[] platesCam = {new Vec3(760.0, 10.0, -30.0), new Vec3(700.5, -5.0, -5.0), 70};
+        Object[] wallCam = {new Vec3(782.0, 12.0, 52.0), new Vec3(700.5, 0.0, 55.0), 80};
         int second = GodzillaEntity.SURGE_TICK;
-        Object[][] steps = {
-                {"charging", 300, beamCam}, {"beam", 320, beamCam},
-                {"first_blast", GodzillaEntity.CHARGE_BLAST_TICK + 10, cloudCam}, {"first_blast_cloud", GodzillaEntity.CHARGE_BLAST_TICK + 34, cloudCam},
-                {"glow_dimmed", GodzillaEntity.CHARGE_BLAST_TICK + 40, platesCam}, {"plates_relit", second - 6, platesCam},
-                {"second_laser", second + 8, beamCam},
-                {"second_blast", GodzillaEntity.SECOND_BLAST_TICK + 10, cloudCam}, {"second_blast_cloud", GodzillaEntity.SECOND_BLAST_TICK + 34, cloudCam}};
-        Object[] cam = null;
-        for (Object[] step : steps) {
-            int at = (Integer) step[1];
-            if (step[2] != cam) {
-                cam = (Object[]) step[2];
-                camera("minus zero: " + step[0], (Vec3) cam[0], (Vec3) cam[1], (Integer) cam[2]);
-            }
-            until("minus zero: " + step[0] + " (charge tick " + at + ")", () -> {
-                GodzillaMinusZeroEntity z = find(GodzillaMinusZeroEntity.class);
-                return z != null && z.getChargeState() == GodzillaEntity.CHARGE_GLOWING
-                        && z.getChargeSeconds(0.0F) * 20.0F + GodzillaEntity.ANIM_TRANSITION >= at;
-            }, 700);
-            checkServer("minus zero: " + step[0] + ", where his charge is", level -> {
-                List<GodzillaMinusZeroEntity> zs = level.getEntitiesOfClass(GodzillaMinusZeroEntity.class, new AABB(ONE_AT, ONE_AT).inflate(50.0));
-                GodzillaMinusZeroEntity client = find(GodzillaMinusZeroEntity.class);
-                log(String.format("minus zero: %s: server charge tick %d, client charge seconds %.2f", step[0],
-                        zs.isEmpty() ? -1 : zs.get(0).getChargeTicks(), client == null ? -1.0F : client.getChargeSeconds(0.0F)));
-                return null;
-            });
-            shot("minus_zero_" + step[0]);
-        }
+        zeroChargeShot("charging", 300, beamCam);
+        zeroChargeShot("beam", 320, beamCam);
+        // a wall 100 blocks ahead of him, across his beam: it stops there (drawn no further, its impact on the wall), not
+        // through it; taken down before his blast goes off (out where his beam reaches, in the air)
+        commands("fill 684 -60 100 717 30 100 minecraft:stone_bricks");
+        zeroChargeShot("beam_stops_at_wall", 334, wallCam);
+        commands("fill 684 -60 100 717 30 100 minecraft:air");
+        zeroChargeShot("first_blast", GodzillaEntity.CHARGE_BLAST_TICK + 10, cloudCam);
+        zeroChargeShot("first_blast_cloud", GodzillaEntity.CHARGE_BLAST_TICK + 34, cloudCam);
+        zeroChargeShot("glow_dimmed", GodzillaEntity.CHARGE_BLAST_TICK + 40, platesCam);
+        zeroChargeShot("plates_relit", second - 6, platesCam);
+        zeroChargeShot("second_laser", second + 8, beamCam);
+        zeroChargeShot("second_blast", GodzillaEntity.SECOND_BLAST_TICK + 10, cloudCam);
+        zeroChargeShot("second_blast_cloud", GodzillaEntity.SECOND_BLAST_TICK + 34, cloudCam);
         // his beam over (the client's charge clock starts again from there): his burns at their worst
         camera("minus zero: burnt", new Vec3(700.5, 8.0, 78.0), new Vec3(700.5, 4.0, 20.0), 70);
         until("minus zero: his beam over", () -> {
@@ -796,6 +784,35 @@ final class Scenes {
         once("minus zero: hud off", () -> mc().options.hideGui = true);
         commands("fill 690 -60 0 690 -14 0 minecraft:air", "fill 780 -60 0 780 33 0 minecraft:air");
         server("minus zero: done", level -> serverPlayer(level).getInventory().clearContent());
+    }
+
+    /** The camera Minus Zero's charge is being shot from (zeroChargeShot moves it only when a shot wants another). */
+    @Nullable
+    private static Object[] zeroCam;
+
+    /**
+     * A shot of Minus Zero's charge, {@code at} ticks into it (by the client's clock, his animation's), from {@code cam}
+     * ({eye, target, fov}), logged with where his charge is on the server and the client.
+     */
+    private static void zeroChargeShot(String name, int at, Object[] cam) {
+        if (cam != zeroCam) {
+            zeroCam = cam;
+            camera("minus zero: " + name, (Vec3) cam[0], (Vec3) cam[1], (Integer) cam[2]);
+        }
+        until("minus zero: " + name + " (charge tick " + at + ")", () -> {
+            GodzillaMinusZeroEntity z = find(GodzillaMinusZeroEntity.class);
+            return z != null && z.getChargeState() == GodzillaEntity.CHARGE_GLOWING
+                    && z.getChargeSeconds(0.0F) * 20.0F + GodzillaEntity.ANIM_TRANSITION >= at;
+        }, 700);
+        checkServer("minus zero: " + name + ", where his charge is", level -> {
+            List<GodzillaMinusZeroEntity> zs = level.getEntitiesOfClass(GodzillaMinusZeroEntity.class, new AABB(ONE_AT, ONE_AT).inflate(50.0));
+            GodzillaMinusZeroEntity client = find(GodzillaMinusZeroEntity.class);
+            log(String.format("minus zero: %s: server charge tick %d, client charge seconds %.2f, beam drawn %.2f of its length", name,
+                    zs.isEmpty() ? -1 : zs.get(0).getChargeTicks(), client == null ? -1.0F : client.getChargeSeconds(0.0F),
+                    client == null ? -1.0F : client.getBeamReach(1.0F)));
+            return null;
+        });
+        shot("minus_zero_" + name);
     }
 
     // ------------------------------------------------------------------ the Shinsei Maru

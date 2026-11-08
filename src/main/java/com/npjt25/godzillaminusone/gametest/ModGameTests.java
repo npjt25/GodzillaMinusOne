@@ -52,6 +52,7 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.entity.ChestBlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
@@ -84,9 +85,26 @@ import java.util.UUID;
 public final class ModGameTests {
     private static final String FLOOR = "test_floor";
 
+    /**
+     * (The tests' pocket is at y -60: below walkBreaksFromY, 60, he'd destroy nothing as he walks there. Each test's
+     * Godzilla walks as he did before that rule, through whatever is in his way; walkingHeDestroysOnlyFromY60Up checks the
+     * rule itself.)
+     */
     private static GodzillaEntity spawnGodzilla(GameTestHelper helper) {
         removeLeftoverGodzillas(helper);
-        return helper.spawn(ModEntities.GODZILLA.get(), 4, 1, 4);
+        GodzillaEntity godzilla = helper.spawn(ModEntities.GODZILLA.get(), 4, 1, 4);
+        godzilla.setWalkFloorY(Integer.MIN_VALUE);
+        return godzilla;
+    }
+
+    /** Air in place of everything round {@code center} (absolute), {@code radius} out and from its row to {@code height} above. */
+    private static void clearAround(GameTestHelper helper, Vec3 center, int radius, int height) {
+        BlockPos middle = BlockPos.containing(center);
+        for (BlockPos pos : BlockPos.betweenClosed(middle.offset(-radius, 0, -radius), middle.offset(radius, height, radius))) {
+            if (!helper.getLevel().getBlockState(pos).isAir()) {
+                helper.getLevel().setBlock(pos, Blocks.AIR.defaultBlockState(), 2);
+            }
+        }
     }
 
     private static void removeLeftoverGodzillas(GameTestHelper helper) {
@@ -705,6 +723,9 @@ public final class ModGameTests {
                 "J (the third key) should bite with his bite animation, was " + bite + " / " + bite.animation);
         helper.assertTrue(PlayerGodzilla.Move.ATOMIC_BREATH.length == GodzillaEntity.BEAM_END_TICK + GodzillaEntity.ROAR_TICKS,
                 "his breath (and his being rooted) should last until the roar after the beam is over");
+        PlayerGodzilla.Move strike = PlayerGodzilla.Move.values()[5];
+        helper.assertTrue(strike == PlayerGodzilla.Move.TAIL_STRIKE && "tail_strike".equals(strike.animation)
+                        && strike.length == 64, "X (the sixth key) should be Minus Zero's tail strike, was " + strike + " / " + strike.animation);
         helper.assertTrue(Math.abs(PlayerOdo.runSpeedAttribute() * 43.17 - 12.0) < 1.0E-6, "the Odo should run at 12 blocks a second");
         helper.succeed();
     }
@@ -921,6 +942,14 @@ public final class ModGameTests {
         godzilla.moveTo(helper.absoluteVec(new Vec3(4.5, floor + 1, 4.5)));
         helper.setBlock(new BlockPos(4, floor + 1, 6), Blocks.POPPY.defaultBlockState());
         Vec3 foot = helper.absoluteVec(new Vec3(4.5, floor + 1, 4.5));
+        // below walkBreaksFromY (60; the test is at -60) his foot comes down and nothing gives
+        godzilla.setWalkFloorY(null);
+        helper.assertTrue(godzilla.walkFloorY() == 60, "by default he should destroy nothing below Y 60 as he walks, was " + godzilla.walkFloorY());
+        Destruction.footprint(helper.getLevel(), godzilla, foot, 0.0F, 2.6, 4.6);
+        helper.assertBlockPresent(Blocks.POPPY, new BlockPos(4, floor + 1, 6));
+        helper.assertBlockPresent(Blocks.STONE, new BlockPos(4, floor, 4));
+        // at it or above, the footprint
+        godzilla.setWalkFloorY(floor - 10 + helper.absolutePos(BlockPos.ZERO).getY());
         Destruction.footprint(helper.getLevel(), godzilla, foot, 0.0F, 2.6, 4.6);
         remove(godzilla);
         helper.assertBlockPresent(Blocks.AIR, new BlockPos(4, floor + 1, 6));
@@ -1308,6 +1337,8 @@ public final class ModGameTests {
     public static void godzillasClawsAndTailTearDownBuildings(GameTestHelper helper) {
         int floor = floorY(helper);
         GodzillaEntity godzilla = spawnActiveGodzilla(helper);
+        // (the rock round the tests' pocket is something his tail breaks now too: cleared, so the pillars are what it reaches)
+        clearAround(helper, godzilla.position(), 30, 11);
         Vec3 claws = godzilla.clawPosition(1.0);
         BlockPos rake = BlockPos.containing(claws);
         // a wall of stone bricks where his claws rake...
@@ -1350,6 +1381,88 @@ public final class ModGameTests {
         }
         helper.assertTrue(standing == 0, "his tail should knock away what's built round him, " + standing + " of 32 blocks left");
         helper.assertTrue(helper.getBlockState(new BlockPos(4, floor, 4)).is(Blocks.STONE), "the ground should stay");
+        remove(godzilla);
+        helper.succeed();
+    }
+
+    /**
+     * Walking, he destroys everything in his path at walkBreaksFromY (60) and above, ground and all (here, with that level
+     * set on him a few blocks above his feet: the tests are at y -60), and nothing below it.
+     */
+    @GameTest(template = FLOOR, batch = "gmo_walk_floor", timeoutTicks = 40)
+    public static void walkingHeDestroysOnlyFromY60Up(GameTestHelper helper) {
+        GodzillaEntity godzilla = spawnActiveGodzilla(helper);
+        int floor = floorY(helper);
+        godzilla.setYRot(0.0F);
+        godzilla.setYBodyRot(0.0F);
+        Vec3 feet = godzilla.position();
+        clearAround(helper, feet, 16, 12);
+        int feetY = BlockPos.containing(feet).getY();
+        // a wall in his path, 6 high: rock, earth, logs, terracotta, mud...
+        BlockState[] kinds = {Blocks.DIRT.defaultBlockState(), Blocks.STONE.defaultBlockState(), Blocks.GRANITE.defaultBlockState(),
+                Blocks.TERRACOTTA.defaultBlockState(), Blocks.MUD.defaultBlockState(), Blocks.OAK_LOG.defaultBlockState()};
+        BlockPos wall = BlockPos.containing(feet.x, feetY, feet.z + 7.0);
+        for (int dx = -2; dx <= 2; dx++) {
+            for (int dy = 1; dy <= 6; dy++) {
+                helper.getLevel().setBlockAndUpdate(wall.offset(dx, dy, 0), kinds[(dx + 2 + dy) % kinds.length]);
+            }
+        }
+        godzilla.setWalkFloorY(feetY + 4);
+        godzilla.smashPathNow();
+        int below = 0;
+        int above = 0;
+        for (int dx = -2; dx <= 2; dx++) {
+            for (int dy = 1; dy <= 6; dy++) {
+                boolean standing = !helper.getLevel().getBlockState(wall.offset(dx, dy, 0)).isAir();
+                if (dy < 4 && standing) {
+                    below++;
+                } else if (dy >= 4 && standing) {
+                    above++;
+                }
+            }
+        }
+        helper.assertTrue(above == 0, "walking, he should destroy everything in his path from that level up, " + above + " of 15 left");
+        helper.assertTrue(below == 15, "and nothing below it, " + (15 - below) + " of 15 gone");
+        remove(godzilla);
+        helper.succeed();
+    }
+
+    /**
+     * His blows break the Building Blocks as well as what's built: terracotta (glazed too), mud, granite, andesite, stone,
+     * deepslate, logs and stripped wood. Not the ground proper (dirt).
+     */
+    @GameTest(template = FLOOR, batch = "gmo_building_blocks", timeoutTicks = 40)
+    public static void hisClawsBreakTheBuildingBlocks(GameTestHelper helper) {
+        GodzillaEntity godzilla = spawnActiveGodzilla(helper);
+        BlockPos rake = BlockPos.containing(godzilla.clawPosition(1.0));
+        Block[] kinds = {Blocks.TERRACOTTA, Blocks.ORANGE_TERRACOTTA, Blocks.CYAN_GLAZED_TERRACOTTA, Blocks.MUD, Blocks.PACKED_MUD,
+                Blocks.MUD_BRICKS, Blocks.GRANITE, Blocks.ANDESITE, Blocks.STONE, Blocks.DEEPSLATE, Blocks.OAK_LOG, Blocks.STRIPPED_OAK_LOG,
+                Blocks.STRIPPED_SPRUCE_WOOD, Blocks.SANDSTONE, Blocks.DIORITE};
+        List<BlockPos> wall = new ArrayList<>();
+        int i = 0;
+        for (int dx = -2; dx <= 2; dx++) {
+            for (int dy = -1; dy <= 1; dy++) {
+                BlockPos pos = rake.offset(dx, dy, 0);
+                helper.getLevel().setBlockAndUpdate(pos, kinds[i++ % kinds.length].defaultBlockState());
+                wall.add(pos);
+            }
+        }
+        BlockPos dirt = rake.offset(0, 2, 0);
+        helper.getLevel().setBlockAndUpdate(dirt, Blocks.DIRT.defaultBlockState());
+        for (Block kind : kinds) {
+            helper.assertTrue(Destruction.godzillaBreaks(kind.defaultBlockState()), kind + " should be among what his blows break");
+        }
+        helper.assertFalse(Destruction.godzillaBreaks(Blocks.DIRT.defaultBlockState()), "the ground proper (dirt) shouldn't be");
+        godzilla.strikeNow("swipe_right");
+        List<String> left = new ArrayList<>();
+        for (BlockPos pos : wall) {
+            BlockState state = helper.getLevel().getBlockState(pos);
+            if (!state.isAir()) {
+                left.add(state.getBlock().toString());
+            }
+        }
+        helper.assertTrue(left.isEmpty(), "his claws should tear through all of it, left: " + left);
+        helper.assertTrue(helper.getLevel().getBlockState(dirt).is(Blocks.DIRT), "and leave the ground proper");
         remove(godzilla);
         helper.succeed();
     }

@@ -34,6 +34,7 @@ public final class ClientSetup {
     @SubscribeEvent
     public static void onClientSetup(FMLClientSetupEvent event) {
         EffectHooks.particleKeyframe = Fx::keyframe;
+        EffectHooks.beamImpact = Fx::beamImpact;
         event.enqueueWork(() -> MenuScreens.register(ModMenus.SHINSEI_MARU.get(), ShinseiMaruScreen::new));
     }
 

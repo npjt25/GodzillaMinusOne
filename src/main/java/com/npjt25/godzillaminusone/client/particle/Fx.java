@@ -15,6 +15,8 @@ import net.minecraft.tags.FluidTags;
 import net.minecraft.util.Mth;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.core.particles.BlockParticleOption;
+import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.registries.RegistryObject;
 import org.jetbrains.annotations.Nullable;
@@ -169,9 +171,10 @@ public final class Fx {
                     .life(10 + RANDOM.nextInt(15)).size(1.2F, 0.2F).additive()
                     .colors(0.0F, 0xFFFFFFFF, 0.3F, 0xFF66CCFF, 1.0F, 0x003399FF).spawn();
         }
-        // for as long as the beam lasts his jaws blaze blue, so it plainly pours out of his mouth
-        ClientFx.addEmitter(84, tick -> {
-            if (g.isRemoved() || !g.isCharging()) {
+        // for as long as the beam lasts his jaws blaze blue, so it plainly pours out of his mouth (Minus Zero's, through
+        // both his beams)
+        ClientFx.addEmitter(g.beamEndTick() - GodzillaEntity.BEAM_START_TICK, tick -> {
+            if (g.isRemoved() || g.getChargeState() != GodzillaEntity.CHARGE_GLOWING) {
                 return;
             }
             Vec3[] line = g.beamLine(g.getAimPitch(1.0F));
@@ -185,6 +188,37 @@ public final class Fx {
                         .colors(0.0F, 0xFFFFFFFF, 0.3F, 0xFF66CCFF, 1.0F, 0x003399FF).spawn();
             }
         });
+    }
+
+    /**
+     * Where Godzilla's beam is stopped by a block (a building, a hillside, anything in its way: it doesn't go through), each
+     * tick it's there: a blinding blue-white flash, blue fire spraying off it, debris of what it hits and smoke boiling up.
+     */
+    public static void beamImpact(GodzillaEntity g, Vec3 at, Vec3 normal, BlockState block) {
+        ClientLevel level = Minecraft.getInstance().level;
+        if (level == null) {
+            return;
+        }
+        float s = (float) g.bodyScale();
+        of(ModParticles.GLOW).at(at).life(3).size(14.0F * s, 9.0F * s).additive()
+                .colors(0.0F, 0xF0E8F8FF, 1.0F, 0x0066CCFF).spawn();
+        for (int i = 0; i < 8; i++) {
+            Vec3 v = normal.scale(rand(0.4, 1.4) * s).add(rand(-0.9, 0.9) * s, rand(-0.4, 0.9) * s, rand(-0.9, 0.9) * s);
+            of(ModParticles.BLUE_FLAME).at(at).velocity(v.x, v.y, v.z).life(8 + RANDOM.nextInt(10)).size(3.0F * s, 0.6F * s).additive()
+                    .colors(0.0F, 0xFFFFFFFF, 0.3F, 0xFF66CCFF, 1.0F, 0x003399FF).spawn();
+        }
+        if (RANDOM.nextInt(2) == 0) {
+            of(ModParticles.SMOKE).at(at.add(normal.scale(2.0 * s))).velocity(normal.x * 0.3 + rand(-0.1, 0.1), rand(0.15, 0.4), normal.z * 0.3 + rand(-0.1, 0.1))
+                    .life(80 + RANDOM.nextInt(40)).size(5.0F * s, 12.0F * s).friction(0.96F)
+                    .colors(0.0F, 0xC0463921, 0.47F, 0xA0291B10, 0.93F, 0x212A2A2A, 1.0F, 0x002A2A2A).spawn();
+        }
+        if (!block.isAir()) {
+            for (int i = 0; i < 6; i++) {
+                Vec3 v = normal.scale(rand(0.3, 0.9)).add(rand(-0.5, 0.5), rand(0.1, 0.8), rand(-0.5, 0.5));
+                level.addAlwaysVisibleParticle(new BlockParticleOption(ParticleTypes.BLOCK, block), true,
+                        at.x + rand(-1.5, 1.5) * s, at.y + rand(-1.5, 1.5) * s, at.z + rand(-1.5, 1.5) * s, v.x, v.y, v.z);
+            }
+        }
     }
 
     private static void splash(Vec3 center, double minRadius, double maxRadius, int count) {
