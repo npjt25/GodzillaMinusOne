@@ -2,6 +2,7 @@ package com.npjt25.godzillaminusone.client;
 
 import com.npjt25.godzillaminusone.GodzillaMinusOne;
 import com.npjt25.godzillaminusone.client.particle.Fx;
+import com.npjt25.godzillaminusone.client.render.GodzillaMinusZeroRenderer;
 import com.npjt25.godzillaminusone.client.render.GodzillaRenderer;
 import com.npjt25.godzillaminusone.client.render.GodzillaStatueRenderer;
 import com.npjt25.godzillaminusone.client.render.NavalMineRenderer;
@@ -39,6 +40,7 @@ public final class ClientSetup {
     @SubscribeEvent
     public static void registerRenderers(EntityRenderersEvent.RegisterRenderers event) {
         event.registerEntityRenderer(ModEntities.GODZILLA.get(), GodzillaRenderer::new);
+        event.registerEntityRenderer(ModEntities.GODZILLA_MINUS_ZERO.get(), GodzillaMinusZeroRenderer::new);
         event.registerEntityRenderer(ModEntities.SHINDEN.get(), ShindenRenderer::new);
         event.registerEntityRenderer(ModEntities.NAVAL_MINE.get(), NavalMineRenderer::new);
         event.registerEntityRenderer(ModEntities.ODO_ISLAND_MONSTER.get(), OdoIslandMonsterRenderer::new);

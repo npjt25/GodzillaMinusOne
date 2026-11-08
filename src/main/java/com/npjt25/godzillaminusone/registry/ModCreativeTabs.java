@@ -16,6 +16,7 @@ public final class ModCreativeTabs {
             .icon(() -> new ItemStack(ModItems.GODZILLA_SPAWN_EGG.get()))
             .displayItems((params, output) -> {
                 output.accept(ModItems.GODZILLA_SPAWN_EGG.get());
+                output.accept(ModItems.GODZILLA_MINUS_ZERO_SPAWN_EGG.get());
                 output.accept(ModItems.ODO_ISLAND_MONSTER_SPAWN_EGG.get());
                 output.accept(ModItems.SHINDEN_SPAWN_EGG.get());
                 output.accept(ModItems.NAVAL_MINE_SPAWN_EGG.get());

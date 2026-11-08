@@ -16,6 +16,7 @@ public final class Config {
     public static final ForgeConfigSpec.BooleanValue GODZILLA_ONLY_HURT_BY_EXPLOSIVES;
     public static final ForgeConfigSpec.DoubleValue MINE_DAMAGE_PERCENT;
     public static final ForgeConfigSpec.BooleanValue GODZILLA_REGENERATES;
+    public static final ForgeConfigSpec.BooleanValue EVOLVES_INTO_MINUS_ZERO;
     public static final ForgeConfigSpec.DoubleValue CALM_REGEN_PERCENT;
     public static final ForgeConfigSpec.BooleanValue GODZILLA_BREAKS_BLOCKS;
     public static final ForgeConfigSpec.BooleanValue GODZILLA_TARGETS_ALL_MOBS;
@@ -83,6 +84,11 @@ public final class Config {
                 .comment("When his health reaches zero he collapses, lies dead, then regenerates and rises again (add-on behaviour).",
                         "Set false to let him die for good.")
                 .define("regenerates", true);
+        EVOLVES_INTO_MINUS_ZERO = BUILDER
+                .comment("When Godzilla Minus One's health reaches zero he collapses, lies there for downedSeconds, and then rises as",
+                        "Godzilla Minus Zero (twice his height; every move and number his), once, in his place. Minus Zero brought",
+                        "down falls for good. Set false for Minus One to regenerate (or die, with regenerates = false) as before.")
+                .define("evolvesIntoMinusZero", true);
         CALM_REGEN_PERCENT = BUILDER
                 .comment("Percent of max health healed every 5 seconds while he has no target.")
                 .defineInRange("calmRegenPercent", 0.5, 0.0, 100.0);

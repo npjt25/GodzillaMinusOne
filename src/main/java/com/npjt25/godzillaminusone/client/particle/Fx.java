@@ -87,7 +87,7 @@ public final class Fx {
                         // animation.gojira.swim_bite: the jaws slam into the water
                         splash(godzilla.locator(0.0, GodzillaEntity.SWIM_SINK, GodzillaEntity.SWIM_BITE_REACH), 0.0, 6.0, 40);
                     } else {
-                        splash(godzilla.isSwimmingAtSurface() ? godzilla.position().add(0.0, GodzillaEntity.SWIM_SINK, 0.0)
+                        splash(godzilla.isSwimmingAtSurface() ? godzilla.position().add(0.0, GodzillaEntity.SWIM_SINK * godzilla.bodyScale(), 0.0)
                                 : godzilla.position().add(0.0, godzilla.getFluidHeight(FluidTags.WATER), 0.0), 5.0, 10.0, 24);
                     }
                 }

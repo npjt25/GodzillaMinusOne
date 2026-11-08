@@ -62,6 +62,7 @@ public class GodzillaMinusOne {
 
     private void registerAttributes(EntityAttributeCreationEvent event) {
         event.put(ModEntities.GODZILLA.get(), GodzillaEntity.createAttributes().build());
+        event.put(ModEntities.GODZILLA_MINUS_ZERO.get(), GodzillaEntity.createAttributes().build());
         event.put(ModEntities.SHINDEN.get(), ShindenEntity.createAttributes().build());
         event.put(ModEntities.NAVAL_MINE.get(), NavalMineEntity.createAttributes().build());
         event.put(ModEntities.ODO_ISLAND_MONSTER.get(), OdoIslandMonsterEntity.createAttributes().build());

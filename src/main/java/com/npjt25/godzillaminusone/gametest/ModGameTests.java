@@ -8,6 +8,7 @@ import com.npjt25.godzillaminusone.entity.Blasts;
 import com.npjt25.godzillaminusone.entity.Destruction;
 import com.npjt25.godzillaminusone.entity.Flattening;
 import com.npjt25.godzillaminusone.entity.GodzillaEntity;
+import com.npjt25.godzillaminusone.entity.GodzillaMinusZeroEntity;
 import com.npjt25.godzillaminusone.entity.GodzillaStatueEntity;
 import com.npjt25.godzillaminusone.entity.NavalMineEntity;
 import com.npjt25.godzillaminusone.entity.NuclearBombEntity;
@@ -84,11 +85,18 @@ public final class ModGameTests {
     private static final String FLOOR = "test_floor";
 
     private static GodzillaEntity spawnGodzilla(GameTestHelper helper) {
-        for (GodzillaEntity leftover : helper.getLevel().getEntities(ModEntities.GODZILLA.get(), e -> true)) {
-            GodzillaMinusOne.LOGGER.info("test at {}: removing a leftover Godzilla at {}", helper.absolutePos(BlockPos.ZERO), leftover.position());
+        removeLeftoverGodzillas(helper);
+        return helper.spawn(ModEntities.GODZILLA.get(), 4, 1, 4);
+    }
+
+    private static void removeLeftoverGodzillas(GameTestHelper helper) {
+        List<GodzillaEntity> leftovers = new ArrayList<>(helper.getLevel().getEntities(ModEntities.GODZILLA.get(), e -> true));
+        leftovers.addAll(helper.getLevel().getEntities(ModEntities.GODZILLA_MINUS_ZERO.get(), e -> true));
+        for (GodzillaEntity leftover : leftovers) {
+            GodzillaMinusOne.LOGGER.info("test at {}: removing a leftover {} at {}", helper.absolutePos(BlockPos.ZERO),
+                    leftover.getType().toShortString(), leftover.position());
             leftover.discard();
         }
-        return helper.spawn(ModEntities.GODZILLA.get(), 4, 1, 4);
     }
 
     private static GodzillaEntity spawnActiveGodzilla(GameTestHelper helper) {
@@ -223,11 +231,13 @@ public final class ModGameTests {
         helper.succeed();
     }
 
+    /** With evolvesIntoMinusZero off, he gets up again himself, as before there was a Minus Zero. */
     @GameTest(template = FLOOR, batch = "gmo_regenerate", timeoutTicks = 1600)
     public static void godzillaCollapsesAndRegenerates(GameTestHelper helper) {
         GodzillaEntity godzilla = spawnActiveGodzilla(helper);
         godzilla.setHealth(10.0F);
-        detonateMine(helper, 4, 14);
+        withoutEvolving(() -> detonateMine(helper, 4, 14));
+        helper.assertTrue(godzilla.getDefeat() == GodzillaEntity.Defeat.REGENERATE, "evolving off, he should regenerate, was " + godzilla.getDefeat());
         helper.assertTrue(godzilla.getPhase() == GodzillaEntity.Phase.COLLAPSING, "at zero health he should collapse, was " + godzilla.getPhase());
         helper.assertTrue(godzilla.isAlive(), "he should not really die");
         Map<GodzillaEntity.Phase, Integer> starts = phaseStarts(helper, godzilla);
@@ -244,6 +254,178 @@ public final class ModGameTests {
         });
     }
 
+    /** {@code blow}, with evolvesIntoMinusZero off (and back as it was after). */
+    private static void withoutEvolving(Runnable blow) {
+        boolean was = Config.EVOLVES_INTO_MINUS_ZERO.get();
+        Config.EVOLVES_INTO_MINUS_ZERO.set(false);
+        try {
+            blow.run();
+        } finally {
+            Config.EVOLVES_INTO_MINUS_ZERO.set(was);
+        }
+    }
+
+    /** The Minus Zeros (alive) in the world within {@code radius} of {@code at}. */
+    private static List<GodzillaMinusZeroEntity> minusZeros(GameTestHelper helper, Vec3 at, double radius) {
+        return helper.getLevel().getEntities(ModEntities.GODZILLA_MINUS_ZERO.get(),
+                z -> z.isAlive() && z.position().distanceTo(at) < radius);
+    }
+
+    /**
+     * Brought down once, Minus One gets up as Godzilla Minus Zero: exactly one, where he lay, facing as he faced, at
+     * full health (Minus One's maximum), twice his size; Minus One is gone. More blows while he's down change nothing.
+     * Minus Zero rises and roars, then fights.
+     */
+    @GameTest(template = FLOOR, batch = "gmo_evolve", timeoutTicks = 900)
+    public static void oneDefeatMakesExactlyOneMinusZero(GameTestHelper helper) {
+        int downed = Config.DOWNED_SECONDS.get();
+        Config.DOWNED_SECONDS.set(1);
+        GodzillaEntity godzilla = spawnActiveGodzilla(helper);
+        godzilla.setYRot(37.0F);
+        godzilla.setYBodyRot(37.0F);
+        Vec3 at = godzilla.position();
+        float max = godzilla.getMaxHealth();
+        godzilla.setHealth(10.0F);
+        detonateMine(helper, 4, 14);
+        helper.assertTrue(godzilla.getPhase() == GodzillaEntity.Phase.COLLAPSING && godzilla.getDefeat() == GodzillaEntity.Defeat.EVOLVE,
+                "brought down, he should collapse to evolve, was " + godzilla.getPhase() + " / " + godzilla.getDefeat());
+        // more blows while he's down, as a crowd of players or a chain of mines would land them
+        detonateMine(helper, 4, 14);
+        godzilla.die(helper.getLevel().damageSources().generic());
+        godzilla.hurt(helper.getLevel().damageSources().generic(), 10000.0F);
+        helper.assertTrue(godzilla.getPhase() == GodzillaEntity.Phase.COLLAPSING && godzilla.isAlive(), "more blows shouldn't change anything");
+        GodzillaMinusZeroEntity[] zero = {null};
+        helper.onEachTick(() -> {
+            List<GodzillaMinusZeroEntity> zeros = minusZeros(helper, at, 64.0);
+            if (zeros.size() > 1) {
+                Config.DOWNED_SECONDS.set(downed);
+                helper.fail(zeros.size() + " Minus Zeros");
+            }
+            if (zero[0] == null && !zeros.isEmpty()) {
+                zero[0] = zeros.get(0);
+                helper.assertTrue(godzilla.isRemoved(), "Minus One should be gone the moment Minus Zero is there");
+                helper.assertTrue(zero[0].position().distanceTo(at) < 0.01, "Minus Zero should be where Minus One lay, was "
+                        + zero[0].position() + " not " + at);
+                helper.assertTrue(Math.abs(Mth.wrapDegrees(zero[0].getYRot() - 37.0F)) < 0.5F, "facing as Minus One faced, was " + zero[0].getYRot());
+                helper.assertTrue(zero[0].getMaxHealth() == max && zero[0].getHealth() == max,
+                        "at full health, Minus One's maximum " + max + ", was " + zero[0].getHealth() + " / " + zero[0].getMaxHealth());
+                helper.assertTrue(zero[0].getPhase() == GodzillaEntity.Phase.EMERGING, "getting up, was " + zero[0].getPhase());
+                helper.assertTrue(Math.abs(zero[0].getBbHeight() - 2.0 * godzilla.getBbHeight()) < 1.0E-3
+                        && Math.abs(zero[0].getBbWidth() - 2.0 * godzilla.getBbWidth()) < 1.0E-3, "twice his size (hitbox)");
+            }
+        });
+        helper.succeedWhen(() -> {
+            helper.assertTrue(zero[0] != null && zero[0].isActive(), "Minus Zero should be up and about");
+            helper.assertTrue(minusZeros(helper, at, 64.0).size() == 1, "exactly one Minus Zero");
+            Config.DOWNED_SECONDS.set(downed);
+            remove(zero[0]);
+        });
+    }
+
+    /**
+     * Saved while he lies there to evolve (the world saved, or his chunk unloaded and loaded again), he's read back
+     * still going to evolve: one Minus Zero comes of it, no more, none fewer.
+     */
+    @GameTest(template = FLOOR, batch = "gmo_evolve_reload", timeoutTicks = 900)
+    public static void aPendingEvolutionSurvivesSavingAndLoading(GameTestHelper helper) {
+        int downed = Config.DOWNED_SECONDS.get();
+        GodzillaEntity godzilla = spawnActiveGodzilla(helper);
+        Vec3 at = godzilla.position();
+        godzilla.setHealth(10.0F);
+        detonateMine(helper, 4, 14);
+        helper.assertTrue(godzilla.getDefeat() == GodzillaEntity.Defeat.EVOLVE, "he should be going to evolve");
+        Config.DOWNED_SECONDS.set(1);
+        GodzillaEntity[] loaded = {null};
+        helper.onEachTick(() -> {
+            if (loaded[0] == null && godzilla.getPhase() == GodzillaEntity.Phase.DEAD) {
+                // as a chunk does: saved, gone from the world, then read back and in it again
+                net.minecraft.nbt.CompoundTag tag = new net.minecraft.nbt.CompoundTag();
+                godzilla.saveWithoutId(tag);
+                godzilla.discard();
+                GodzillaEntity copy = ModEntities.GODZILLA.get().create(helper.getLevel());
+                copy.load(tag);
+                helper.getLevel().addFreshEntity(copy);
+                loaded[0] = copy;
+                helper.assertTrue(copy.getDefeat() == GodzillaEntity.Defeat.EVOLVE && copy.getPhase() == GodzillaEntity.Phase.DEAD,
+                        "read back, he should still be lying there to evolve, was " + copy.getPhase() + " / " + copy.getDefeat());
+            }
+            if (minusZeros(helper, at, 64.0).size() > 1) {
+                Config.DOWNED_SECONDS.set(downed);
+                helper.fail("more than one Minus Zero");
+            }
+        });
+        helper.succeedWhen(() -> {
+            List<GodzillaMinusZeroEntity> zeros = minusZeros(helper, at, 64.0);
+            helper.assertTrue(loaded[0] != null && loaded[0].isRemoved() && zeros.size() == 1,
+                    "one Minus Zero, from the Minus One read back, was " + zeros.size());
+            Config.DOWNED_SECONDS.set(downed);
+            remove(zeros.get(0));
+        });
+    }
+
+    /**
+     * Minus Zero brought down collapses and falls for good: no Godzilla rises after him, and he doesn't get up again.
+     * (And he's twice Minus One wherever it counts: his mouth, where the beam starts, his claws, his face, his reach.)
+     */
+    @GameTest(template = FLOOR, batch = "gmo_minus_zero_falls", timeoutTicks = 400)
+    public static void minusZeroBroughtDownFallsForGood(GameTestHelper helper) {
+        removeLeftoverGodzillas(helper);
+        GodzillaMinusZeroEntity zero = helper.spawn(ModEntities.GODZILLA_MINUS_ZERO.get(), 4, 1, 4);
+        GodzillaEntity one = helper.spawn(ModEntities.GODZILLA.get(), 4, 1, 4);
+        zero.skipIntro();
+        one.skipIntro();
+        for (GodzillaEntity g : new GodzillaEntity[] {zero, one}) {
+            g.setYRot(0.0F);
+            g.setYBodyRot(0.0F);
+        }
+        Vec3 at = zero.position();
+        for (Vec3 point : new Vec3[] {new Vec3(-0.17, 35.80, 17.83), new Vec3(0.0, 35.6, 16.5), new Vec3(2.2, 10.0, 16.5)}) {
+            Vec3 a = one.locator(point.x, point.y, point.z).subtract(at);
+            Vec3 b = zero.locator(point.x, point.y, point.z).subtract(at);
+            helper.assertTrue(b.distanceTo(a.scale(2.0)) < 1.0E-6, "a point on him should be twice as far out on Minus Zero: " + a + " / " + b);
+        }
+        helper.assertTrue(zero.facePosition().subtract(at).distanceTo(one.facePosition().subtract(at).scale(2.0)) < 1.0E-6, "his face, twice as high and far");
+        helper.assertTrue(zero.clawPosition(1.0).subtract(at).distanceTo(one.clawPosition(1.0).subtract(at).scale(2.0)) < 1.0E-6, "his claws");
+        helper.assertTrue(zero.getMaxHealth() == one.getMaxHealth() && zero.getAttributeValue(net.minecraft.world.entity.ai.attributes.Attributes.ATTACK_DAMAGE)
+                == one.getAttributeValue(net.minecraft.world.entity.ai.attributes.Attributes.ATTACK_DAMAGE), "his numbers are Minus One's");
+        one.discard();
+        zero.setHealth(10.0F);
+        detonateMine(helper, 4, 14);
+        helper.assertTrue(zero.getPhase() == GodzillaEntity.Phase.COLLAPSING && zero.getDefeat() == GodzillaEntity.Defeat.FALL,
+                "brought down, Minus Zero should collapse to fall for good, was " + zero.getPhase() + " / " + zero.getDefeat());
+        helper.onEachTick(() -> {
+            int godzillas = helper.getLevel().getEntities(ModEntities.GODZILLA.get(), g -> g.isAlive() && g.position().distanceTo(at) < 64.0).size();
+            if (godzillas > 0 || minusZeros(helper, at, 64.0).stream().anyMatch(z -> z != zero)) {
+                helper.fail("a Godzilla rose after Minus Zero");
+            }
+        });
+        helper.succeedWhen(() -> {
+            helper.assertTrue(zero.isRemoved() || zero.isDeadOrDying(), "he should die, was " + zero.getPhase() + " / " + zero.getHealth());
+            helper.assertTrue(zero.getPhase() != GodzillaEntity.Phase.EMERGING && zero.getPhase() != GodzillaEntity.Phase.ACTIVE, "and never get up");
+        });
+    }
+
+    /** Godzilla Minus Zero's spawn egg brings one Minus Zero, rising out of the ground as Godzilla does from his. */
+    @GameTest(template = FLOOR, batch = "gmo_minus_zero_egg", timeoutTicks = 20)
+    public static void minusZerosSpawnEggBringsOneMinusZero(GameTestHelper helper) {
+        removeLeftoverGodzillas(helper);
+        ServerLevel level = helper.getLevel();
+        Player player = helper.makeMockPlayer();
+        ItemStack egg = new ItemStack(ModItems.GODZILLA_MINUS_ZERO_SPAWN_EGG.get());
+        player.setItemInHand(InteractionHand.MAIN_HAND, egg);
+        BlockPos ground = helper.absolutePos(new BlockPos(4, floorY(helper), 4));
+        level.setBlockAndUpdate(ground, Blocks.STONE.defaultBlockState());
+        egg.useOn(new UseOnContext(player, InteractionHand.MAIN_HAND,
+                new BlockHitResult(Vec3.atCenterOf(ground).add(0.0, 0.5, 0.0), Direction.UP, ground, false)));
+        List<GodzillaMinusZeroEntity> zeros = minusZeros(helper, Vec3.atCenterOf(ground), 8.0);
+        helper.assertTrue(zeros.size() == 1, "one Minus Zero, was " + zeros.size());
+        helper.assertTrue(zeros.get(0).getPhase() == GodzillaEntity.Phase.EMERGING, "rising out of the ground, was " + zeros.get(0).getPhase());
+        helper.assertTrue(level.getEntities(ModEntities.GODZILLA.get(), g -> g.position().distanceTo(Vec3.atCenterOf(ground)) < 8.0).isEmpty(),
+                "and no Minus One");
+        remove(zeros.get(0));
+        helper.succeed();
+    }
+
     /**
      * His resting time is whatever downedSeconds says (here 3 s, not the 15 of the default), counted from the end of
      * his 5 s collapse, which is left as it is.
@@ -254,7 +436,7 @@ public final class ModGameTests {
         Config.DOWNED_SECONDS.set(3);
         GodzillaEntity godzilla = spawnActiveGodzilla(helper);
         godzilla.setHealth(10.0F);
-        detonateMine(helper, 4, 14);
+        withoutEvolving(() -> detonateMine(helper, 4, 14));
         helper.assertTrue(godzilla.getPhase() == GodzillaEntity.Phase.COLLAPSING, "at zero health he should collapse, was " + godzilla.getPhase());
         Map<GodzillaEntity.Phase, Integer> starts = phaseStarts(helper, godzilla);
         helper.onEachTick(() -> {

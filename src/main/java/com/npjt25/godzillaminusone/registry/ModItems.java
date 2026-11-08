@@ -41,6 +41,9 @@ public final class ModItems {
     // are white (no tint); the Odo Island Monster's is a vanilla-style egg (item/template_spawn_egg) in his colours.
     public static final RegistryObject<Item> GODZILLA_SPAWN_EGG = ITEMS.register("godzilla_spawn_egg",
             () -> new ForgeSpawnEggItem(ModEntities.GODZILLA, 0xFFFFFF, 0xFFFFFF, new Item.Properties().rarity(Rarity.EPIC)));
+    /** Godzilla Minus Zero's: a vanilla-style egg in charcoal with grey-green spots (creative only, no recipe). */
+    public static final RegistryObject<Item> GODZILLA_MINUS_ZERO_SPAWN_EGG = ITEMS.register("godzilla_minus_zero_spawn_egg",
+            () -> new ForgeSpawnEggItem(ModEntities.GODZILLA_MINUS_ZERO, 0x2B2E2C, 0x6E7862, new Item.Properties().rarity(Rarity.EPIC)));
     public static final RegistryObject<Item> SHINDEN_SPAWN_EGG = ITEMS.register("shinden_spawn_egg",
             () -> new ForgeSpawnEggItem(ModEntities.SHINDEN, 0xFFFFFF, 0xFFFFFF, new Item.Properties()));
     public static final RegistryObject<Item> NAVAL_MINE_SPAWN_EGG = ITEMS.register("naval_mine_spawn_egg",

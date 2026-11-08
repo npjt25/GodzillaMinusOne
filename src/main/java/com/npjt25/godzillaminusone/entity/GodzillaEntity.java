@@ -6,6 +6,7 @@ import com.npjt25.godzillaminusone.compat.Shapes;
 import com.npjt25.godzillaminusone.network.FxPacket;
 import com.npjt25.godzillaminusone.network.ModNetwork;
 import com.npjt25.godzillaminusone.registry.ModDamageTypes;
+import com.npjt25.godzillaminusone.registry.ModEntities;
 import com.npjt25.godzillaminusone.registry.ModSounds;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
@@ -83,6 +84,7 @@ import software.bernie.geckolib.util.GeckoLibUtil;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 /**
  * Godzilla (goji:gojira and its gojira_dead / gojira_dead2 / gojira_spawn1 / gojira_spawn2 stages from the
@@ -243,6 +245,26 @@ public class GodzillaEntity extends Monster implements GeoEntity {
     private int demolitionSwipes;
     /** After failing to bring a building down (it won't break), he leaves buildings alone for a while. */
     private int demolitionRest;
+    /** What becomes of him once he's down (set as his health runs out; kept in his save while he lies there). */
+    private Defeat defeat = Defeat.NONE;
+    /** Whoever brought him down (or he was fighting): Minus Zero takes them on once he's up. */
+    @Nullable
+    private UUID foe;
+    /** The blow that brought him down (Minus Zero, falling for good: who gets the credit). */
+    @Nullable
+    private DamageSource finalBlow;
+
+    /**
+     * What happens when his health runs out: he collapses (5 s), lies there, and then...
+     * <ul>
+     *   <li>{@code EVOLVE}: Minus One gets up as Godzilla Minus Zero (entity.GodzillaMinusZeroEntity), once, in his place;</li>
+     *   <li>{@code REGENERATE}: he gets up again himself, at full health (Minus One with evolvesIntoMinusZero off);</li>
+     *   <li>{@code FALL}: he never gets up (Minus Zero: the end of the encounter).</li>
+     * </ul>
+     */
+    public enum Defeat {
+        NONE, EVOLVE, REGENERATE, FALL
+    }
 
     // Client side: when the charge state last changed (for the plate glow), and the smoothed head aim.
     private int chargeChangedTick;
@@ -339,6 +361,23 @@ public class GodzillaEntity extends Monster implements GeoEntity {
         this.goalSelector.addGoal(8, new RandomLookAroundGoal(this));
         this.targetSelector.addGoal(1, new HurtByTargetGoal(this));
         this.targetSelector.addGoal(2, new GodzillaTargetGoal(this));
+    }
+
+    /** The name over his health bar (Minus Zero has his own). */
+    protected void bossBarName(Component name) {
+        this.bossEvent.setName(name);
+    }
+
+    // ------------------------------------------------------------------ size
+
+    /**
+     * How much bigger than Godzilla Minus One this Godzilla is: 1 for him, 2 for Minus Zero
+     * (entity.GodzillaMinusZeroEntity). Every point on his body ({@link #locator}) and every reach that comes from his
+     * body (his feet, claws, tail, jaws, face, how deep he swims) is that much further out; his numbers (health,
+     * damage, speed, cooldowns, the config's radii) are left as they are.
+     */
+    public double bodyScale() {
+        return 1.0;
     }
 
     // ------------------------------------------------------------------ state
@@ -481,6 +520,7 @@ public class GodzillaEntity extends Monster implements GeoEntity {
                 this.bossEvent.setVisible(true);
                 this.angryTicks = 0;
                 this.breathCooldown = 0;
+                takeOnFoe();
             }
         }
     }
@@ -494,7 +534,7 @@ public class GodzillaEntity extends Monster implements GeoEntity {
 
     @Override
     public EntityDimensions getDimensions(Pose pose) {
-        return isSwimmingAtSurface() ? SWIM_SIZE : super.getDimensions(pose);
+        return isSwimmingAtSurface() ? SWIM_SIZE.scale((float) bodyScale()) : super.getDimensions(pose);
     }
 
     // ------------------------------------------------------------------ ticking
@@ -548,8 +588,17 @@ public class GodzillaEntity extends Monster implements GeoEntity {
                 }
             }
             case DEAD -> {
-                if (this.phaseTicks >= Config.DOWNED_SECONDS.get() * 20) {
-                    setPhase(Phase.EMERGING);
+                if (this.defeat == Defeat.FALL) {
+                    if (this.phaseTicks >= FALLEN_TICKS) {
+                        fallForGood();
+                    }
+                } else if (this.phaseTicks >= Config.DOWNED_SECONDS.get() * 20) {
+                    if (this.defeat == Defeat.EVOLVE) {
+                        evolve(level);
+                    } else {
+                        this.defeat = Defeat.NONE;
+                        setPhase(Phase.EMERGING);
+                    }
                 }
             }
             case ACTIVE -> activeTick(level);
@@ -782,7 +831,7 @@ public class GodzillaEntity extends Monster implements GeoEntity {
         boolean onIt = spared != null && Math.abs(foot.x - spared.x()) <= KNOCK_RADIUS + FOOT_HALF_LENGTH
                 && Math.abs(foot.z - spared.z()) <= KNOCK_RADIUS + FOOT_HALF_LENGTH;
         if (!onIt && Config.FOOTPRINTS.get() && Config.GODZILLA_BREAKS_BLOCKS.get() && ForgeEventFactory.getMobGriefingEvent(level, this)) {
-            Destruction.footprint(level, this, foot, this.yBodyRot, FOOT_HALF_WIDTH, FOOT_HALF_LENGTH);
+            Destruction.footprint(level, this, foot, this.yBodyRot, FOOT_HALF_WIDTH * bodyScale(), FOOT_HALF_LENGTH * bodyScale());
         }
     }
 
@@ -805,13 +854,13 @@ public class GodzillaEntity extends Monster implements GeoEntity {
             bed--;
         }
         double surface = top + 0.9;
-        this.swimY = surface - SWIM_SINK;
+        this.swimY = surface - SWIM_SINK * bodyScale();
         double depth = surface - bed;
         if (isSwimmingAtSurface()) {
-            if (depth < SWIM_STOP_DEPTH || isCharging()) {
+            if (depth < SWIM_STOP_DEPTH * bodyScale() || isCharging()) {
                 setSurfaceSwimming(false);
             }
-        } else if (depth >= SWIM_START_DEPTH && !isCharging()) {
+        } else if (depth >= SWIM_START_DEPTH * bodyScale() && !isCharging()) {
             setSurfaceSwimming(true);
         }
     }
@@ -1037,10 +1086,14 @@ public class GodzillaEntity extends Monster implements GeoEntity {
     /** ...and how close to it a Shinden has to get to have flown into it (his head is ~7 blocks long, ~5 tall). */
     private static final double FACE_RADIUS = 4.5;
 
+    private double faceRadius() {
+        return FACE_RADIUS * bodyScale();
+    }
+
     /** Every tick: a piloted Shinden flying into his face (only the face) crashes there. */
     private void tickFaceStrikes(ServerLevel level) {
         Vec3 face = locator(FACE.x, FACE.y, FACE.z);
-        for (ShindenEntity plane : level.getEntitiesOfClass(ShindenEntity.class, new AABB(face, face).inflate(FACE_RADIUS + 4.0),
+        for (ShindenEntity plane : level.getEntitiesOfClass(ShindenEntity.class, new AABB(face, face).inflate(faceRadius() + 4.0),
                 p -> p.isAlive() && p.getControllingPassenger() instanceof Player)) {
             shindenStrike(plane, plane.getFlightMotion());
         }
@@ -1063,7 +1116,7 @@ public class GodzillaEntity extends Monster implements GeoEntity {
         AABB box = plane.getBoundingBox();
         Vec3 nearest = new Vec3(Mth.clamp(face.x, box.minX, box.maxX), Mth.clamp(face.y, box.minY, box.maxY),
                 Mth.clamp(face.z, box.minZ, box.maxZ));
-        if (nearest.distanceToSqr(face) > FACE_RADIUS * FACE_RADIUS || motion.length() < ShindenEntity.crashSpeed()) {
+        if (nearest.distanceToSqr(face) > faceRadius() * faceRadius() || motion.length() < ShindenEntity.crashSpeed()) {
             return false;
         }
         Vec3 forward = Vec3.directionFromRotation(0.0F, this.yBodyRot);
@@ -1092,7 +1145,7 @@ public class GodzillaEntity extends Monster implements GeoEntity {
         Vec3 end = origin.add(aim.scale(range));
         Vec3 face = locator(FACE.x, FACE.y, FACE.z);
         Vec3 at;
-        if (distanceSqrToSegment(face, origin, end) <= Mth.square(FACE_RADIUS + 1.0)) {
+        if (distanceSqrToSegment(face, origin, end) <= Mth.square(faceRadius() + 1.0)) {
             at = face; // (his head sticks out in front of his box)
         } else {
             Optional<Vec3> hit = getBoundingBox().inflate(1.0).clip(origin, end);
@@ -1127,8 +1180,8 @@ public class GodzillaEntity extends Monster implements GeoEntity {
         if (motion.lengthSqr() < 1.0E-4 || from.subtract(face).dot(forward) <= 0.0 || motion.dot(face.subtract(from)) <= 0.0) {
             return false;
         }
-        Vec3 ahead = from.add(motion.normalize().scale(from.distanceTo(face) + FACE_RADIUS));
-        return distanceSqrToSegment(face, from, ahead) <= Mth.square(FACE_RADIUS + 1.5);
+        Vec3 ahead = from.add(motion.normalize().scale(from.distanceTo(face) + faceRadius()));
+        return distanceSqrToSegment(face, from, ahead) <= Mth.square(faceRadius() + 1.5);
     }
 
     /** For the game tests: where a Shinden would fly into his face. */
@@ -1324,12 +1377,12 @@ public class GodzillaEntity extends Monster implements GeoEntity {
             double heightAbove = target.getY() - getY();
             Vec3 offset = target.position().subtract(position()).multiply(1.0, 0.0, 1.0);
             Vec3 facing = Vec3.directionFromRotation(0.0F, getYRot());
-            if (heightAbove > 10.0) {
+            if (heightAbove > 10.0 * bodyScale()) {
                 attack = Attack.BITE;           // up on a roof or a hill: he bites
             } else if (offset.normalize().dot(facing) < -0.3) {
                 attack = Attack.SPIN;           // behind him: the tail comes round
                 this.comboStep = 0;
-            } else if (offset.length() < getBbWidth() * 0.5 + 4.0) {
+            } else if (offset.length() < getBbWidth() * 0.5 + 4.0 * bodyScale()) {
                 attack = Attack.STOMP;          // right under his feet
             } else {
                 attack = COMBO[this.comboStep];
@@ -1372,7 +1425,7 @@ public class GodzillaEntity extends Monster implements GeoEntity {
     private void performAttack(ServerLevel level, Attack attack, @Nullable LivingEntity target) {
         switch (attack) {
             case BITE -> {
-                if (target != null && target.isAlive() && canReach(target, 4.0)) {
+                if (target != null && target.isAlive() && canReach(target, 4.0 * bodyScale())) {
                     doHurtTarget(target);
                 }
                 Vec3 jaws = locator(BEAM_NEAR.x, BEAM_NEAR.y, BEAM_NEAR.z);
@@ -1381,7 +1434,7 @@ public class GodzillaEntity extends Monster implements GeoEntity {
             }
             case STOMP -> {
                 Vec3 foot = locator(FOOT_SIDE, 0.4, FOOT_FORWARD);
-                areaAttack(level, foot, 12.0, (float) getAttributeValue(Attributes.ATTACK_DAMAGE) * 0.5F);
+                areaAttack(level, foot, 12.0 * bodyScale(), (float) getAttributeValue(Attributes.ATTACK_DAMAGE) * 0.5F);
                 ModNetwork.sendNear(level, foot, 256.0, new FxPacket(FxPacket.Type.STOMP, foot, 1.5F, 0.0F));
                 ModNetwork.shake(level, foot, 128.0, 1.2F, 2.0F);
             }
@@ -1392,23 +1445,23 @@ public class GodzillaEntity extends Monster implements GeoEntity {
                 // the claws rake across in front of him, flinging what they hit aside
                 double side = attack == Attack.SWIPE_RIGHT ? 1.0 : -1.0;
                 Vec3 claws = locator(2.2 * side, 10.0, 16.5);
-                if (target != null && target.isAlive() && canReach(target, 4.0)) {
+                if (target != null && target.isAlive() && canReach(target, 4.0 * bodyScale())) {
                     doHurtTarget(target);
                 }
                 Vec3 fwd = Vec3.directionFromRotation(0.0F, this.yBodyRot);
                 Vec3 across = new Vec3(fwd.z, 0.0, -fwd.x).scale(side * 2.2).add(0.0, 0.7, 0.0);
-                areaAttack(level, claws, 15.0, (float) getAttributeValue(Attributes.ATTACK_DAMAGE) * 0.6F, target, across);
+                areaAttack(level, claws, 15.0 * bodyScale(), (float) getAttributeValue(Attributes.ATTACK_DAMAGE) * 0.6F, target, across);
                 if (meleeBreaks(level)) {
-                    Destruction.tearThrough(level, this, claws, 7.0, across.add(fwd.scale(0.4)).scale(0.3)); // through walls too
+                    Destruction.tearThrough(level, this, claws, 7.0 * bodyScale(), across.add(fwd.scale(0.4)).scale(0.3)); // through walls too
                 }
                 level.playSound(null, claws.x, claws.y, claws.z, SoundEvents.PLAYER_ATTACK_SWEEP, SoundSource.HOSTILE, 8.0F, 0.45F);
                 ModNetwork.shake(level, claws, 48.0, 0.4F, 0.8F);
             }
             case SPIN -> {
                 // the tail sweeps round him at the ground...
-                areaAttack(level, position(), 30.0, (float) getAttributeValue(Attributes.ATTACK_DAMAGE) * 0.4F, null, null);
+                areaAttack(level, position(), 30.0 * bodyScale(), (float) getAttributeValue(Attributes.ATTACK_DAMAGE) * 0.4F, null, null);
                 if (meleeBreaks(level)) {
-                    Destruction.tailSweep(level, this, position(), getBbWidth() / 2.0, 30.0, TAIL_HEIGHT);
+                    Destruction.tailSweep(level, this, position(), getBbWidth() / 2.0, 30.0 * bodyScale(), (int) Math.round(TAIL_HEIGHT * bodyScale()));
                 }
                 level.playSound(null, getX(), getY() + 4.0, getZ(), SoundEvents.PLAYER_ATTACK_SWEEP, SoundSource.HOSTILE, 10.0F, 0.3F);
                 ModNetwork.shake(level, position(), 64.0, 0.7F, 1.2F);
@@ -1417,9 +1470,10 @@ public class GodzillaEntity extends Monster implements GeoEntity {
                 this.pendingHitTicks = Attack.TAIL_SNAP.hitDelay;
             }
             case TAIL_SNAP -> {
-                areaAttack(level, position(), 38.0, (float) getAttributeValue(Attributes.ATTACK_DAMAGE) * 0.35F, null, null);
+                areaAttack(level, position(), 38.0 * bodyScale(), (float) getAttributeValue(Attributes.ATTACK_DAMAGE) * 0.35F, null, null);
                 if (meleeBreaks(level)) {
-                    Destruction.tailSweep(level, this, position(), 30.0, 38.0, TAIL_HEIGHT); // (its tip, further out)
+                    Destruction.tailSweep(level, this, position(), 30.0 * bodyScale(), 38.0 * bodyScale(),
+                            (int) Math.round(TAIL_HEIGHT * bodyScale())); // (its tip, further out)
                 }
                 level.playSound(null, getX(), getY() + 4.0, getZ(), SoundEvents.PLAYER_ATTACK_CRIT, SoundSource.HOSTILE, 12.0F, 0.4F);
                 ModNetwork.shake(level, position(), 96.0, 1.0F, 1.0F);
@@ -1431,7 +1485,7 @@ public class GodzillaEntity extends Monster implements GeoEntity {
     /** The jaws snap shut at the surface ahead of him: boats are smashed and whoever was in them bitten. */
     private void swimBite(ServerLevel level, @Nullable LivingEntity target) {
         Vec3 jaws = locator(0.0, SWIM_SINK, SWIM_BITE_REACH);
-        AABB box = new AABB(jaws, jaws).inflate(9.0, 7.0, 9.0);
+        AABB box = new AABB(jaws, jaws).inflate(9.0 * bodyScale(), 7.0 * bodyScale(), 9.0 * bodyScale());
         DamageSource source = damageSources().mobAttack(this);
         float damage = (float) getAttributeValue(Attributes.ATTACK_DAMAGE);
         for (Boat boat : level.getEntitiesOfClass(Boat.class, box)) {
@@ -1488,11 +1542,12 @@ public class GodzillaEntity extends Monster implements GeoEntity {
             Vec3 facing = Vec3.directionFromRotation(0.0F, getYRot());
             double dist = Math.sqrt(dx * dx + dz * dz);
             double ahead = (dx * facing.x + dz * facing.z) / Math.max(dist, 1.0E-3);
-            double reach = SWIM_BITE_REACH + 7.0 + extra;
-            return dist <= reach && (dist < 10.0 || ahead > 0.8) && dy > -4.0 && dy < SWIM_SINK + 10.0;
+            double s = bodyScale();
+            double reach = (SWIM_BITE_REACH + 7.0) * s + extra;
+            return dist <= reach && (dist < 10.0 * s || ahead > 0.8) && dy > -4.0 * s && dy < (SWIM_SINK + 10.0) * s;
         }
-        double reach = getBbWidth() * 0.5 + 14.0 + extra;
-        return dx * dx + dz * dz <= reach * reach && dy > -6.0 && dy < getBbHeight() + 4.0;
+        double reach = getBbWidth() * 0.5 + 14.0 * bodyScale() + extra;
+        return dx * dx + dz * dz <= reach * reach && dy > -6.0 * bodyScale() && dy < getBbHeight() + 4.0 * bodyScale();
     }
 
     // ------------------------------------------------------------------ damage & death
@@ -1529,15 +1584,105 @@ public class GodzillaEntity extends Monster implements GeoEntity {
 
     @Override
     public void die(DamageSource source) {
-        if (!level().isClientSide && source.getEntity() instanceof Player player) {
+        boolean kill = source.is(DamageTypeTags.BYPASSES_INVULNERABILITY); // (/kill and the void: just gone)
+        if (!level().isClientSide && !kill && (getPhase() == Phase.COLLAPSING || getPhase() == Phase.DEAD)) {
+            setHealth(1.0F); // already down: a second blow in the same moment changes nothing
+            return;
+        }
+        if (!level().isClientSide && source.getEntity() instanceof Player player && creditsDefeat()) {
             Shapes.creditDefeat(player, this); // (ReMorphed: bringing him down unlocks his shape)
         }
-        if (!level().isClientSide && Config.GODZILLA_REGENERATES.get() && !source.is(DamageTypeTags.BYPASSES_INVULNERABILITY)) {
-            // gojira -> gojira_dead: collapse, lie dead, then regenerate (see tick()).
+        Defeat outcome = kill || level().isClientSide ? Defeat.NONE : defeatOutcome();
+        if (outcome != Defeat.NONE) {
+            // gojira -> gojira_dead: collapse, lie dead, then whatever comes next (see tick())
+            LivingEntity was = getTarget();
+            this.foe = source.getEntity() instanceof LivingEntity attacker && attacker != this ? attacker.getUUID()
+                    : was != null ? was.getUUID() : null;
+            this.finalBlow = source;
+            this.defeat = outcome;
             setHealth(1.0F);
             setPhase(Phase.COLLAPSING);
             return;
         }
+        super.die(source);
+    }
+
+    /** What becomes of him once he's down: Minus One evolves (evolvesIntoMinusZero) or gets up again (regenerates). */
+    protected Defeat defeatOutcome() {
+        return Config.EVOLVES_INTO_MINUS_ZERO.get() ? Defeat.EVOLVE : Config.GODZILLA_REGENERATES.get() ? Defeat.REGENERATE : Defeat.NONE;
+    }
+
+    /** Whether bringing him down unlocks his shape (ReMorphed): Minus One's. */
+    protected boolean creditsDefeat() {
+        return true;
+    }
+
+    /** What's to become of him, while he's down (NONE otherwise). */
+    public Defeat getDefeat() {
+        return this.defeat;
+    }
+
+    /** How long Minus Zero lies there, fallen, before he's gone for good (3 s after his collapse). */
+    private static final int FALLEN_TICKS = 60;
+
+    /**
+     * Lying down, Minus One gets up as Godzilla Minus Zero: in the same tick, exactly one Minus Zero takes his place
+     * (where he lies, facing as he faces, his maximum health and at full health, his name), rising and roaring as
+     * Godzilla does when he gets up, and goes after whoever brought Minus One down; Minus One is gone. On the server
+     * only (everyone sees the new one as any new mob). His pending evolution is saved with him while he lies there, so
+     * leaving and coming back, or the world saving, neither loses it nor makes two.
+     */
+    private void evolve(ServerLevel level) {
+        if (isRemoved()) {
+            return;
+        }
+        this.defeat = Defeat.NONE;
+        GodzillaMinusZeroEntity zero = ModEntities.GODZILLA_MINUS_ZERO.get().create(level);
+        if (zero == null) {
+            setPhase(Phase.EMERGING); // (can't be: but then he gets up himself rather than staying down for ever)
+            return;
+        }
+        zero.moveTo(getX(), getY(), getZ(), getYRot(), 0.0F);
+        zero.setYBodyRot(this.yBodyRot);
+        zero.setYHeadRot(this.yBodyRot);
+        AttributeInstance health = zero.getAttribute(Attributes.MAX_HEALTH);
+        if (health != null) {
+            health.setBaseValue(getAttributeBaseValue(Attributes.MAX_HEALTH));
+        }
+        if (hasCustomName()) {
+            zero.setCustomName(getCustomName());
+        }
+        zero.foe = this.foe;
+        zero.risesFromEvolution();
+        level.addFreshEntity(zero);
+        GodzillaMinusOne.LOGGER.debug("Godzilla Minus One became Godzilla Minus Zero at {}", blockPosition());
+        discard();
+    }
+
+    /** As he rises from Minus One: getting up, at full health. */
+    void risesFromEvolution() {
+        setPhase(Phase.EMERGING);
+        setHealth(getMaxHealth());
+    }
+
+    /** Once up: after whoever brought Minus One down (or he was fighting), if they're still about. */
+    private void takeOnFoe() {
+        UUID who = this.foe;
+        this.foe = null;
+        if (who != null && level() instanceof ServerLevel level && level.getEntity(who) instanceof LivingEntity living
+                && living.isAlive() && isValidTarget(living) && distanceTo(living) <= getAttributeValue(Attributes.FOLLOW_RANGE)) {
+            setTarget(living);
+        }
+    }
+
+    /** Minus Zero, down for good: he dies as any mob does (his experience, nothing else), and the encounter is over. */
+    private void fallForGood() {
+        this.defeat = Defeat.NONE;
+        DamageSource source = this.finalBlow != null ? this.finalBlow : damageSources().generic();
+        if (this.lastHurtByPlayer != null) {
+            this.lastHurtByPlayerTime = 100; // (the credit for bringing him down, a while ago now)
+        }
+        setHealth(0.0F);
         super.die(source);
     }
 
@@ -1632,9 +1777,10 @@ public class GodzillaEntity extends Monster implements GeoEntity {
 
     /** World position of a point on the model: {@code side} to the right, {@code up}, {@code forward}. */
     public Vec3 locator(double side, double up, double forward) {
+        double s = bodyScale(); // (measured on Minus One: further out on a bigger Godzilla)
         Vec3 fwd = Vec3.directionFromRotation(0.0F, this.yBodyRot);
         Vec3 right = new Vec3(-fwd.z, 0.0, fwd.x);
-        return position().add(fwd.scale(forward)).add(right.scale(side)).add(0.0, up, 0.0);
+        return position().add(fwd.scale(forward * s)).add(right.scale(side * s)).add(0.0, up * s, 0.0);
     }
 
     static double distanceSqrToSegment(Vec3 p, Vec3 a, Vec3 b) {
@@ -2000,6 +2146,10 @@ public class GodzillaEntity extends Monster implements GeoEntity {
         tag.putInt("FirstBreathDelay", this.firstBreathDelay);
         tag.putInt("RoarTimer", this.roarTimer);
         tag.putInt("Burns", getBurnTicks());
+        tag.putString("Defeat", this.defeat.name());
+        if (this.foe != null) {
+            tag.putUUID("Foe", this.foe);
+        }
     }
 
     @Override
@@ -2017,6 +2167,15 @@ public class GodzillaEntity extends Monster implements GeoEntity {
             this.roarTimer = tag.getInt("RoarTimer");
         }
         this.entityData.set(DATA_BURNS, Mth.clamp(tag.getInt("Burns"), 0, BURN_TICKS));
+        try {
+            this.defeat = tag.contains("Defeat") ? Defeat.valueOf(tag.getString("Defeat")) : Defeat.NONE;
+        } catch (IllegalArgumentException e) {
+            this.defeat = Defeat.NONE;
+        }
+        if (this.defeat == Defeat.NONE && (getPhase() == Phase.COLLAPSING || getPhase() == Phase.DEAD)) {
+            this.defeat = Defeat.REGENERATE; // (saved by a version from before evolving: he gets up as he would have)
+        }
+        this.foe = tag.hasUUID("Foe") ? tag.getUUID("Foe") : null;
         // Godzillas saved by an older version of the mod walked faster.
         AttributeInstance speed = getAttribute(Attributes.MOVEMENT_SPEED);
         if (speed != null) {

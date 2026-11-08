@@ -2,6 +2,7 @@ package com.npjt25.godzillaminusone.registry;
 
 import com.npjt25.godzillaminusone.GodzillaMinusOne;
 import com.npjt25.godzillaminusone.entity.GodzillaEntity;
+import com.npjt25.godzillaminusone.entity.GodzillaMinusZeroEntity;
 import com.npjt25.godzillaminusone.entity.GodzillaStatueEntity;
 import com.npjt25.godzillaminusone.entity.NavalMineEntity;
 import com.npjt25.godzillaminusone.entity.NuclearBombEntity;
@@ -25,6 +26,14 @@ public final class ModEntities {
                     .fireImmune()
                     .clientTrackingRange(20)
                     .build(GodzillaMinusOne.id("godzilla").toString()));
+
+    /** Godzilla Minus Zero: Minus One evolved, twice his height (hitbox too). */
+    public static final RegistryObject<EntityType<GodzillaMinusZeroEntity>> GODZILLA_MINUS_ZERO = ENTITIES.register("godzilla_minus_zero",
+            () -> EntityType.Builder.of(GodzillaMinusZeroEntity::new, MobCategory.MONSTER)
+                    .sized(10.0F * (float) GodzillaMinusZeroEntity.SCALE, 40.0F * (float) GodzillaMinusZeroEntity.SCALE)
+                    .fireImmune()
+                    .clientTrackingRange(24)
+                    .build(GodzillaMinusOne.id("godzilla_minus_zero").toString()));
 
     public static final RegistryObject<EntityType<ShindenEntity>> SHINDEN = ENTITIES.register("shinden",
             () -> EntityType.Builder.of(ShindenEntity::new, MobCategory.MISC)
