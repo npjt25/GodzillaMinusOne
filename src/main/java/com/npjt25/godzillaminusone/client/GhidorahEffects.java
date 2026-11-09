@@ -39,8 +39,8 @@ public final class GhidorahEffects {
     private static final float[] SHAKE_HOW = {0.5F, 0.8F, 0.9F, 0.7F, 0.7F, 1.1F, 1.5F, 1.1F, 1.5F, 1.1F, 1.7F, 1.0F, 1.2F};
     private static final float[] SHAKE_FOR = {4.0F, 1.2F, 1.5F, 1.2F, 1.2F, 1.0F, 1.2F, 1.0F, 1.2F, 1.0F, 1.4F, 2.0F, 2.5F};
     /** Bursts of earth and rock: tick, and how big. */
-    private static final int[] BURSTS = {36, 52, 62, 112, 124, 160, 174, 179, 193, 197, 212};
-    private static final float[] BURST_SIZE = {0.4F, 0.7F, 0.8F, 0.7F, 0.7F, 1.0F, 1.3F, 1.0F, 1.3F, 1.0F, 1.5F};
+    private static final int[] BURSTS = {18, 36, 52, 62, 112, 124, 160, 174, 179, 193, 197, 212};
+    private static final float[] BURST_SIZE = {0.3F, 0.4F, 0.7F, 0.8F, 0.7F, 0.7F, 1.0F, 1.3F, 1.0F, 1.3F, 1.0F, 1.5F};
 
     public static void tick(KingGhidorahEntity g) {
         if (!(g.level() instanceof ClientLevel level)) {
@@ -82,6 +82,14 @@ public final class GhidorahEffects {
                     double x = c.x + Math.cos(a) * reach;
                     double z = c.z + Math.sin(a) * reach;
                     add(level, ParticleTypes.POOF, x, surface(level, x, z) + 0.3, z, 0.0, 0.08, 0.0);
+                }
+                // dust plumes rising from along the crack (what shows from far off: the lines of it spreading out)
+                if ((t + i) % 2 == 0) {
+                    double s = r.nextDouble() * reach;
+                    double zig = Math.sin(s * 0.7 + i * 1.9) * 1.4;
+                    double x = c.x + Math.cos(a) * s - Math.sin(a) * zig;
+                    double z = c.z + Math.sin(a) * s + Math.cos(a) * zig;
+                    add(level, ParticleTypes.CAMPFIRE_COSY_SMOKE, x, surface(level, x, z) + 0.2, z, 0.0, 0.03 + r.nextDouble() * 0.04, 0.0);
                 }
             }
         }

@@ -915,7 +915,8 @@ final class Scenes {
                     : heard(since[0], "king_ghidorah.wing_spread").isEmpty() ? "no wings"
                     : heard(since[0], "king_ghidorah.roar").isEmpty() ? "no roar" : null;
         });
-        untilServer("ghidorah: the storm", ServerLevel::isThundering, 200);
+        // (the weather's own flag: the rain and thunder themselves come on over a few seconds)
+        untilServer("ghidorah: the storm", level -> level.getLevelData().isThundering(), 200);
         checkServer("ghidorah: the storm three seconds after his entrance", level -> {
             long after = level.getGameTime() - ended[0];
             log("ghidorah: thunder " + after + " ticks after his entrance ended");

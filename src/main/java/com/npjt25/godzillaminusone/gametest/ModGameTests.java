@@ -2127,6 +2127,22 @@ public final class ModGameTests {
 
     // ------------------------------------------------------------------ King Ghidorah
 
+    /** A pig sealed in a cell of stone at a point in the world. */
+    private static Pig cellPigAt(GameTestHelper helper, Vec3 at, List<Runnable> release) {
+        ServerLevel level = helper.getLevel();
+        BlockPos cell = BlockPos.containing(at);
+        level.setChunkForced(cell.getX() >> 4, cell.getZ() >> 4, true);
+        release.add(() -> level.setChunkForced(cell.getX() >> 4, cell.getZ() >> 4, false));
+        for (BlockPos wall : new BlockPos[]{cell.below(), cell.above(), cell.north(), cell.south(), cell.east(), cell.west()}) {
+            level.setBlock(wall, Blocks.STONE.defaultBlockState(), 2);
+        }
+        level.setBlock(cell, Blocks.AIR.defaultBlockState(), 2);
+        Pig pig = EntityType.PIG.create(level);
+        pig.moveTo(Vec3.atBottomCenterOf(cell));
+        level.addFreshEntity(pig);
+        return pig;
+    }
+
     /** (A King Ghidorah left over from a failed test would go on hunting through the next ones.) */
     private static void removeLeftoverGhidorahs(GameTestHelper helper) {
         for (KingGhidorahEntity leftover : helper.getLevel().getEntities(ModEntities.KING_GHIDORAH.get(), e -> true)) {
@@ -2265,7 +2281,8 @@ public final class ModGameTests {
         helper.succeedWhen(() -> {
             helper.assertTrue(ended[0] > 0 && level.getGameTime() >= ended[0] + Config.GHIDORAH_STORM_DELAY_TICKS.get() + 1,
                     "waiting for the end of his entrance and the storm after it");
-            helper.assertTrue(level.isThundering() && level.isRaining(), "a thunderstorm should have broken");
+            // (the weather's own flags: the rain and thunder themselves come on gradually, over a few seconds)
+            helper.assertTrue(level.getLevelData().isThundering() && level.getLevelData().isRaining(), "a thunderstorm should have broken");
             CompoundTag tag = g.saveWithoutId(new CompoundTag());
             helper.assertTrue(tag.getBoolean("EntranceDone") && !tag.contains("EntranceTicks"), "loaded again, he shouldn't rise again");
             level.setWeatherParameters(6000, 0, false, false);
@@ -2278,7 +2295,8 @@ public final class ModGameTests {
     public static void kingGhidorahsBiteHurtsWhatsInFrontOfHim(GameTestHelper helper) {
         KingGhidorahEntity ghidorah = spawnGhidorah(helper);
         List<Runnable> release = new ArrayList<>();
-        Pig pig = cellPig(helper, 4 + 55, release);
+        // (in front of him as he faces: the test's structure may be turned in the world)
+        Pig pig = cellPigAt(helper, ghidorah.locator(new Vec3(0.0, 0.0, 55.0)), release);
         float health = pig.getHealth();
         ghidorah.startBite(KingGhidorahEntity.Head.MIDDLE);
         helper.runAtTickTime(KingGhidorahEntity.BITE_SNAP_AT + 4, () -> {

@@ -1234,9 +1234,10 @@ public class KingGhidorahEntity extends Monster implements GeoEntity {
         return 240;
     }
 
+    @Nullable
     @Override
     protected SoundEvent getAmbientSound() {
-        return ModSounds.KING_GHIDORAH_AMBIENT.get();
+        return inEntrance() ? null : ModSounds.KING_GHIDORAH_AMBIENT.get();     // (not a peep from under the ground)
     }
 
     @Override
