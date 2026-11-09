@@ -78,6 +78,7 @@ the blue one a player.*
 | Nuclear explosion particles | The atomic blast's flash, fireball, dust wave and mushroom cloud (`client/render/NuclearCloud.java`, after the film's Ginza blast), its sparks and the black rain |
 | Particles, camera shakes, custom boss bar | Recreated in Java (see `client/`); the fade to black is a blur instead |
 | *(from Monster122's G-1 add-on)* | **Odo Island Monster** (`godzillaminusone:odo_island_monster`), with its spawn egg |
+| *(new, the mod's own model)* | **King Ghidorah** (`godzillaminusone:king_ghidorah`), as tall as Godzilla Minus Zero, with his spawn egg |
 | *(new, from the film)* | **Shinsei Maru**, the minesweeper: a boat with a stern machine gun and a hold of naval mines |
 | *(new)* | **Searchlight**, a mountable WWII searchlight |
 | *(new)* | **Nuclear Bomb**, called in from the sky |
@@ -224,6 +225,57 @@ the blue one a player.*
 - Every bone is Minus One's, so all of Minus One's animations play on him (his second blast and tail strike are
   Minus One's charge and spin with his own parts added: `tools/make_minus_zero_animations.py`). None of the new parts
   reaches above Minus One's highest point, so at exactly twice the scale he stands exactly twice as tall.
+
+### King Ghidorah
+
+- **An enormous, ancient three-headed golden dragon**, the mod's own model (`tools/make_ghidorah.py`): **as tall as
+  Godzilla Minus Zero** (90.74 blocks to the tips of his middle head's horns) with Minus Zero's hitbox (20 x 80), 2000
+  health, armour 20. A broad armoured chest and massive shoulders, three long segmented necks curving well out ahead of
+  him (the middle one a little higher), a narrower waist, powerful hindquarters on two muscular legs with three-taloned
+  feet, a cluster of tall spear spikes on his upper back, and two long tails, each ending in a spiked mace. His wings
+  are his forelimbs (no arms): huge bat wings with armoured leading edges, a hooked claw at each wrist and a spur at
+  each elbow, and dark brown-burgundy membranes, veined and scalloped, that he spreads, beats and folds against his
+  sides (they gather up between his fingers as he folds them; seen from either side). His hide is weathered gold,
+  tarnished bronze, ochre and olive-brown, small scales and overlapping plates lit along their raised edges and dark in
+  the seams, with pale golden throat and belly plates; small amber eyes sunk under heavy brows, and every head with its
+  own jaw, teeth, two swept-back horns, crown and cheek spikes and a jagged beard.
+- **Each head has a mind of its own**: between attacks each one looks about at its own pace, out of step with the
+  others, turning towards what he's looking at (the middle head most) but never quite all together.
+- He **hunts** players (not in creative or spectator), iron golems and villagers, and whoever hurts him, across 160
+  blocks: he strides straight at them and **through what's built**, as Godzilla does (only at Y 60 and up:
+  `walkBreaksFromY`; `breaksBlocks` and mobGriefing allowing).
+- **Bites**: whatever's in front of him gets bitten by whichever of his three heads is nearest it, lunging down from
+  50 blocks up (it bites through what's built where its jaws close) while the other two rear back, snarl and look on.
+- **Gravity beams**: from 40 to 160 blocks away, he braces (his necks pull back, his heads aim, his wings half open)
+  and his three heads fire in turn, 0.15 s apart: crackling, jagged golden bolts of lightning from their mouths, each
+  recoiling as it fires. The beams follow his target and **stop at the first block in their way**; whatever they touch
+  is hurt and **lifted off its feet**, and where they land the ground blasts apart and the blocks there are torn loose
+  and **flung up into the air** (`breaksBlocks` and mobGriefing allowing). 15 seconds between volleys.
+- **Roars** (all three heads, throwing themselves up one after another, his wings half spread) when he finds
+  something to hunt, and again now and then (`king_ghidorah.roar`, heard 400 blocks round); chitters to himself
+  (`king_ghidorah.ambient`); his beams crackle (`king_ghidorah.beam`). His sounds are synthesized by
+  `tools/make_sounds.py`.
+- His spawn egg is a vanilla-style egg in weathered gold with burgundy spots. He doesn't despawn, and brought down,
+  he falls where he stands.
+
+**His model** (`assets/godzillaminusone/geo/entity/king_ghidorah.geo.json`, GeckoLib 4, Forge 1.20.1): 92 bones in a
+hierarchy, named for what they move: `root` > `pelvis` > `torso` > `chest` > `back_spikes`; `neck_c_1`..`neck_c_8` >
+`head_c` > `jaw_c` and `mouth_c` (and the same for `_r` and `_l`, his right and left heads); `wing_shoulder_r` >
+`wing_upper_r` (> `wing_web4_r`) > `wing_fore_r` > `wing_hand_r` > `wing_claw_r` and `wing_finger1_r`..`3_r` (each
+> `wing_web1_r`..`3_r`, the membranes, which fold as their bones' y scale shrinks); `leg_thigh_r` > `leg_shin_r` >
+`leg_foot_r` > `leg_toes_r`; `tail_r_1`..`tail_r_10` > `tail_r_tip`; and the `_l` side, mirrored. `mouth_c`, `_r`
+and `_l` are empty bones at the tips of his snouts: where his beams come from (the renderer draws them from where the
+animation has put those bones). **His animations** (`animation.king_ghidorah.*`): `idle` (breathing, each head looking
+about on its own, his tails swaying slowly), `walk` (heavy alternating strides, his hips dropping and rolling with
+each footfall, wings held close), `roar`, `bite_c` / `bite_r` / `bite_l` (one head lunges, the others stay busy) and
+`gravity_beam` (necks brace, heads aim, staggered anticipation and recoil).
+
+**His texture** (`textures/entity/king_ghidorah.png`) is 512 x 512, at **2 texels per model unit on every face** -
+the same density as Godzilla's and Minus Zero's skins (256-unit sheets at 512 px), so they read alike side by side,
+and at his size (one model unit about 0.78 blocks) a texel is about 6 Minecraft pixels across: fine enough for each
+small scale and the seams between plates, coarse enough to stay crisp pixel art at a distance. Every face has its own
+texels (per-face UV), cubes of the same shape and kind share theirs and his left side's are his right side's,
+mirrored, which is what lets the whole of him (760 cubes) fit one 512 px sheet.
 
 ### Kyushu J7W1 Shinden
 
@@ -682,6 +734,7 @@ python3 tools/godzilla_mouth_glow.py    # the glow inside his mouth for the post
 python3 tools/make_sounds.py            # the in-breath, the nuclear bomb's air-raid siren, single gunshots (Shinden, Shinsei Maru)
 python3 tools/make_odo_model.py "path/to/G-1(RE)"   # the Odo Island Monster, from Monster122's G-1 resource pack (hide greyed)
 python3 tools/make_props.py             # the searchlight, nuclear bomb and Shinsei Maru models
+python3 tools/make_ghidorah.py          # King Ghidorah: model, texture and animations (--preview DIR: pictures of him)
 python3 tools/make_icons.py             # item icons of the new items
 ```
 
@@ -723,4 +776,9 @@ tail-fin sounds were supplied by the mod's owner too (their source and licence w
 (the two channels averaged), otherwise unchanged; the whoosh of his tail swinging round is synthesized by
 `tools/make_sounds.py`.
 
-Godzilla is a trademark of Toho Co., Ltd.
+King Ghidorah's model, texture and animations are the mod's own, generated by `tools/make_ghidorah.py`; his
+proportions and skeleton were studied from "King Ghidorah" by **I HATE YOU WINDOWS XP**
+(https://sketchfab.com/3d-models/king-ghidorah-6e52b076ab6249558702dcbe1c615aac, licensed CC-BY 4.0), whose
+model is not included and nothing of which is copied. His sounds are synthesized by `tools/make_sounds.py`.
+
+Godzilla and King Ghidorah are trademarks of Toho Co., Ltd.
