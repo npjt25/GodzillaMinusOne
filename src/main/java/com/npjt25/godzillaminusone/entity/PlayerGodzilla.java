@@ -401,7 +401,8 @@ public final class PlayerGodzilla {
             Destruction.tailSweep(player.serverLevel(), player, player.position(), Math.max(from, player.getBbWidth() / 2.0), radius,
                     (int) Math.round(TAIL_HEIGHT * scale(player)));
         }
-        player.level().playSound(null, player.getX(), player.getY() + 4.0, player.getZ(), sound, SoundSource.PLAYERS, 10.0F, 0.35F);
+        player.level().playSound(null, player.getX(), player.getY() + 4.0 * scale(player), player.getZ(), sound, SoundSource.PLAYERS,
+                10.0F * (float) scale(player), 0.35F);
         ModNetwork.shake(player.serverLevel(), player.position(), 64.0, shake, 1.2F);
     }
 
@@ -418,7 +419,8 @@ public final class PlayerGodzilla {
         if (mayDestroy(player)) {
             Destruction.tailSweep(level, player, player.position(), inner, radius, (int) Math.round(height), true);
         }
-        level.playSound(null, player.getX(), player.getY() + 4.0, player.getZ(), sound, SoundSource.PLAYERS, 14.0F, 0.28F);
+        level.playSound(null, player.getX(), player.getY() + 4.0 * scale(player), player.getZ(), sound, SoundSource.PLAYERS,
+                14.0F * (float) scale(player), 0.28F);
         ModNetwork.shake(level, player.position(), 128.0, shake, 1.3F);
     }
 
@@ -429,7 +431,7 @@ public final class PlayerGodzilla {
         Vec3 across = new Vec3(fwd.z, 0.0, -fwd.x).scale(side * 2.2).add(0.0, 0.7, 0.0);
         hurtAround(player, claws, 15.0 * s, damage() * 0.6F, across);
         tearThrough(player, claws, 7.0 * s, across.add(fwd.scale(0.4)).scale(0.3));
-        player.level().playSound(null, claws.x, claws.y, claws.z, SoundEvents.PLAYER_ATTACK_SWEEP, SoundSource.PLAYERS, 8.0F, 0.45F);
+        player.level().playSound(null, claws.x, claws.y, claws.z, SoundEvents.PLAYER_ATTACK_SWEEP, SoundSource.PLAYERS, 8.0F * (float) s, 0.45F);
         ModNetwork.shake(player.serverLevel(), claws, 48.0, 0.4F, 0.8F);
     }
 
@@ -439,9 +441,9 @@ public final class PlayerGodzilla {
         hurtAround(player, jaws, 9.0 * s, damage(), Vec3.ZERO);
         tearThrough(player, jaws, 5.0 * s, player.getLookAngle().scale(0.4));
         if (player.isInWater()) {
-            player.level().playSound(null, jaws.x, jaws.y, jaws.z, SoundEvents.GENERIC_SPLASH, SoundSource.PLAYERS, 6.0F, 0.5F);
+            player.level().playSound(null, jaws.x, jaws.y, jaws.z, SoundEvents.GENERIC_SPLASH, SoundSource.PLAYERS, 6.0F * (float) s, 0.5F);
         }
-        player.level().playSound(null, jaws.x, jaws.y, jaws.z, ModSounds.GODZILLA_BITE.get(), SoundSource.PLAYERS, 6.0F, 1.0F);
+        player.level().playSound(null, jaws.x, jaws.y, jaws.z, ModSounds.GODZILLA_BITE.get(), SoundSource.PLAYERS, 6.0F * (float) s, 1.0F);
         ModNetwork.shake(player.serverLevel(), jaws, 48.0, 0.4F, 1.0F);
     }
 
@@ -454,8 +456,8 @@ public final class PlayerGodzilla {
 
     private static void roar(ServerPlayer player) {
         ServerLevel level = player.serverLevel();
-        GodzillaEntity.broadcastRoar(level, player.getX(), player.getY() + 30.0, player.getZ(), ModSounds.GODZILLA_ROAR.get(),
-                player.getRandom().nextLong());
+        GodzillaEntity.broadcastRoar(level, player.getX(), player.getY() + 30.0 * scale(player), player.getZ(), ModSounds.GODZILLA_ROAR.get(),
+                player.getRandom().nextLong(), GodzillaEntity.roarVolume(scale(player)));
         for (LivingEntity entity : Blasts.livingNear(level, player.position(), 48.0 * scale(player), player)) {
             if (!(entity instanceof GodzillaEntity)) {
                 entity.addEffect(new MobEffectInstance(MobEffects.WEAKNESS, 200, 1), player);
@@ -510,8 +512,8 @@ public final class PlayerGodzilla {
         }
         if (t == beamEnd) {
             // the roar as the beam dies out, as the mob's: he stays rooted until it's over (CHARGE_LENGTH)
-            GodzillaEntity.broadcastRoar(level, player.getX(), player.getY() + 30.0, player.getZ(), ModSounds.GODZILLA_ROAR.get(),
-                    player.getRandom().nextLong());
+            GodzillaEntity.broadcastRoar(level, player.getX(), player.getY() + 30.0 * shape.bodyScale(), player.getZ(),
+                    ModSounds.GODZILLA_ROAR.get(), player.getRandom().nextLong(), GodzillaEntity.roarVolume(shape.bodyScale()));
             ModNetwork.sendNear(level, player.position(), 512.0,
                     new GodzillaMovePacket(player.getId(), Move.ROAR.ordinal(), breathCooldown(player), "roar"));
         }

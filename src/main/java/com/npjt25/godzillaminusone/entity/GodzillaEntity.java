@@ -1361,7 +1361,15 @@ public class GodzillaEntity extends Monster implements GeoEntity {
      * louder and louder closer in.
      */
     private void broadcastRoar(ServerLevel level, SoundEvent sound) {
-        broadcastRoar(level, getX(), getY() + 30.0, getZ(), sound, this.random.nextLong());
+        broadcastRoar(level, getX(), getY() + 30.0 * bodyScale(), getZ(), sound, this.random.nextLong(), roarVolume(bodyScale()));
+    }
+
+    /**
+     * How loud a Godzilla of this size roars up close: Minus One's {@link #ROAR_VOLUME}; Minus Zero (twice his size) a
+     * little louder (a quarter again: full volume).
+     */
+    public static float roarVolume(double bodyScale) {
+        return bodyScale > 1.0 ? ROAR_VOLUME * 1.25F : ROAR_VOLUME;
     }
 
     /**
@@ -1370,12 +1378,17 @@ public class GodzillaEntity extends Monster implements GeoEntity {
      * on a distant roar (godzilla.roar_far and godzilla.roar_far2 by turns, one roar to the next).
      */
     public static void broadcastRoar(ServerLevel level, double x, double y, double z, SoundEvent sound, long seed) {
+        broadcastRoar(level, x, y, z, sound, seed, ROAR_VOLUME);
+    }
+
+    /** The same, {@code volume} loud up close (Minus Zero's: roarVolume). */
+    public static void broadcastRoar(ServerLevel level, double x, double y, double z, SoundEvent sound, long seed, float volume) {
         boolean roar = sound == ModSounds.GODZILLA_ROAR.get() || sound == ModSounds.GODZILLA_ROAR2.get();
         SoundEvent far = null;
         if (roar) {
             far = (farRoars++ & 1) == 0 ? ModSounds.GODZILLA_ROAR_FAR.get() : ModSounds.GODZILLA_ROAR_FAR2.get();
         }
-        broadcast(level, x, y, z, sound, far, FAR_ROAR_DISTANCE, ROAR_RANGE, ROAR_VOLUME, seed);
+        broadcast(level, x, y, z, sound, far, FAR_ROAR_DISTANCE, ROAR_RANGE, volume, seed);
     }
 
     /** Listeners this far away or more hear a distant roar instead of the roar itself. */
@@ -1583,7 +1596,7 @@ public class GodzillaEntity extends Monster implements GeoEntity {
                     doHurtTarget(target);
                 }
                 Vec3 jaws = locator(BEAM_NEAR.x, BEAM_NEAR.y, BEAM_NEAR.z);
-                level.playSound(null, jaws.x, jaws.y, jaws.z, ModSounds.GODZILLA_BITE.get(), SoundSource.HOSTILE, 6.0F, 1.0F);
+                level.playSound(null, jaws.x, jaws.y, jaws.z, ModSounds.GODZILLA_BITE.get(), SoundSource.HOSTILE, 6.0F * (float) bodyScale(), 1.0F);
                 ModNetwork.shake(level, position(), 48.0, 0.4F, 1.0F);
             }
             case STOMP -> {
@@ -1608,7 +1621,7 @@ public class GodzillaEntity extends Monster implements GeoEntity {
                 if (meleeBreaks(level)) {
                     Destruction.tearThrough(level, this, claws, 7.0 * bodyScale(), across.add(fwd.scale(0.4)).scale(0.3)); // through walls too
                 }
-                level.playSound(null, claws.x, claws.y, claws.z, SoundEvents.PLAYER_ATTACK_SWEEP, SoundSource.HOSTILE, 8.0F, 0.45F);
+                level.playSound(null, claws.x, claws.y, claws.z, SoundEvents.PLAYER_ATTACK_SWEEP, SoundSource.HOSTILE, 8.0F * (float) bodyScale(), 0.45F);
                 ModNetwork.shake(level, claws, 48.0, 0.4F, 0.8F);
             }
             case SPIN -> {
@@ -1617,7 +1630,7 @@ public class GodzillaEntity extends Monster implements GeoEntity {
                 if (meleeBreaks(level)) {
                     Destruction.tailSweep(level, this, position(), getBbWidth() / 2.0, 30.0 * bodyScale(), (int) Math.round(TAIL_HEIGHT * bodyScale()));
                 }
-                level.playSound(null, getX(), getY() + 4.0, getZ(), SoundEvents.PLAYER_ATTACK_SWEEP, SoundSource.HOSTILE, 10.0F, 0.3F);
+                level.playSound(null, getX(), getY() + 4.0 * bodyScale(), getZ(), SoundEvents.PLAYER_ATTACK_SWEEP, SoundSource.HOSTILE, 10.0F * (float) bodyScale(), 0.3F);
                 ModNetwork.shake(level, position(), 64.0, 0.7F, 1.2F);
                 // ...and then snaps
                 this.pendingAttack = Attack.TAIL_SNAP;
@@ -1629,14 +1642,14 @@ public class GodzillaEntity extends Monster implements GeoEntity {
                     Destruction.tailSweep(level, this, position(), 30.0 * bodyScale(), 38.0 * bodyScale(),
                             (int) Math.round(TAIL_HEIGHT * bodyScale())); // (its tip, further out)
                 }
-                level.playSound(null, getX(), getY() + 4.0, getZ(), SoundEvents.PLAYER_ATTACK_CRIT, SoundSource.HOSTILE, 12.0F, 0.4F);
+                level.playSound(null, getX(), getY() + 4.0 * bodyScale(), getZ(), SoundEvents.PLAYER_ATTACK_CRIT, SoundSource.HOSTILE, 12.0F * (float) bodyScale(), 0.4F);
                 ModNetwork.shake(level, position(), 96.0, 1.0F, 1.0F);
             }
             case TAIL_STRIKE -> {
                 // the tail sweeps round him, twice as hard as his spin, and destroys whatever it hits...
                 float damage = (float) getAttributeValue(Attributes.ATTACK_DAMAGE) * 0.4F * TAIL_STRIKE_POWER;
                 tailStrike(level, getBbWidth() / 2.0, 30.0 * bodyScale(), damage);
-                level.playSound(null, getX(), getY() + 4.0, getZ(), SoundEvents.PLAYER_ATTACK_SWEEP, SoundSource.HOSTILE, 14.0F, 0.25F);
+                level.playSound(null, getX(), getY() + 4.0 * bodyScale(), getZ(), SoundEvents.PLAYER_ATTACK_SWEEP, SoundSource.HOSTILE, 14.0F * (float) bodyScale(), 0.25F);
                 ModNetwork.shake(level, position(), 96.0, 1.2F, 1.4F);
                 this.pendingAttack = Attack.TAIL_STRIKE_SNAP;
                 this.pendingHitTicks = Attack.TAIL_STRIKE_SNAP.hitDelay;
@@ -1645,7 +1658,7 @@ public class GodzillaEntity extends Monster implements GeoEntity {
                 // ...and then snaps, its tip as far out as his tail reaches
                 float damage = (float) getAttributeValue(Attributes.ATTACK_DAMAGE) * 0.35F * TAIL_STRIKE_POWER;
                 tailStrike(level, 30.0 * bodyScale(), 38.0 * bodyScale(), damage);
-                level.playSound(null, getX(), getY() + 4.0, getZ(), SoundEvents.PLAYER_ATTACK_CRIT, SoundSource.HOSTILE, 16.0F, 0.3F);
+                level.playSound(null, getX(), getY() + 4.0 * bodyScale(), getZ(), SoundEvents.PLAYER_ATTACK_CRIT, SoundSource.HOSTILE, 16.0F * (float) bodyScale(), 0.3F);
                 ModNetwork.shake(level, position(), 128.0, 1.5F, 1.2F);
                 this.entityData.set(DATA_TAIL_GLOW, false);
             }
@@ -1732,8 +1745,8 @@ public class GodzillaEntity extends Monster implements GeoEntity {
                 entity.hurt(source, damage);
             }
         }
-        level.playSound(null, jaws.x, jaws.y, jaws.z, SoundEvents.GENERIC_SPLASH, SoundSource.HOSTILE, 6.0F, 0.5F);
-        level.playSound(null, jaws.x, jaws.y, jaws.z, ModSounds.GODZILLA_BITE.get(), SoundSource.HOSTILE, 6.0F, 1.0F);
+        level.playSound(null, jaws.x, jaws.y, jaws.z, SoundEvents.GENERIC_SPLASH, SoundSource.HOSTILE, 6.0F * (float) bodyScale(), 0.5F);
+        level.playSound(null, jaws.x, jaws.y, jaws.z, ModSounds.GODZILLA_BITE.get(), SoundSource.HOSTILE, 6.0F * (float) bodyScale(), 1.0F);
         ModNetwork.shake(level, jaws, 48.0, 0.4F, 1.0F);
     }
 
@@ -2555,8 +2568,11 @@ public class GodzillaEntity extends Monster implements GeoEntity {
         }
         RegistryObject<SoundEvent> sound = ModSounds.BY_NAME.get(name);
         if (sound != null) {
-            float volume = name.equals("godzilla.attack") ? 6.0F : 12.0F;
-            level().playLocalSound(getX(), getY() + 6.0, getZ(), sound.get(), SoundSource.HOSTILE, volume,
+            // (a bigger Godzilla's carry as much further as he's bigger, from as much higher up: Minus Zero's claws, jaws
+            // and tail are heard as Minus One's are, from twice as far off)
+            double s = bodyScale();
+            float volume = (name.equals("godzilla.attack") ? 6.0F : 12.0F) * (float) s;
+            level().playLocalSound(getX(), getY() + 6.0 * s, getZ(), sound.get(), SoundSource.HOSTILE, volume,
                     0.95F + this.random.nextFloat() * 0.1F, false);
         }
     }
