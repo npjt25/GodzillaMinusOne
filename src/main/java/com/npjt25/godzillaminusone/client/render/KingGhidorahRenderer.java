@@ -23,11 +23,15 @@ import software.bernie.geckolib.renderer.GeoEntityRenderer;
  * where it really is in the animation) to where the beam lands (his aim, stopped at the first block in its way).
  */
 public class KingGhidorahRenderer extends GeoEntityRenderer<KingGhidorahEntity> {
-    /** The bolts, outermost first: {half width (blocks), red, green, blue, alpha}. */
+    /**
+     * The bolts, outermost first: {half width (blocks), red, green, blue, alpha, added on (1) or laid over (0)}. The
+     * golden body is laid over what's behind it (light added to a blue sky only whitens it); the glow round it and the
+     * white-hot core are added on.
+     */
     private static final float[][] LAYERS = {
-            {2.2F, 1.0F, 0.62F, 0.12F, 0.22F},
-            {1.1F, 1.0F, 0.78F, 0.25F, 0.45F},
-            {0.4F, 1.0F, 0.97F, 0.75F, 0.95F}};
+            {2.4F, 1.0F, 0.55F, 0.08F, 0.2F, 1.0F},
+            {0.95F, 0.96F, 0.72F, 0.16F, 0.8F, 0.0F},
+            {0.35F, 1.0F, 0.93F, 0.6F, 0.75F, 1.0F}};
 
     public KingGhidorahRenderer(EntityRendererProvider.Context context) {
         super(context, new KingGhidorahModel());
@@ -74,7 +78,6 @@ public class KingGhidorahRenderer extends GeoEntityRenderer<KingGhidorahEntity> 
 
     /** A jagged bolt from a to b (relative to him), in layers of glow, with a couple of forks off it. */
     private static void drawBolt(PoseStack poseStack, MultiBufferSource buffers, Vec3 a, Vec3 b, RandomSource random, float scale) {
-        VertexConsumer vc = buffers.getBuffer(RenderType.lightning());
         Matrix4f pose = poseStack.last().pose();
         Vec3 d = b.subtract(a);
         double length = d.length();
@@ -92,6 +95,7 @@ public class KingGhidorahRenderer extends GeoEntityRenderer<KingGhidorahEntity> 
             pts[i] = a.add(d.scale(f)).add(u.scale((random.nextDouble() - 0.5) * 2 * jag)).add(v.scale((random.nextDouble() - 0.5) * 2 * jag));
         }
         for (float[] layer : LAYERS) {
+            VertexConsumer vc = buffers.getBuffer(layer[5] > 0.0F ? RenderType.lightning() : RenderType.debugQuads());
             float w = layer[0] * scale;
             for (int i = 0; i < n; i++) {
                 quad(vc, pose, pts[i], pts[i + 1], u.scale(w), layer);

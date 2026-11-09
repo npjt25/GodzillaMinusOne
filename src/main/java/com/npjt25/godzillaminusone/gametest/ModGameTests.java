@@ -119,6 +119,7 @@ public final class ModGameTests {
                     leftover.getType().toShortString(), leftover.position());
             leftover.discard();
         }
+        removeLeftoverGhidorahs(helper);
     }
 
     private static GodzillaEntity spawnActiveGodzilla(GameTestHelper helper) {
@@ -2125,11 +2126,20 @@ public final class ModGameTests {
 
     // ------------------------------------------------------------------ King Ghidorah
 
-    private static KingGhidorahEntity spawnGhidorah(GameTestHelper helper) {
+    /** (A King Ghidorah left over from a failed test would go on hunting through the next ones.) */
+    private static void removeLeftoverGhidorahs(GameTestHelper helper) {
         for (KingGhidorahEntity leftover : helper.getLevel().getEntities(ModEntities.KING_GHIDORAH.get(), e -> true)) {
+            GodzillaMinusOne.LOGGER.info("test at {}: removing a leftover King Ghidorah at {}", helper.absolutePos(BlockPos.ZERO),
+                    leftover.position());
             leftover.discard();
         }
+    }
+
+    /** King Ghidorah, standing still (no AI: he hunts nothing, but what he's told to do, he does). */
+    private static KingGhidorahEntity spawnGhidorah(GameTestHelper helper) {
+        removeLeftoverGhidorahs(helper);
         KingGhidorahEntity ghidorah = helper.spawn(ModEntities.KING_GHIDORAH.get(), 4, floorY(helper) + 1, 4);
+        ghidorah.setNoAi(true);
         ghidorah.setWalkFloorY(Integer.MIN_VALUE);
         ghidorah.setYRot(0.0F);
         ghidorah.setYBodyRot(0.0F);
@@ -2225,8 +2235,7 @@ public final class ModGameTests {
         level.setChunkForced(floor.getX() >> 4, floor.getZ() >> 4, true);
         Pig pig = EntityType.PIG.create(level);
         pig.moveTo(Vec3.atBottomCenterOf(floor.above()));
-        pig.setNoAi(true);
-        level.addFreshEntity(pig);
+        level.addFreshEntity(pig);   // (with its AI: a mob without any doesn't move at all, lifted or not)
         double startY = pig.getY();
         float health = pig.getHealth();
         double[] highest = {startY};
