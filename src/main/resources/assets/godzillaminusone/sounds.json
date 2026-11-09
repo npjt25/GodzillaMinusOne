@@ -343,5 +343,30 @@
     "name": "godzillaminusone:godzilla_minus_zero_tail_swing"
    }
   ]
+ },
+ "king_ghidorah.roar": {
+  "subtitle": "subtitles.godzillaminusone.king_ghidorah.roar",
+  "sounds": [
+   {
+    "name": "godzillaminusone:king_ghidorah_roar",
+    "attenuation_distance": 400
+   }
+  ]
+ },
+ "king_ghidorah.ambient": {
+  "subtitle": "subtitles.godzillaminusone.king_ghidorah.ambient",
+  "sounds": [
+   {
+    "name": "godzillaminusone:king_ghidorah_ambient"
+   }
+  ]
+ },
+ "king_ghidorah.beam": {
+  "subtitle": "subtitles.godzillaminusone.king_ghidorah.beam",
+  "sounds": [
+   {
+    "name": "godzillaminusone:king_ghidorah_beam"
+   }
+  ]
  }
 }

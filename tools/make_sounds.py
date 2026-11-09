@@ -15,6 +15,12 @@
   * godzilla_minus_zero_tail_swing.ogg - Godzilla Minus Zero's tail strike swinging round (animation.gojira.tail_strike):
                            a deep, heavy whoosh of a tail the size of a train through the air, rising to its loudest as it
                            sweeps past (0.45 s in) and falling away, with the thud of the air it shoves at the peak.
+  * king_ghidorah_roar.ogg - King Ghidorah's roar (animation.king_ghidorah.roar): three voices, one a head, each throwing
+                           its head up in turn (0.2 s apart, as the animation staggers them): a shrill, rattling trill, a
+                           harsh rising and falling cry pulsed some twenty times a second, over a rasp of breath.
+  * king_ghidorah_ambient.ogg - one head chittering to itself: the same trill, short and low.
+  * king_ghidorah_beam.ogg - his gravity beams: a crackling, buzzing discharge, an electric hum rising under bursts of
+                           sparks, that dies away as the beams end.
 
     python3 tools/make_sounds.py [name ...]   (only those, e.g. godzilla_minus_zero_tail_swing; all of them without)
 
@@ -213,6 +219,57 @@ def tail_swing(rng, seconds=1.15, peak=0.45):
     return rush + rumble + thud
 
 
+def trill_voice(t, start, length, pitch, rng):
+    """One of King Ghidorah's heads crying out: a harsh harmonic cry, rising and falling, pulsed by a rattling trill."""
+    x = np.clip((t - start) / length, 0.0, 1.0)
+    on = (t >= start) & (t <= start + length)
+    f0 = pitch * (360 + 300 * np.sin(np.pi * x) ** 0.7 - 80 * x)
+    f0 *= 1 + 0.02 * np.sin(2 * np.pi * 6.5 * t)
+    phase = 2 * np.pi * np.cumsum(f0) / RATE
+    tone = sum(np.sin(k * phase + 0.3 * k) / k ** 0.9 for k in range(1, 9))
+    trill_rate = 19 + 6 * np.sin(np.pi * x)
+    pulse = (0.5 + 0.5 * np.sin(2 * np.pi * np.cumsum(trill_rate) / RATE)) ** 3
+    env = smooth(x / 0.08) * (1 - smooth((x - 0.75) / 0.25))
+    rasp = rng.standard_normal(len(t)) * 0.25 * (0.3 + pulse)
+    return (tone * (0.35 + 0.65 * pulse) + rasp) * env * on
+
+
+def ghidorah_roar(rng, seconds=3.2):
+    t = np.arange(int(seconds * RATE)) / RATE
+    out = (trill_voice(t, 0.05, 2.4, 1.0, rng) + 0.85 * trill_voice(t, 0.25, 2.3, 1.13, rng)
+           + 0.9 * trill_voice(t, 0.45, 2.3, 0.88, rng))
+    # a little room: the cry thrown back off the hills
+    echo = np.zeros_like(out)
+    d = int(0.13 * RATE)
+    echo[d:] = out[:-d] * 0.25
+    return out + echo
+
+
+def ghidorah_ambient(rng, seconds=1.3):
+    t = np.arange(int(seconds * RATE)) / RATE
+    return trill_voice(t, 0.02, 1.2, 0.8, rng)
+
+
+def ghidorah_beam(rng, seconds=2.4):
+    """A crackling electric discharge: a buzzing hum (a rough 110 Hz sawtooth, wavering) rising in, bursts of sparks
+    (clicks of filtered noise) all through it, dying away at the end."""
+    t = np.arange(int(seconds * RATE)) / RATE
+    env = smooth(t / 0.15) * (1 - smooth((t - (seconds - 0.5)) / 0.5))
+    f = 110 * (1 + 0.04 * np.sin(2 * np.pi * 3.0 * t)) * (1 + 0.15 * smooth(t / 1.0))
+    saw = 2 * ((np.cumsum(f) / RATE) % 1.0) - 1
+    hum = (saw + 0.5 * np.sign(np.sin(2 * np.pi * np.cumsum(2 * f) / RATE))) * 0.35
+
+    def sparks(time, freqs):
+        return band(freqs, 3500, 0.8) + 0.5 * band(freqs, 900, 0.6)
+
+    crackle = shaped_noise(seconds, sparks, rng)
+    crackle /= np.max(np.abs(crackle))
+    gate = np.zeros_like(t)
+    for start in rng.uniform(0, seconds, 140):
+        gate += np.exp(-np.maximum(t - start, 0) / rng.uniform(0.004, 0.03)) * (t >= start) * rng.uniform(0.3, 1.0)
+    return (hum + crackle * np.minimum(gate, 1.2)) * env
+
+
 def write_ogg(samples, name):
     samples = samples / np.max(np.abs(samples)) * 0.89
     pcm = (samples * 32767).astype(np.int16)
@@ -230,7 +287,8 @@ def write_ogg(samples, name):
 
 def main():
     wanted = set(sys.argv[1:])
-    makers = ["godzilla_inhale", "nuke_alarm", "shinden_gun", "shinsei_maru_gun", "shinsei_maru_motor", "godzilla_minus_zero_tail_swing"]
+    makers = ["godzilla_inhale", "nuke_alarm", "shinden_gun", "shinsei_maru_gun", "shinsei_maru_motor", "godzilla_minus_zero_tail_swing",
+              "king_ghidorah_roar", "king_ghidorah_ambient", "king_ghidorah_beam"]
     if wanted - set(makers):
         sys.exit(__doc__)
     rng = np.random.default_rng(1954)   # (one stream, in this order, for the first five: as they were made)
@@ -241,6 +299,9 @@ def main():
         "shinsei_maru_gun": lambda: single_shot(rng, pitch=1.35, tail=0.18),
         "shinsei_maru_motor": lambda: motor(rng),
         "godzilla_minus_zero_tail_swing": lambda: tail_swing(np.random.default_rng(1203)),
+        "king_ghidorah_roar": lambda: ghidorah_roar(np.random.default_rng(1964)),
+        "king_ghidorah_ambient": lambda: ghidorah_ambient(np.random.default_rng(1965)),
+        "king_ghidorah_beam": lambda: ghidorah_beam(np.random.default_rng(1991)),
     }
     for name in makers:
         samples = sounds[name]()   # (made in order even when not written, so each keeps its random numbers)

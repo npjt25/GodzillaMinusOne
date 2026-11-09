@@ -50,6 +50,9 @@ public final class ModItems {
             () -> new ForgeSpawnEggItem(ModEntities.NAVAL_MINE, 0xFFFFFF, 0xFFFFFF, new Item.Properties()));
     public static final RegistryObject<Item> ODO_ISLAND_MONSTER_SPAWN_EGG = ITEMS.register("odo_island_monster_spawn_egg",
             () -> new ForgeSpawnEggItem(ModEntities.ODO_ISLAND_MONSTER, 0x6B6258, 0x3A2F28, new Item.Properties().rarity(Rarity.RARE)));
+    /** King Ghidorah's: a vanilla-style egg in weathered gold with burgundy spots (his wings). */
+    public static final RegistryObject<Item> KING_GHIDORAH_SPAWN_EGG = ITEMS.register("king_ghidorah_spawn_egg",
+            () -> new ForgeSpawnEggItem(ModEntities.KING_GHIDORAH, 0xC19637, 0x5A2326, new Item.Properties().rarity(Rarity.EPIC)));
 
     private ModItems() {
     }

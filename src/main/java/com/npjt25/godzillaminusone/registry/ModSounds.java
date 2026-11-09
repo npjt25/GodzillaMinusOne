@@ -58,6 +58,9 @@ public final class ModSounds {
     public static final RegistryObject<SoundEvent> ODO_SPOTTED = register("odo.spotted");
     public static final RegistryObject<SoundEvent> ODO_SPAWN = register("odo.spawn");
     public static final RegistryObject<SoundEvent> ODO_NUKED = register("odo.nuked");
+    public static final RegistryObject<SoundEvent> KING_GHIDORAH_ROAR = register("king_ghidorah.roar");
+    public static final RegistryObject<SoundEvent> KING_GHIDORAH_AMBIENT = register("king_ghidorah.ambient");
+    public static final RegistryObject<SoundEvent> KING_GHIDORAH_BEAM = register("king_ghidorah.beam");
     public static final RegistryObject<SoundEvent> SHINSEI_MARU_GUN = register("shinsei_maru.gun");
     public static final RegistryObject<SoundEvent> SHINSEI_MARU_MOTOR = register("shinsei_maru.motor");
 

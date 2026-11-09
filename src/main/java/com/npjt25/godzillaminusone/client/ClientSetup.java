@@ -5,6 +5,7 @@ import com.npjt25.godzillaminusone.client.particle.Fx;
 import com.npjt25.godzillaminusone.client.render.GodzillaMinusZeroRenderer;
 import com.npjt25.godzillaminusone.client.render.GodzillaRenderer;
 import com.npjt25.godzillaminusone.client.render.GodzillaStatueRenderer;
+import com.npjt25.godzillaminusone.client.render.KingGhidorahRenderer;
 import com.npjt25.godzillaminusone.client.render.NavalMineRenderer;
 import com.npjt25.godzillaminusone.client.render.NuclearBombRenderer;
 import com.npjt25.godzillaminusone.client.render.OdoIslandMonsterRenderer;
@@ -45,6 +46,7 @@ public final class ClientSetup {
         event.registerEntityRenderer(ModEntities.SHINDEN.get(), ShindenRenderer::new);
         event.registerEntityRenderer(ModEntities.NAVAL_MINE.get(), NavalMineRenderer::new);
         event.registerEntityRenderer(ModEntities.ODO_ISLAND_MONSTER.get(), OdoIslandMonsterRenderer::new);
+        event.registerEntityRenderer(ModEntities.KING_GHIDORAH.get(), KingGhidorahRenderer::new);
         event.registerEntityRenderer(ModEntities.SEARCHLIGHT.get(), SearchlightRenderer::new);
         event.registerEntityRenderer(ModEntities.NUCLEAR_BOMB.get(), NuclearBombRenderer::new);
         event.registerEntityRenderer(ModEntities.SHINSEI_MARU.get(), ShinseiMaruRenderer::new);

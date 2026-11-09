@@ -4,6 +4,7 @@ import com.npjt25.godzillaminusone.GodzillaMinusOne;
 import com.npjt25.godzillaminusone.entity.GodzillaEntity;
 import com.npjt25.godzillaminusone.entity.GodzillaMinusZeroEntity;
 import com.npjt25.godzillaminusone.entity.GodzillaStatueEntity;
+import com.npjt25.godzillaminusone.entity.KingGhidorahEntity;
 import com.npjt25.godzillaminusone.entity.NavalMineEntity;
 import com.npjt25.godzillaminusone.entity.NuclearBombEntity;
 import com.npjt25.godzillaminusone.entity.OdoIslandMonsterEntity;
@@ -47,6 +48,14 @@ public final class ModEntities {
                     .fireImmune()
                     .clientTrackingRange(10)
                     .build(GodzillaMinusOne.id("naval_mine").toString()));
+
+    /** King Ghidorah: as tall as Godzilla Minus Zero, with his hitbox. */
+    public static final RegistryObject<EntityType<KingGhidorahEntity>> KING_GHIDORAH = ENTITIES.register("king_ghidorah",
+            () -> EntityType.Builder.of(KingGhidorahEntity::new, MobCategory.MONSTER)
+                    .sized(10.0F * (float) GodzillaMinusZeroEntity.SCALE, 40.0F * (float) GodzillaMinusZeroEntity.SCALE)
+                    .fireImmune()
+                    .clientTrackingRange(24)
+                    .build(GodzillaMinusOne.id("king_ghidorah").toString()));
 
     public static final RegistryObject<EntityType<OdoIslandMonsterEntity>> ODO_ISLAND_MONSTER = ENTITIES.register("odo_island_monster",
             () -> EntityType.Builder.of(OdoIslandMonsterEntity::new, MobCategory.MONSTER)

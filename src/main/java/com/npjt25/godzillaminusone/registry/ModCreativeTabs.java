@@ -18,6 +18,7 @@ public final class ModCreativeTabs {
                 output.accept(ModItems.GODZILLA_SPAWN_EGG.get());
                 output.accept(ModItems.GODZILLA_MINUS_ZERO_SPAWN_EGG.get());
                 output.accept(ModItems.ODO_ISLAND_MONSTER_SPAWN_EGG.get());
+                output.accept(ModItems.KING_GHIDORAH_SPAWN_EGG.get());
                 output.accept(ModItems.SHINDEN_SPAWN_EGG.get());
                 output.accept(ModItems.NAVAL_MINE_SPAWN_EGG.get());
                 output.accept(ModItems.SHINSEI_MARU.get());
