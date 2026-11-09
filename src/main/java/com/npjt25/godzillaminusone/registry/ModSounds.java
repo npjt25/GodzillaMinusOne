@@ -30,6 +30,16 @@ public final class ModSounds {
     public static final RegistryObject<SoundEvent> GODZILLA_INHALE = register("godzilla.inhale");
     public static final RegistryObject<SoundEvent> GODZILLA_ATOMIC_BLAST = register("godzilla.atomic_blast");
     public static final RegistryObject<SoundEvent> GODZILLA_BITE = register("godzilla.bite");
+    /**
+     * Godzilla Minus Zero's own (the mod author's), all played by his animations' sound keyframes
+     * (tools/make_minus_zero_animations.py): charged again as his plates light up the second time, his second beam
+     * firing, the plate at the tip of his tail punching up for his tail strike, and the tail swinging round
+     * (godzilla_minus_zero_tail_swing.ogg: tools/make_sounds.py).
+     */
+    public static final RegistryObject<SoundEvent> MINUS_ZERO_CHARGED_2ND_TIME = register("godzilla_minus_zero.charged_2nd_time");
+    public static final RegistryObject<SoundEvent> MINUS_ZERO_2ND_FIRE_BEAM = register("godzilla_minus_zero.2nd_fire_beam");
+    public static final RegistryObject<SoundEvent> MINUS_ZERO_DORSAL_FIN_PUNCH_UP = register("godzilla_minus_zero.dorsal_fin_punch_up");
+    public static final RegistryObject<SoundEvent> MINUS_ZERO_TAIL_SWING = register("godzilla_minus_zero.tail_swing");
     /** Roars for listeners 200+ blocks away (GodzillaEntity.broadcastRoar picks one per listener, alternating). */
     public static final RegistryObject<SoundEvent> GODZILLA_ROAR_FAR = register("godzilla.roar_far");
     public static final RegistryObject<SoundEvent> GODZILLA_ROAR_FAR2 = register("godzilla.roar_far2");

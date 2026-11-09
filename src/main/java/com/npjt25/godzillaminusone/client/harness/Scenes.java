@@ -705,6 +705,8 @@ final class Scenes {
         });
         camera("minus zero: tail strike", new Vec3(758.0, -22.0, -78.0), new Vec3(700.5, -40.0, -104.0), 60);
         waitTicks(30);
+        int[] strikeAt = {0};
+        once("minus zero: mark his tail strike", () -> strikeAt[0] = now());
         server("minus zero: tail strike", level -> {
             for (GodzillaMinusZeroEntity z : level.getEntitiesOfClass(GodzillaMinusZeroEntity.class, new AABB(ONE_AT, ONE_AT).inflate(50.0))) {
                 z.startTailStrike();
@@ -718,6 +720,12 @@ final class Scenes {
         shot("minus_zero_tail_strike_windup");
         waitTicks(26);
         shot("minus_zero_tail_strike_whip");
+        check("minus zero: his tail strike's sounds: the fin punching up, then the tail swinging round", () -> {
+            int up = heard(strikeAt[0], "godzilla_minus_zero.dorsal_fin_punch_up").size();
+            int swing = heard(strikeAt[0], "godzilla_minus_zero.tail_swing").size();
+            log("minus zero: tail strike sounds: " + heardSince(strikeAt[0]));
+            return up >= 1 && swing >= 1 ? null : "fin punch up " + up + ", tail swing " + swing;
+        });
         until("minus zero: his tail tip dark again (client)", () -> {
             GodzillaMinusZeroEntity z = find(GodzillaMinusZeroEntity.class);
             return z != null && !z.isTailGlowing();
@@ -728,6 +736,8 @@ final class Scenes {
         // charge and his beam; his first blast (in the air, 420 blocks off, where his beam ends: twice Minus One's
         // cloud); his plates' glow dimmed, then lit again with his plates punched up; his second laser, and the second
         // blast; then the burns it leaves on his mouth, throat and chest. (Godzillas aren't hurt by the blasts.)
+        int[] chargeAt = {0};
+        once("minus zero: mark his charge", () -> chargeAt[0] = now());
         server("minus zero: charges his breath", level -> {
             for (GodzillaMinusZeroEntity z : level.getEntitiesOfClass(GodzillaMinusZeroEntity.class, new AABB(ONE_AT, ONE_AT).inflate(50.0))) {
                 z.setNoAi(true);
@@ -754,6 +764,13 @@ final class Scenes {
         zeroChargeShot("glow_dimmed", GodzillaEntity.CHARGE_BLAST_TICK + 40, platesCam, false);
         zeroChargeShot("plates_relit", second - 6, platesCam, false);
         zeroChargeShot("second_laser", second + 8, beamCam, false);
+        check("minus zero: his sounds: charged again, then his second beam firing", () -> {
+            List<ShotsHarness.Heard> again = heard(chargeAt[0], "godzilla_minus_zero.charged_2nd_time");
+            List<ShotsHarness.Heard> fire = heard(chargeAt[0], "godzilla_minus_zero.2nd_fire_beam");
+            log("minus zero: charge sounds: " + heardSince(chargeAt[0]));
+            return !again.isEmpty() && !fire.isEmpty() && again.get(0).tick() <= fire.get(0).tick() ? null
+                    : "charged again " + again.size() + ", second beam " + fire.size();
+        });
         zeroChargeShot("second_blast", GodzillaEntity.SECOND_BLAST_TICK + 10, cloudCam, true);
         zeroChargeShot("second_blast_cloud", GodzillaEntity.SECOND_BLAST_TICK + 34, cloudCam, true);
         // his beam over (the client's charge clock starts again from there): his burns at their worst

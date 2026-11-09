@@ -311,5 +311,37 @@
     "attenuation_distance": 32
    }
   ]
+ },
+ "godzilla_minus_zero.charged_2nd_time": {
+  "subtitle": "subtitles.godzillaminusone.godzilla_minus_zero.charged_2nd_time",
+  "sounds": [
+   {
+    "name": "godzillaminusone:godzilla_minus_zero_charged_2nd_time"
+   }
+  ]
+ },
+ "godzilla_minus_zero.2nd_fire_beam": {
+  "subtitle": "subtitles.godzillaminusone.godzilla_minus_zero.2nd_fire_beam",
+  "sounds": [
+   {
+    "name": "godzillaminusone:godzilla_minus_zero_2nd_fire_beam"
+   }
+  ]
+ },
+ "godzilla_minus_zero.dorsal_fin_punch_up": {
+  "subtitle": "subtitles.godzillaminusone.godzilla_minus_zero.dorsal_fin_punch_up",
+  "sounds": [
+   {
+    "name": "godzillaminusone:godzilla_minus_zero_dorsal_fin_punch_up"
+   }
+  ]
+ },
+ "godzilla_minus_zero.tail_swing": {
+  "subtitle": "subtitles.godzillaminusone.godzilla_minus_zero.tail_swing",
+  "sounds": [
+   {
+    "name": "godzillaminusone:godzilla_minus_zero_tail_swing"
+   }
+  ]
  }
 }

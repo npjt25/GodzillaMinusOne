@@ -1473,6 +1473,75 @@ public final class ModGameTests {
     }
 
     /**
+     * Minus Zero's own sounds are wired up: every sound his animations play (his charge's charged-again and second-beam
+     * sounds, his tail strike's fin punching up and tail swinging round) is registered, in sounds.json, and has its file,
+     * mono (one channel: heard from where he is); at their moments (charged again 0.6 s before his second beam fires,
+     * the second beam's sound as it does; the fin's as the tail strike starts, the swing before its sweep lands).
+     */
+    @GameTest(template = FLOOR, batch = "gmo_minus_zero_sounds")
+    public static void minusZerosSoundsAreWiredUp(GameTestHelper helper) {
+        com.google.gson.JsonObject sounds = resourceJson("/assets/godzillaminusone/sounds.json");
+        com.google.gson.JsonObject animations = resourceJson("/assets/godzillaminusone/animations/entity/godzilla_minus_zero.animation.json")
+                .getAsJsonObject("animations");
+        java.util.Map<String, Double> at = new java.util.HashMap<>();
+        for (String name : new String[] {"animation.gojira.charge_zero", "animation.gojira.tail_strike"}) {
+            com.google.gson.JsonObject effects = animations.getAsJsonObject(name).getAsJsonObject("sound_effects");
+            for (java.util.Map.Entry<String, com.google.gson.JsonElement> keyframe : effects.entrySet()) {
+                String sound = keyframe.getValue().getAsJsonObject().get("effect").getAsString();
+                helper.assertTrue(ModSounds.BY_NAME.containsKey(sound) && sounds.has(sound), name + " plays " + sound + ", which isn't registered");
+                for (com.google.gson.JsonElement file : sounds.getAsJsonObject(sound).getAsJsonArray("sounds")) {
+                    String path = "/assets/godzillaminusone/sounds/" + file.getAsJsonObject().get("name").getAsString().split(":")[1] + ".ogg";
+                    byte[] ogg = resourceBytes(path);
+                    // (an Ogg Vorbis identification header: "\u0001vorbis", then the version, then the channel count)
+                    int header = indexOf(ogg, new byte[] {1, 'v', 'o', 'r', 'b', 'i', 's'});
+                    helper.assertTrue(header >= 0 && ogg[header + 11] == 1, path + " should be mono Ogg Vorbis");
+                }
+                if (sound.startsWith("godzilla_minus_zero.")) {
+                    at.put(sound, Double.parseDouble(keyframe.getKey()));
+                }
+            }
+        }
+        double fire = (GodzillaEntity.SURGE_TICK - GodzillaEntity.ANIM_TRANSITION) / 20.0;
+        helper.assertTrue(Math.abs(at.getOrDefault("godzilla_minus_zero.2nd_fire_beam", -9.0) - fire) < 0.1,
+                "his second beam's sound should play as it fires (" + fire + " s), was " + at.get("godzilla_minus_zero.2nd_fire_beam"));
+        helper.assertTrue(Math.abs(at.getOrDefault("godzilla_minus_zero.charged_2nd_time", -9.0) - (fire - 0.6)) < 0.1,
+                "charged again 0.6 s before it, was " + at.get("godzilla_minus_zero.charged_2nd_time"));
+        helper.assertTrue(at.getOrDefault("godzilla_minus_zero.dorsal_fin_punch_up", -9.0) < 0.05,
+                "the fin's sound as his tail strike starts, was " + at.get("godzilla_minus_zero.dorsal_fin_punch_up"));
+        double swing = at.getOrDefault("godzilla_minus_zero.tail_swing", -9.0);
+        helper.assertTrue(swing > 1.0 && swing < 1.85, "the swing's as the tail comes round, before its sweep lands (1.85 s), was " + swing);
+        helper.succeed();
+    }
+
+    private static com.google.gson.JsonObject resourceJson(String path) {
+        return com.google.gson.JsonParser.parseString(new String(resourceBytes(path), java.nio.charset.StandardCharsets.UTF_8)).getAsJsonObject();
+    }
+
+    private static byte[] resourceBytes(String path) {
+        try (java.io.InputStream in = ModGameTests.class.getResourceAsStream(path)) {
+            if (in == null) {
+                throw new IllegalStateException("missing " + path);
+            }
+            return in.readAllBytes();
+        } catch (java.io.IOException e) {
+            throw new IllegalStateException(path, e);
+        }
+    }
+
+    private static int indexOf(byte[] data, byte[] part) {
+        outer:
+        for (int i = 0; i + part.length <= data.length; i++) {
+            for (int j = 0; j < part.length; j++) {
+                if (data[i + j] != part[j]) {
+                    continue outer;
+                }
+            }
+            return i;
+        }
+        return -1;
+    }
+
+    /**
      * Minus Zero's tail strike hits twice as hard as his spin, and destroys whatever it hits: an armor stand and a boat
      * (which no mob's blow breaks), and every block in its sweep, rock, earth and trees as well as what's built, but not
      * the ground he stands on.

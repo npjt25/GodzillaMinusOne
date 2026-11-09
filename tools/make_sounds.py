@@ -12,8 +12,13 @@
   * shinsei_maru_motor.ogg - her old diesel at a steady idle-to-cruise, 2 s that loop seamlessly (every part of it
                            repeats exactly every 2 s: the firing beat, its harmonics and the noise), for the motor
                            (client.ShinseiMaruSounds plays it on a loop, louder and higher as she speeds up).
+  * godzilla_minus_zero_tail_swing.ogg - Godzilla Minus Zero's tail strike swinging round (animation.gojira.tail_strike):
+                           a deep, heavy whoosh of a tail the size of a train through the air, rising to its loudest as it
+                           sweeps past (0.45 s in) and falling away, with the thud of the air it shoves at the peak.
 
-Needs numpy and imageio-ffmpeg (for the Vorbis encoder).
+    python3 tools/make_sounds.py [name ...]   (only those, e.g. godzilla_minus_zero_tail_swing; all of them without)
+
+Needs numpy and ffmpeg (imageio-ffmpeg's, or one on the PATH) for the Vorbis encoder.
 """
 import os
 import subprocess
@@ -31,8 +36,15 @@ ALARM_SECONDS = 20.0
 
 
 def ffmpeg():
-    import imageio_ffmpeg
-    return imageio_ffmpeg.get_ffmpeg_exe()
+    try:
+        import imageio_ffmpeg
+        return imageio_ffmpeg.get_ffmpeg_exe()
+    except ImportError:
+        import shutil
+        found = shutil.which("ffmpeg")
+        if found is None:
+            sys.exit("needs ffmpeg: pip install imageio-ffmpeg, or one on the PATH")
+        return found
 
 
 def smooth(x):
@@ -178,6 +190,29 @@ def motor(rng, seconds=2.0):
     return out
 
 
+def tail_swing(rng, seconds=1.15, peak=0.45):
+    """A giant tail swung round through the air: a broad band of rushing air that rises in pitch and loudness as it
+    comes past (peak seconds in) and drops away after it (as a passing train's does), a low rumble under it, and a
+    soft thud of shoved air at the peak."""
+    t = np.arange(int(seconds * RATE)) / RATE
+
+    def air(time, freqs):
+        x = time - peak
+        centre = 150 + 520 * np.exp(-(x / 0.22) ** 2) + (60 if x < 0 else -40) * min(1.0, abs(x) / 0.4)
+        return band(freqs, centre, 0.9) + 0.25 * band(freqs, 1400 + 600 * np.exp(-(x / 0.15) ** 2), 0.45)
+
+    rush = shaped_noise(seconds, air, rng)
+    rush /= np.max(np.abs(rush))
+    swell = np.where(t < peak, smooth(t / peak) ** 1.6, np.exp(-(np.abs(t - peak) / 0.3) ** 1.3))
+    rush *= swell * (1 - smooth((t - (seconds - 0.08)) / 0.08))
+
+    rumble = np.sin(2 * np.pi * 38 * t) + 0.5 * np.sin(2 * np.pi * 57 * t + 0.7)
+    rumble *= np.exp(-((t - peak) / 0.25) ** 2) * 0.35
+
+    thud = np.sin(2 * np.pi * 52 * (t - peak)) * np.exp(-np.maximum(t - peak, 0) / 0.09) * (t >= peak) * 0.45
+    return rush + rumble + thud
+
+
 def write_ogg(samples, name):
     samples = samples / np.max(np.abs(samples)) * 0.89
     pcm = (samples * 32767).astype(np.int16)
@@ -194,14 +229,23 @@ def write_ogg(samples, name):
 
 
 def main():
-    if len(sys.argv) != 1:
+    wanted = set(sys.argv[1:])
+    makers = ["godzilla_inhale", "nuke_alarm", "shinden_gun", "shinsei_maru_gun", "shinsei_maru_motor", "godzilla_minus_zero_tail_swing"]
+    if wanted - set(makers):
         sys.exit(__doc__)
-    rng = np.random.default_rng(1954)
-    write_ogg(inhale(rng), "godzilla_inhale")
-    write_ogg(alarm(rng), "nuke_alarm")
-    write_ogg(single_shot(rng), "shinden_gun")
-    write_ogg(single_shot(rng, pitch=1.35, tail=0.18), "shinsei_maru_gun")
-    write_ogg(motor(rng), "shinsei_maru_motor")
+    rng = np.random.default_rng(1954)   # (one stream, in this order, for the first five: as they were made)
+    sounds = {
+        "godzilla_inhale": lambda: inhale(rng),
+        "nuke_alarm": lambda: alarm(rng),
+        "shinden_gun": lambda: single_shot(rng),
+        "shinsei_maru_gun": lambda: single_shot(rng, pitch=1.35, tail=0.18),
+        "shinsei_maru_motor": lambda: motor(rng),
+        "godzilla_minus_zero_tail_swing": lambda: tail_swing(np.random.default_rng(1203)),
+    }
+    for name in makers:
+        samples = sounds[name]()   # (made in order even when not written, so each keeps its random numbers)
+        if not wanted or name in wanted:
+            write_ogg(samples, name)
 
 
 if __name__ == "__main__":

@@ -974,9 +974,9 @@ public class GodzillaEntity extends Monster implements GeoEntity {
             beamHits(level);
         }
         if (surges() && this.chargeTicks == SURGE_TICK) {
-            // his second blast: plates punched down, and the ground shakes again as it fires
+            // his second blast: plates punched down, and the ground shakes again as it fires (its sound, his own, is in
+            // his charge animation: godzilla_minus_zero.2nd_fire_beam)
             ModNetwork.shake(level, position(), 220.0, 1.2F, 3.0F);
-            level.playSound(null, getX(), getY() + 30.0 * bodyScale(), getZ(), ModSounds.GODZILLA_ROAR2.get(), SoundSource.HOSTILE, 12.0F, 1.2F);
         }
         if (blastsAt(this.chargeTicks)) {
             fireAtomicBlast(level);

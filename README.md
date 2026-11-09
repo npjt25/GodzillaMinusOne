@@ -209,12 +209,14 @@ the blue one a player.*
   while the blue glow on his plates **dims out over 2 seconds**, then **lights up again over 2 seconds** in a sharper,
   brighter blue as his plates **punch back up**; then they **punch back down** and he **fires a second blast**: the
   beam grows about a third wider and twice as bright, hits a wider band round it, twice as often, and 2 seconds after
-  it lands **a second nuclear explosion** goes up. Each explosion is **twice the size of Minus One's**: twice every
+  it lands **a second nuclear explosion** goes up. **His own sounds**: as his plates finish lighting up again, he
+  **charges again** (finishing as he fires), and his **second beam fires** with its own sound. Each explosion is **twice the size of Minus One's**: twice every
   radius (kill, fallout, crater, scorch, ruins and flattening), and **a mushroom cloud twice as big** (twice as tall
   and wide). After the beam his **mouth, throat and chest** are left burnt raw (Minus One's: his mouth), healing as
   Minus One's burns do. Minus One's breath is unchanged.
 - **His tail strike**: every other spin of his is his tail strike instead. The plate at the very end of his tail
-  **punches up and blazes blue-white**, its glow spilling out round it in a broad pulsing halo, for a second, then he spins and whips his tail round as in his spin, **twice as hard**:
+  **punches up and blazes blue-white**, with its own sound, its glow spilling out round it in a broad pulsing halo, for a
+  second, then he spins and whips his tail round as in his spin (with the **whoosh of it swinging round**), **twice as hard**:
   what's alive takes **double damage** and is flung away, and **anything else it hits is destroyed**: boats wrecked, a
   manned Shinden blown up, armor stands and any other thing gone, and **every block in its sweep**, from the ground he
   stands on up to as high as his tail goes (rock, earth and trees as well as what's built; not liquids or bedrock;
@@ -716,6 +718,9 @@ The new sounds (Godzilla's bite and distant roars; the Odo Island Monster's roar
 cry and distant roar) were supplied with the mod's sound archives (`GodzillaMinusOne sounds`, `Odomonster Sounds`)
 by the mod's owner; their original source and licence weren't given with them. They're converted to mono (so they
 fade with distance in game), otherwise unchanged. The Shinsei Maru's motor is synthesized by `tools/make_sounds.py`
-(no recording: the supplied archives hold only creature sounds).
+(no recording: the supplied archives hold only creature sounds). Godzilla Minus Zero's charged-again, second-beam and
+tail-fin sounds were supplied by the mod's owner too (their source and licence weren't given either), converted to mono
+(the two channels averaged), otherwise unchanged; the whoosh of his tail swinging round is synthesized by
+`tools/make_sounds.py`.
 
 Godzilla is a trademark of Toho Co., Ltd.

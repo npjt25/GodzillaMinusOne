@@ -501,10 +501,9 @@ public final class PlayerGodzilla {
             }
         }
         if (shape.surges() && t == GodzillaEntity.SURGE_TICK) {
-            // his second beam: his plates punched down, and the ground shakes again as it fires
+            // his second beam: his plates punched down, and the ground shakes again as it fires (its sound is in his
+            // charge animation, which plays on his shape)
             ModNetwork.shake(level, player.position(), 220.0, 1.2F, 3.0F);
-            level.playSound(null, player.getX(), player.getY() + 30.0 * shape.bodyScale(), player.getZ(), ModSounds.GODZILLA_ROAR2.get(),
-                    SoundSource.PLAYERS, 12.0F, 1.2F);
         }
         if (shape.blastsAt(t)) {
             blast(player, beam(player)[1], shape.blastScale());

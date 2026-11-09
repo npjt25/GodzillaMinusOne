@@ -10,12 +10,13 @@ Minus One does), plus two that are his alone:
 animation.gojira.charge_zero -- his atomic breath with a second blast in it. Minus One's charge up to the end of his
     beam, where it holds for 6 s more (the beam goes on flickering as it does), and in those 6 s his plates (T, T2-T22)
     punch back up as their glow comes back (the renderer: dimmed 2 s after the first explosion, lit 2 s after that) and
-    slam down as he fires his second laser (GodzillaEntity.SURGE_TICK), with the jolt of his first. All that came after
+    slam down as he fires his second laser (GodzillaEntity.SURGE_TICK), with the jolt of his first; his sounds: charged
+    again as they light up, then his second beam firing. All that came after
     the beam in Minus One's (the beam dying out, the roar) comes 6 s later.
 
 animation.gojira.tail_strike -- the tail strike: the tip of his tail's plate (T22) punches up and glows (the renderer's
     tail-tip glow, GodzillaEntity's DATA_TAIL_GLOW) for 1 s, then spin_whip as Minus One does it, 1 s later; the plate
-    goes back down once the whip is over.
+    goes back down once the whip is over. His sounds: the plate punching up, then his tail swinging round.
 
 The game reads the times in GodzillaEntity (BEAM_START_TICK, CHARGE_BLAST_TICK, SURGE_TICK, SECOND_BEAM_END_TICK,
 Attack.TAIL_STRIKE) and GodzillaRenderer (FIRE, FIRST_BLAST, DIMMED, SURGE): they have to agree with the ones here.
@@ -40,8 +41,17 @@ DIMMED = 18.92              # renderer DIMMED: his plates' glow at its lowest, c
 PLATE_UP = [0.0, 3.0, 4.0]  # the plates up, as in Minus One's charge
 FLICKER = 0.041667          # the beam's flicker (its bone B alternates every 1/24 s)
 
+# his own sounds (registry.ModSounds; the mod author's): charged again as his plates light up the second time, ending
+# as he fires (the sound is 0.54 s long); his second beam firing
+CHARGED_AGAIN = SURGE - 0.6
+CHARGED_AGAIN_SOUND = 'godzilla_minus_zero.charged_2nd_time'
+SECOND_FIRE_SOUND = 'godzilla_minus_zero.2nd_fire_beam'
+
 # --- the tail strike
 WINDUP = 1.0                # T22 up and glowing before the spin (Attack.TAIL_STRIKE: 20 ticks more than SPIN)
+TIP_UP_SOUND = 'godzilla_minus_zero.dorsal_fin_punch_up'   # as T22 punches up and lights
+SWING = 1.4                 # the tail swinging round: its whoosh loudest 0.45 s in, as it sweeps past (the hit, 1.85 s)
+SWING_SOUND = 'godzilla_minus_zero.tail_swing'
 TIP_UP = [0.0, 5.25, 7.0]   # T22's punch: higher than the charge's
 TIP_OVERSHOOT = [0.0, 6.3, 8.4]
 
@@ -137,6 +147,11 @@ def charge_zero(charge):
     for kind in ('sound_effects', 'particle_effects'):
         if kind in anim:
             anim[kind] = shift(anim[kind], HOLD_AT, EXTRA)
+    # his sounds: charged again, and his second beam firing
+    sounds = anim['sound_effects']
+    sounds[t(CHARGED_AGAIN)] = {'effect': CHARGED_AGAIN_SOUND}
+    sounds[t(SURGE)] = {'effect': SECOND_FIRE_SOUND}
+    anim['sound_effects'] = sort_channel(sounds)
     # the smoke from his mouth as his second laser fires, as with his first
     smoke = anim['particle_effects']
     for k in [k for k in list(smoke) if FIRE - 0.01 < float(k) < FIRE + 0.01]:
@@ -160,6 +175,11 @@ def tail_strike(spin):
     for kind in ('sound_effects', 'particle_effects'):
         if kind in anim:
             anim[kind] = shift(anim[kind], -1.0, WINDUP)
+    # the plate at the tip of his tail punching up (and lighting), then the whoosh of his tail swung round
+    sounds = anim.setdefault('sound_effects', {})
+    sounds[t(0.0)] = {'effect': TIP_UP_SOUND}
+    sounds[t(SWING)] = {'effect': SWING_SOUND}
+    anim['sound_effects'] = sort_channel(sounds)
     end = anim['animation_length']
     anim['bones']['T22'] = {'position': {
         t(0.0): [0.0, 0.0, 0.0],
