@@ -229,53 +229,86 @@ the blue one a player.*
 ### King Ghidorah
 
 - **An enormous, ancient three-headed golden dragon**, the mod's own model (`tools/make_ghidorah.py`): **as tall as
-  Godzilla Minus Zero** (90.74 blocks to the tips of his middle head's horns) with Minus Zero's hitbox (20 x 80), 2000
-  health, armour 20. A broad armoured chest and massive shoulders, three long segmented necks curving well out ahead of
-  him (the middle one a little higher), a narrower waist, powerful hindquarters on two muscular legs with three-taloned
-  feet, a cluster of tall spear spikes on his upper back, and two long tails, each ending in a spiked mace. His wings
-  are his forelimbs (no arms): huge bat wings with armoured leading edges, a hooked claw at each wrist and a spur at
-  each elbow, and dark brown-burgundy membranes, veined and scalloped, that he spreads, beats and folds against his
-  sides (they gather up between his fingers as he folds them; seen from either side). His hide is weathered gold,
-  tarnished bronze, ochre and olive-brown, small scales and overlapping plates lit along their raised edges and dark in
-  the seams, with pale golden throat and belly plates; small amber eyes sunk under heavy brows, and every head with its
-  own jaw, teeth, two swept-back horns, crown and cheek spikes and a jagged beard.
-- **Each head has a mind of its own**: between attacks each one looks about at its own pace, out of step with the
-  others, turning towards what he's looking at (the middle head most) but never quite all together.
-- He **hunts** players (not in creative or spectator), iron golems and villagers, and whoever hurts him, across 160
-  blocks: he strides straight at them and **through what's built**, as Godzilla does (only at Y 60 and up:
-  `walkBreaksFromY`; `breaksBlocks` and mobGriefing allowing).
-- **Bites**: whatever's in front of him gets bitten by whichever of his three heads is nearest it, lunging down from
-  50 blocks up (it bites through what's built where its jaws close) while the other two rear back, snarl and look on.
-- **Gravity beams**: from 40 to 160 blocks away, he braces (his necks pull back, his heads aim, his wings half open)
-  and his three heads fire in turn, 0.15 s apart: crackling, jagged golden bolts of lightning from their mouths, each
-  recoiling as it fires. The beams follow his target and **stop at the first block in their way**; whatever they touch
-  is hurt and **lifted off its feet**, and where they land the ground blasts apart and the blocks there are torn loose
-  and **flung up into the air** (`breaksBlocks` and mobGriefing allowing). 15 seconds between volleys.
-- **Roars** (all three heads, throwing themselves up one after another, his wings half spread) when he finds
-  something to hunt, and again now and then (`king_ghidorah.roar`, heard 400 blocks round); chitters to himself
-  (`king_ghidorah.ambient`); his beams crackle (`king_ghidorah.beam`). His sounds are synthesized by
-  `tools/make_sounds.py`.
-- His spawn egg is a vanilla-style egg in weathered gold with burgundy spots. He doesn't despawn, and brought down,
-  he falls where he stands.
+  Godzilla Minus Zero** (his heads 90.74 blocks up as he stands; his raised wings reach higher) with Minus Zero's
+  hitbox (20 x 80). A broad armoured chest and massive shoulders, three long segmented necks, a narrower waist,
+  powerful hindquarters on two muscular legs with three-taloned feet, a cluster of tall spear spikes on his upper
+  back, and two long tails, each ending in a spiked mace. His wings are his forelimbs (no arms): huge bat wings with
+  armoured leading edges, a hooked claw at each wrist, and dark brown-burgundy membranes, veined and scalloped. His
+  hide is weathered gold, tarnished bronze, ochre and olive-brown; small amber eyes sunk under heavy brows, and every
+  head with its own jaw, teeth, horns, crown and cheek spikes and a jagged beard.
+- **He stands crouched low on bent legs with his wings raised and half spread, never folded** (only while he digs
+  himself out of the ground are they tucked), heads looking every which way; he walks the same way, his raised wings
+  rocking with his stride. **Each head has a mind of its own**: it looks about at its own pace, out of step with the
+  others, turning towards what he's looking at but never quite all together.
+- **Minus Zero's health and durability, and his ways**: Minus Zero's `maxHealth` and `attackDamage`; only naval
+  mines hurt him (a tenth of his health each, `mineDamagePercent`; `onlyHurtByNavalMines`), a nuclear blast does
+  nothing to him, and while he has nothing to fight he heals (`calmRegenPercent`). He hunts as Minus Zero does (every
+  creature with `targetsAllMobs`, else players, Shinden fighters, iron golems and hostile mobs) and **Godzilla too**,
+  roars as often (`roarIntervalSeconds`), and tears through what's built as he walks (only at Y 60 and up:
+  `walkBreaksFromY`). Brought down, he collapses and is gone.
+- **His attacks**:
+  - **Bite**, with whichever of his three heads is nearest, lunging down from 50 blocks up while the other two rear
+    back and snarl; it bites through what's built where its jaws close.
+  - **Stomp**: his right foot raised high and brought down on whatever is under him, crushing a footprint (from Y 60
+    up, as his walk).
+  - **Tail whip**: his body twists and both tails swing round behind him, striking and flinging whatever is in their
+    sweep and sweeping away what's built.
+  - **Gravity beams**, from 40 to 160 blocks: he braces, his wings half open, and his three heads fire in turn:
+    **concentrated beams of golden lightning** (straight, blazing, white-hot at the core, crackling with jagged bolts)
+    that bore straight through whatever is in their way and **vaporize every block 12 blocks round where they
+    strike** (and along their last stretch of path), and whatever is caught there (all but liquids and bedrock;
+    `breaksBlocks` and mobGriefing allowing).
+  - **Lift**: his beams seize their target, **haul it high into the air** (34 blocks), hold it, and let it fall.
+  - **Grab**: he takes off, flies at his target, **seizes it in his talons** (a player, Godzilla, anything), carries
+    it high (48 blocks), and **dives, slamming it into the ground**. A player can't wriggle free.
+- **Retreat**: with his health low (`retreatHealthPercent`, 20%) he takes to the air and flies away from whatever
+  he's fighting, lands far off and lets it go (healing while he's left alone). Switch it off on the in-game config
+  screen ("King Ghidorah Retreats") or with `retreats` in `godzillaminusone-common.toml`.
+- **His entrance**: spawned (his egg, `/summon`), **he rises out of the ground**, about 15 seconds: the ground cracks,
+  cracks spreading out from where he'll rise with dust spurting from them, a deep rumble and the sound of breaking
+  earth, bursts of dirt and rock; one head rises through the broken ground and looks deliberately about; the other two
+  follow, each in its own time, uncoiling; his body hauls itself out after them in three heavy lurches, wings tucked,
+  amid dense dust and flying debris; a pause, and his wings spread slowly to their full span, dust rushing out along
+  the ground and loose earth falling from him; and all three heads throw themselves up and roar. The ground only
+  seems to break: nothing of the terrain is destroyed (the debris is made of the ground's own blocks), and his body
+  rises from below the surface as part of his animation while he himself stands on it. Nothing hurts or moves him
+  while he rises. It happens once per spawn, not when he's loaded again. **Three seconds after it ends a thunderstorm
+  breaks** over the dimension (rain, thunder and lightning: the game's own weather, so every player there gets it;
+  not in the Nether or the End). The delay and the storm's length are in `godzillaminusone-common.toml`
+  (`entranceStormDelayTicks`, 60; `entranceStormDurationTicks`, 6000, 0 for none); how hard the ground shakes your
+  view is on the config screen ("Ghidorah's Entrance Shake", 0 for none).
+- Everything he does runs on the server's clock: a player who comes in halfway through his entrance (or anything
+  else) sees it from where it is, not from its beginning.
+- His sounds are synthesized by `tools/make_sounds.py`: his roar (three trilling voices, one a head), chitter, the
+  beams' crackle, the rumble, the cracking earth, his wings spreading and beating.
+- His spawn egg is a vanilla-style egg in weathered gold with burgundy spots. He doesn't despawn.
 
 **His model** (`assets/godzillaminusone/geo/entity/king_ghidorah.geo.json`, GeckoLib 4, Forge 1.20.1): 92 bones in a
 hierarchy, named for what they move: `root` > `pelvis` > `torso` > `chest` > `back_spikes`; `neck_c_1`..`neck_c_8` >
 `head_c` > `jaw_c` and `mouth_c` (and the same for `_r` and `_l`, his right and left heads); `wing_shoulder_r` >
 `wing_upper_r` (> `wing_web4_r`) > `wing_fore_r` > `wing_hand_r` > `wing_claw_r` and `wing_finger1_r`..`3_r` (each
 > `wing_web1_r`..`3_r`, the membranes, which fold as their bones' y scale shrinks); `leg_thigh_r` > `leg_shin_r` >
-`leg_foot_r` > `leg_toes_r`; `tail_r_1`..`tail_r_10` > `tail_r_tip`; and the `_l` side, mirrored. `mouth_c`, `_r`
+`leg_foot_r` > `leg_toes_r`; `tail_r_1`..`tail_r_10` > `tail_r_tip`; and the `_l` side, mirrored. Each membrane
+hangs on two bones of its own (`wing_webN_r` > `wing_webN_skin_r`, pivoting at the wrist, or the shoulder for the
+inner one), turned and scaled in every frame of every animation so that it stays pinned at its three anchors (the
+wrist and two finger tips; the last finger's tip and the elbow; the shoulder, the elbow and his flank): the wings can
+spread, beat, raise or tuck and the membranes go with them. `mouth_c`, `_r`
 and `_l` are empty bones at the tips of his snouts: where his beams come from (the renderer draws them from where the
 animation has put those bones). **His animations** (`animation.king_ghidorah.*`): `idle` (breathing, each head looking
 about on its own, his tails swaying slowly), `walk` (heavy alternating strides, his hips dropping and rolling with
 each footfall, wings held close), `roar`, `bite_c` / `bite_r` / `bite_l` (one head lunges, the others stay busy) and
-`gravity_beam` (necks brace, heads aim, staggered anticipation and recoil).
+`gravity_beam` (necks brace, heads aim, staggered anticipation and recoil), `gravity_lift`, `stomp`, `tail_whip`,
+`fly` and `fly_carry` (after the third reference picture: his body pitched into the air, wings beating hard, the beat
+rippling out along each wing; legs drawn up, or reaching down with talons clenched round what he carries), `death`,
+and `entrance` (the root bone carries his body up from below the surface). His beams' mouths are `mouth_c`/`_r`/`_l`.
 
 **His texture** (`textures/entity/king_ghidorah.png`) is 512 x 512, at **2 texels per model unit on every face** -
 the same density as Godzilla's and Minus Zero's skins (256-unit sheets at 512 px), so they read alike side by side,
 and at his size (one model unit about 0.78 blocks) a texel is about 6 Minecraft pixels across: fine enough for each
 small scale and the seams between plates, coarse enough to stay crisp pixel art at a distance. Every face has its own
 texels (per-face UV), cubes of the same shape and kind share theirs and his left side's are his right side's,
-mirrored, which is what lets the whole of him (760 cubes) fit one 512 px sheet.
+mirrored, which is what lets the whole of him (760 cubes) fit one 512 px sheet. (His height is measured to his heads,
+not his raised wing tips: his body stands as tall as Minus Zero's, his wings rise above it.)
 
 ### Kyushu J7W1 Shinden
 
@@ -637,6 +670,8 @@ mod's part:
   - **Lies Downed** sets how long Godzilla lies defeated when his health bar hits zero (after his 5 s collapse), from
     0 to 10 minutes in steps of 5 seconds (15 seconds by default; `downedSeconds`).
   - **Played Godzilla: Auto-Climb / Walk Through**: how you get about playing as him (also the **M** key).
+  - **King Ghidorah Retreats**: whether King Ghidorah flies off when his health runs low (on).
+  - **Ghidorah's Entrance Shake**: how hard the ground shakes your view as he rises out of it (0 to 100%, 60).
   - The atomic blast: **Cloud Height** (40 to 600 blocks, 240), **Blast Flash** (how strongly the flash whites out
     your view, 0 to 100%; Minecraft's "Hide Lightning Flashes" option also turns it off), **Cloud Rises**
     (30 seconds), **Cloud Towers** (how long it stays full-grown, 1 minute) and **Cloud Fades** (how long it takes to
