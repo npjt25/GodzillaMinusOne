@@ -37,7 +37,7 @@ public class ModConfigScreen extends Screen {
 
     @Override
     protected void init() {
-        // two columns of five rows, clear of the Done button even on a small window
+        // two columns of six rows, clear of the Done button even on a small window
         int left = this.width / 2 - 155;
         int right = this.width / 2 + 5;
         int y = this.height / 6 + 16;
@@ -48,28 +48,37 @@ public class ModConfigScreen extends Screen {
                     ClientConfig.SPEC.save();
                 }));
         addSlider(new NumberSlider(right, y, Config.SPEC, Config.ATOMIC_BREATH_COOLDOWN, 10, 600, 10, "breath_interval", ModConfigScreen::time));
-        addSlider(new NumberSlider(left, y + 26, Config.SPEC, Config.ROAR_INTERVAL, 0, 600, 30, "roar_interval", ModConfigScreen::time));
+        addSlider(new NumberSlider(left, y + 24, Config.SPEC, Config.ROAR_INTERVAL, 0, 600, 30, "roar_interval", ModConfigScreen::time));
         // the atomic blast's look
-        addSlider(new NumberSlider(right, y + 26, ClientConfig.SPEC, ClientConfig.CLOUD_HEIGHT, 40, 600, 10, "cloud_height",
+        addSlider(new NumberSlider(right, y + 24, ClientConfig.SPEC, ClientConfig.CLOUD_HEIGHT, 40, 600, 10, "cloud_height",
                 blocks -> Component.translatable(KEY + ".blocks", blocks)));
-        addSlider(new NumberSlider(left, y + 52, ClientConfig.SPEC, ClientConfig.FLASH_STRENGTH, 0, 100, 5, "flash_strength",
+        addSlider(new NumberSlider(left, y + 48, ClientConfig.SPEC, ClientConfig.FLASH_STRENGTH, 0, 100, 5, "flash_strength",
                 percent -> percent == 0 ? CommonComponents.OPTION_OFF : Component.translatable(KEY + ".percent", percent)));
-        addSlider(new NumberSlider(right, y + 52, ClientConfig.SPEC, ClientConfig.RISE_SECONDS, 5, 120, 5, "cloud_rise", ModConfigScreen::time));
-        addSlider(new NumberSlider(left, y + 78, ClientConfig.SPEC, ClientConfig.MATURE_SECONDS, 0, 600, 10, "cloud_mature", ModConfigScreen::time));
-        addSlider(new NumberSlider(right, y + 78, ClientConfig.SPEC, ClientConfig.DISSIPATE_SECONDS, 10, 600, 10, "cloud_dissipate",
+        addSlider(new NumberSlider(right, y + 48, ClientConfig.SPEC, ClientConfig.RISE_SECONDS, 5, 120, 5, "cloud_rise", ModConfigScreen::time));
+        addSlider(new NumberSlider(left, y + 72, ClientConfig.SPEC, ClientConfig.MATURE_SECONDS, 0, 600, 10, "cloud_mature", ModConfigScreen::time));
+        addSlider(new NumberSlider(right, y + 72, ClientConfig.SPEC, ClientConfig.DISSIPATE_SECONDS, 10, 600, 10, "cloud_dissipate",
                 ModConfigScreen::time));
         // how long he lies defeated when his health runs out
-        addSlider(new NumberSlider(left, y + 104, Config.SPEC, Config.DOWNED_SECONDS, 0, 600, 5, "downed_time",
+        addSlider(new NumberSlider(left, y + 96, Config.SPEC, Config.DOWNED_SECONDS, 0, 600, 5, "downed_time",
                 seconds -> seconds == 0 ? Component.translatable(KEY + ".seconds", 0) : time(seconds)));
         // playing as Godzilla: climb onto things, or walk through them
         addRenderableWidget(CycleButton.booleanBuilder(Component.translatable(KEY + ".stride.through"), Component.translatable(KEY + ".stride.climb"))
                 .withInitialValue(ClientConfig.PLAYER_GODZILLA_WALK_THROUGH.get())
                 .withTooltip(value -> Tooltip.create(Component.translatable(KEY + ".stride.tooltip")))
-                .create(right, y + 104, WIDTH, 20, Component.translatable(KEY + ".stride"), (button, value) -> {
+                .create(right, y + 96, WIDTH, 20, Component.translatable(KEY + ".stride"), (button, value) -> {
                     ClientConfig.PLAYER_GODZILLA_WALK_THROUGH.set(value);
                     ClientConfig.SPEC.save();
                     PlayerGodzillaControls.stride(false);
                 }));
+        // King Ghidorah: whether he flies off when his health runs low, and how hard his entrance shakes your view
+        addRenderableWidget(CycleButton.onOffBuilder(Config.GHIDORAH_RETREATS.get())
+                .withTooltip(value -> Tooltip.create(Component.translatable(KEY + ".ghidorah_retreats.tooltip")))
+                .create(left, y + 120, WIDTH, 20, Component.translatable(KEY + ".ghidorah_retreats"), (button, value) -> {
+                    Config.GHIDORAH_RETREATS.set(value);
+                    Config.SPEC.save();
+                }));
+        addSlider(new NumberSlider(right, y + 120, ClientConfig.SPEC, ClientConfig.GHIDORAH_SHAKE, 0, 100, 10, "ghidorah_shake",
+                percent -> percent == 0 ? CommonComponents.OPTION_OFF : Component.translatable(KEY + ".percent", percent)));
         addRenderableWidget(Button.builder(CommonComponents.GUI_DONE, button -> onClose())
                 .bounds(this.width / 2 - 100, this.height - 40, 200, 20)
                 .build());

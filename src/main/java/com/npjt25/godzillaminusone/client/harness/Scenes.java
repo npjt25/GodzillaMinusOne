@@ -1,6 +1,7 @@
 package com.npjt25.godzillaminusone.client.harness;
 
 import com.mojang.blaze3d.platform.InputConstants;
+import com.npjt25.godzillaminusone.Config;
 import com.npjt25.godzillaminusone.client.ModKeyMappings;
 import com.npjt25.godzillaminusone.client.PlayerGodzillaControls;
 import com.npjt25.godzillaminusone.client.SearchlightGlow;
@@ -820,20 +821,45 @@ final class Scenes {
 
     @Nullable
     private static KingGhidorahEntity serverGhidorah(ServerLevel level) {
-        List<KingGhidorahEntity> all = level.getEntitiesOfClass(KingGhidorahEntity.class, new AABB(GHIDORAH_AT, GHIDORAH_AT).inflate(150.0));
+        List<KingGhidorahEntity> all = level.getEntitiesOfClass(KingGhidorahEntity.class, new AABB(GHIDORAH_AT, GHIDORAH_AT).inflate(300.0));
         return all.isEmpty() ? null : all.get(0);
     }
 
+    /** Waits until his action is {@code action}, {@code ticks} into it by the server's clock (as the client sees it). */
+    private static void ghidorahAt(String label, int action, int ticks) {
+        until("ghidorah: " + label, () -> {
+            KingGhidorahEntity g = find(KingGhidorahEntity.class);
+            return g != null && g.getAction() == action && g.getActionTicks() >= ticks;
+        }, 400);
+    }
+
+    private static void ghidorahIdle(String label) {
+        until("ghidorah: " + label, () -> {
+            KingGhidorahEntity g = find(KingGhidorahEntity.class);
+            return g != null && g.getAction() == KingGhidorahEntity.ACTION_NONE;
+        }, 500);
+    }
+
+    private static void onGhidorah(String label, java.util.function.Consumer<KingGhidorahEntity> action) {
+        server("ghidorah: " + label, level -> {
+            KingGhidorahEntity g = serverGhidorah(level);
+            if (g != null) {
+                action.accept(g);
+            }
+        });
+    }
+
     /**
-     * King Ghidorah: beside Minus Zero (as tall as he is), all round, his heads, walking, and his roar, bite and gravity
-     * beams, each shot as it happens; his mouths' bones, where his beams come from, checked where the game draws them.
+     * King Ghidorah: summoned (as his egg or /summon do: he rises out of the ground), his entrance shot as it goes,
+     * the storm after it, beside Minus Zero, his stance, and each of his attacks as it happens: bite, stomp, tail whip,
+     * gravity beams vaporizing a building, his lift, his grab and his retreat; checked where the game has him.
      */
     private static void kingGhidorah() {
-        commands("gamerule mobGriefing false", "time set 6000", "kill @e[type=godzillaminusone:godzilla_minus_zero]",
-                "kill @e[type=godzillaminusone:godzilla]", "kill @e[type=godzillaminusone:king_ghidorah]");
-        camera("ghidorah", new Vec3(805.5, -12.0, 88.0), new Vec3(805.5, -16.0, 0.5), 80);
+        commands("gamerule mobGriefing false", "time set 6000", "weather clear", "kill @e[type=godzillaminusone:godzilla_minus_zero]",
+                "kill @e[type=godzillaminusone:godzilla]", "kill @e[type=godzillaminusone:king_ghidorah]", "kill @e[type=minecraft:pig]");
+        camera("ghidorah: the ground", new Vec3(902.0, -44.0, 92.0), new Vec3(850.5, -42.0, 18.0), 75);
         waitTicks(60);
-        server("ghidorah: beside Minus Zero", level -> {
+        server("ghidorah: Minus Zero, for his size", level -> {
             GodzillaEntity zero = ModEntities.GODZILLA_MINUS_ZERO.get().create(level);
             zero.moveTo(ZERO_AT.x, ZERO_AT.y, ZERO_AT.z, 0.0F, 0.0F);
             zero.setYBodyRot(0.0F);
@@ -842,14 +868,66 @@ final class Scenes {
             zero.setBreathCooldown(20 * 600);
             zero.setNoAi(true);
             level.addFreshEntity(zero);
-            KingGhidorahEntity g = ModEntities.KING_GHIDORAH.get().create(level);
-            g.moveTo(GHIDORAH_AT.x, GHIDORAH_AT.y, GHIDORAH_AT.z, 0.0F, 0.0F);
-            g.setYBodyRot(0.0F);
-            g.setYHeadRot(0.0F);
-            g.setNoAi(true);
-            level.addFreshEntity(g);
         });
-        waitTicks(80);
+        int[] since = {0};
+        once("ghidorah: mark the entrance", () -> since[0] = now());
+        // (/summon without NBT, as his egg: a spawn, so he rises out of the ground)
+        commands("summon godzillaminusone:king_ghidorah 850.5 -60 0.5");
+        ghidorahAt("the ground cracking (1.5 s)", KingGhidorahEntity.ACTION_ENTRANCE, 30);
+        check("ghidorah: rising, by the server's clock", () -> {
+            KingGhidorahEntity g = find(KingGhidorahEntity.class);
+            return g != null && g.inEntrance() ? null : "not in his entrance";
+        });
+        shot("king_ghidorah_entrance_cracks");
+        ghidorahAt("his first head (5 s)", KingGhidorahEntity.ACTION_ENTRANCE, 100);
+        shot("king_ghidorah_entrance_first_head");
+        ghidorahAt("his three heads (7.6 s)", KingGhidorahEntity.ACTION_ENTRANCE, 152);
+        shot("king_ghidorah_entrance_heads");
+        ghidorahAt("climbing out (9.4 s)", KingGhidorahEntity.ACTION_ENTRANCE, 188);
+        shot("king_ghidorah_entrance_climbing");
+        ghidorahAt("his wings spreading (11.6 s)", KingGhidorahEntity.ACTION_ENTRANCE, 232);
+        shot("king_ghidorah_entrance_wings");
+        ghidorahAt("his roar (13 s)", KingGhidorahEntity.ACTION_ENTRANCE, 260);
+        shot("king_ghidorah_entrance_roar");
+        checkServer("ghidorah: the server and the client agree where his entrance is", level -> {
+            KingGhidorahEntity server = serverGhidorah(level);
+            KingGhidorahEntity client = find(KingGhidorahEntity.class);
+            if (server == null || client == null) {
+                return "missing";
+            }
+            log(String.format("ghidorah: entrance at tick %d on the server, %d on the client", server.getActionTicks(), client.getActionTicks()));
+            return Math.abs(server.getActionTicks() - client.getActionTicks()) <= 3 ? null : "out of step";
+        });
+        long[] ended = {-1};
+        untilServer("ghidorah: his entrance over", level -> {
+            KingGhidorahEntity g = serverGhidorah(level);
+            if (g != null && !g.inEntrance() && ended[0] < 0) {
+                ended[0] = level.getGameTime();
+                g.setNoAi(true);          // (Minus Zero stands there for his size, not to be fought)
+                g.setTarget(null);
+            }
+            return ended[0] >= 0;
+        }, 200);
+        check("ghidorah: the entrance's sounds heard", () -> {
+            log("ghidorah: sounds of his entrance: " + heardSince(since[0]));
+            return heard(since[0], "king_ghidorah.rumble").isEmpty() ? "no rumble"
+                    : heard(since[0], "king_ghidorah.earth_crack").isEmpty() ? "no cracking"
+                    : heard(since[0], "king_ghidorah.wing_spread").isEmpty() ? "no wings"
+                    : heard(since[0], "king_ghidorah.roar").isEmpty() ? "no roar" : null;
+        });
+        untilServer("ghidorah: the storm", ServerLevel::isThundering, 200);
+        checkServer("ghidorah: the storm three seconds after his entrance", level -> {
+            long after = level.getGameTime() - ended[0];
+            log("ghidorah: thunder " + after + " ticks after his entrance ended");
+            return after >= Config.GHIDORAH_STORM_DELAY_TICKS.get() - 1 && after <= Config.GHIDORAH_STORM_DELAY_TICKS.get() + 6
+                    ? null : "the storm came " + after + " ticks after";
+        });
+        waitTicks(30);
+        shot("king_ghidorah_storm");
+        commands("weather clear");
+        onGhidorah("no AI for the shots", g -> g.setNoAi(true));
+        camera("ghidorah", new Vec3(805.5, -12.0, 88.0), new Vec3(805.5, -16.0, 0.5), 80);
+        waitTicks(40);
         check("ghidorah: Minus Zero's hitbox, on the client", () -> {
             KingGhidorahEntity g = find(KingGhidorahEntity.class);
             GodzillaMinusZeroEntity zero = find(GodzillaMinusZeroEntity.class);
@@ -863,27 +941,20 @@ final class Scenes {
         });
         shot("king_ghidorah_beside_minus_zero");
         commands("kill @e[type=godzillaminusone:godzilla_minus_zero]");
-        camera("ghidorah: front", new Vec3(885.0, 5.0, 68.0), new Vec3(850.5, -15.0, 0.5), 75);
+        camera("ghidorah: front", new Vec3(885.0, 5.0, 68.0), new Vec3(850.5, -12.0, 0.5), 75);
         waitTicks(40);
         shot("king_ghidorah_front");
-        camera("ghidorah: side", new Vec3(935.0, -10.0, 10.0), new Vec3(850.5, -15.0, 10.0), 70);
+        camera("ghidorah: side", new Vec3(935.0, -10.0, 10.0), new Vec3(850.5, -12.0, 10.0), 75);
         waitTicks(40);
         shot("king_ghidorah_side");
-        camera("ghidorah: behind", new Vec3(815.0, 10.0, -70.0), new Vec3(850.5, -18.0, 5.0), 75);
-        waitTicks(40);
-        shot("king_ghidorah_back");
-        // (his heads: about 75 blocks up, 25 ahead of him)
-        camera("ghidorah: heads", new Vec3(880.0, 22.0, 62.0), new Vec3(850.5, 12.0, 22.0), 60);
+        camera("ghidorah: heads", new Vec3(882.0, 26.0, 70.0), new Vec3(850.5, 12.0, 30.0), 60);
         waitTicks(40);
         shot("king_ghidorah_heads");
 
         // walking (south, with nothing to hunt)
-        server("ghidorah: walk south", level -> {
-            KingGhidorahEntity g = serverGhidorah(level);
-            if (g != null) {
-                g.setNoAi(false);
-                g.walkTo(new Vec3(GHIDORAH_AT.x, GHIDORAH_AT.y, 60.5));
-            }
+        onGhidorah("walk south", g -> {
+            g.setNoAi(false);
+            g.walkTo(new Vec3(GHIDORAH_AT.x, GHIDORAH_AT.y, 60.5));
         });
         camera("ghidorah: walking", new Vec3(925.0, -5.0, 40.0), new Vec3(850.5, -18.0, 30.0), 80);
         waitTicks(50);
@@ -894,77 +965,53 @@ final class Scenes {
             KingGhidorahEntity g = serverGhidorah(level);
             return g != null && g.getZ() > GHIDORAH_AT.z + 10.0 ? null : "he hasn't moved: " + (g == null ? "gone" : g.position());
         });
-        server("ghidorah: stop", level -> {
-            KingGhidorahEntity g = serverGhidorah(level);
-            if (g != null) {
-                g.walkTo(null);
-                g.setNoAi(true);
-                g.setDeltaMovement(Vec3.ZERO);
-            }
+        onGhidorah("stop", g -> {
+            g.walkTo(null);
+            g.setNoAi(true);
+            g.setDeltaMovement(Vec3.ZERO);
         });
         waitTicks(30);
 
-        // his roar: all three heads, staggered
-        int[] since = {0};
-        once("ghidorah: mark", () -> since[0] = now());
-        server("ghidorah: roar", level -> {
-            KingGhidorahEntity g = serverGhidorah(level);
-            if (g != null) {
-                g.startRoar();
-            }
-        });
-        camera("ghidorah: roaring", new Vec3(905.0, 15.0, 110.0), new Vec3(850.5, 0.0, 40.0), 75);
-        until("ghidorah: his roar 1.2 s in", () -> {
-            KingGhidorahEntity g = find(KingGhidorahEntity.class);
-            return g != null && g.getAction() == KingGhidorahEntity.ACTION_ROAR && g.getActionTicks() >= 24;
-        }, 200);
-        shot("king_ghidorah_roar");
-        waitTicks(30);
-        check("ghidorah: his roar heard", () -> {
-            log("ghidorah: sounds since the roar began: " + heardSince(since[0]));
-            return heard(since[0], "king_ghidorah.roar").isEmpty() ? "no king_ghidorah.roar" : null;
-        });
-        until("ghidorah: roar over", () -> {
-            KingGhidorahEntity g = find(KingGhidorahEntity.class);
-            return g != null && g.getAction() == KingGhidorahEntity.ACTION_NONE;
-        }, 200);
-
-        // a bite, his right head's
-        server("ghidorah: bite", level -> {
-            KingGhidorahEntity g = serverGhidorah(level);
-            if (g != null) {
-                g.startBite(KingGhidorahEntity.Head.RIGHT);
-            }
-        });
-        until("ghidorah: his jaws snapping shut", () -> {
-            KingGhidorahEntity g = find(KingGhidorahEntity.class);
-            return g != null && g.getAction() == KingGhidorahEntity.ACTION_BITE + KingGhidorahEntity.Head.RIGHT.ordinal()
-                    && g.getActionTicks() >= KingGhidorahEntity.BITE_SNAP_AT - 2;
-        }, 200);
+        // a bite (his right head's), a stomp, his tails' whip
+        camera("ghidorah: close", new Vec3(915.0, 10.0, 110.0), new Vec3(850.5, -15.0, 40.0), 75);
+        onGhidorah("bite", g -> g.startBite(KingGhidorahEntity.Head.RIGHT));
+        ghidorahAt("his jaws snapping shut", KingGhidorahEntity.ACTION_BITE + KingGhidorahEntity.Head.RIGHT.ordinal(), KingGhidorahEntity.BITE_SNAP_AT - 2);
         shot("king_ghidorah_bite");
-        until("ghidorah: bite over", () -> {
-            KingGhidorahEntity g = find(KingGhidorahEntity.class);
-            return g != null && g.getAction() == KingGhidorahEntity.ACTION_NONE;
-        }, 200);
+        ghidorahIdle("bite over");
+        onGhidorah("stomp", g -> g.startStomp());
+        ghidorahAt("his foot up", KingGhidorahEntity.ACTION_STOMP, 12);
+        shot("king_ghidorah_stomp_raised");
+        ghidorahAt("his foot down", KingGhidorahEntity.ACTION_STOMP, KingGhidorahEntity.STOMP_HIT_AT + 1);
+        shot("king_ghidorah_stomp");
+        ghidorahIdle("stomp over");
+        camera("ghidorah: from above", new Vec3(890.0, 40.0, 110.0), new Vec3(850.5, -40.0, 50.0), 80);
+        onGhidorah("tail whip", g -> g.startWhip());
+        ghidorahAt("his tails swinging", KingGhidorahEntity.ACTION_WHIP, KingGhidorahEntity.WHIP_HIT_AT);
+        shot("king_ghidorah_tail_whip");
+        ghidorahIdle("whip over");
 
-        // his gravity beams, at the ground 70 blocks ahead of him
-        once("ghidorah: mark the beams", () -> since[0] = now());
-        server("ghidorah: beams", level -> {
+        // his gravity beams, at a building ahead of him: they bore through it and vaporize everything 12 round
+        Vec3[] target = {null};
+        server("ghidorah: a building ahead of him", level -> {
             KingGhidorahEntity g = serverGhidorah(level);
-            if (g != null) {
-                g.startBeam(new Vec3(g.getX(), -60.0, g.getZ() + 70.0));
+            if (g == null) {
+                return;
             }
+            Vec3 c = g.locator(new Vec3(0.0, 0.0, 70.0));
+            target[0] = new Vec3(c.x, -55.0, c.z);
+            int x = Mth.floor(c.x);
+            int z = Mth.floor(c.z);
+            level.getServer().getCommands().performPrefixedCommand(level.getServer().createCommandSourceStack().withSuppressedOutput(),
+                    String.format("fill %d -60 %d %d -44 %d minecraft:stone_bricks hollow", x - 8, z - 8, x + 8, z + 8));
         });
-        camera("ghidorah: beams", new Vec3(930.0, 0.0, 60.0), new Vec3(850.5, -20.0, 60.0), 85);
-        until("ghidorah: bracing", () -> {
-            KingGhidorahEntity g = find(KingGhidorahEntity.class);
-            return g != null && g.getAction() == KingGhidorahEntity.ACTION_BEAM && g.getActionTicks() >= 16;
-        }, 200);
+        commands("gamerule mobGriefing true");
+        int[] beamSince = {0};
+        once("ghidorah: mark the beams", () -> beamSince[0] = now());
+        onGhidorah("beams", g -> g.startBeam(target[0]));
+        camera("ghidorah: beams", new Vec3(930.0, 0.0, 80.0), new Vec3(850.5, -25.0, 70.0), 85);
+        ghidorahAt("bracing", KingGhidorahEntity.ACTION_BEAM, 16);
         shot("king_ghidorah_beam_brace");
-        until("ghidorah: all three firing", () -> {
-            KingGhidorahEntity g = find(KingGhidorahEntity.class);
-            return g != null && g.getAction() == KingGhidorahEntity.ACTION_BEAM && g.getActionTicks() >= 40;
-        }, 200);
+        ghidorahAt("all three firing", KingGhidorahEntity.ACTION_BEAM, 40);
         check("ghidorah: his beams come from his mouths (bones mouth_c / _r / _l, where the game draws them)", () -> {
             KingGhidorahEntity g = find(KingGhidorahEntity.class);
             if (g == null) {
@@ -981,25 +1028,108 @@ final class Scenes {
                 double ahead = m.dot(fwd);
                 log(String.format("ghidorah: %s mouth drawn %.1f up, %.1f ahead (the server's: %.1f up, %.1f ahead); firing %s", head, m.y,
                         ahead, g.beamMouth(head).y - g.getY(), g.beamMouth(head).subtract(g.position()).dot(fwd), g.isFiring(head)));
-                if (m.y < 40.0 || m.y > 85.0 || ahead < 10.0 || ahead > 50.0 || !g.isFiring(head)) {
+                if (m.y < 40.0 || m.y > 90.0 || ahead < 20.0 || ahead > 65.0 || !g.isFiring(head)) {
                     problems.append(head).append(" at ").append(m).append("; ");
                 }
             }
             return problems.length() == 0 ? null : problems.toString();
         });
         shot("king_ghidorah_beam_fire");
-        camera("ghidorah: beams, head on", new Vec3(890.0, 20.0, 110.0), new Vec3(850.5, -10.0, 45.0), 75);
+        camera("ghidorah: beams, head on", new Vec3(895.0, 15.0, 130.0), new Vec3(850.5, -25.0, 60.0), 75);
         waitTicks(6);
         shot("king_ghidorah_beam_fire_front");
-        check("ghidorah: his beams heard", () -> {
-            log("ghidorah: sounds since the beams began: " + heardSince(since[0]));
-            return heard(since[0], "king_ghidorah.beam").isEmpty() ? "no king_ghidorah.beam" : null;
+        ghidorahIdle("beams over");
+        commands("gamerule mobGriefing false");
+        checkServer("ghidorah: the building where his beams struck vaporized", level -> {
+            if (target[0] == null) {
+                return "no building";
+            }
+            BlockPos c = BlockPos.containing(target[0]);
+            int left = 0;
+            for (BlockPos p : BlockPos.betweenClosed(c.offset(-6, -5, -6), c.offset(6, 6, 6))) {
+                if (level.getBlockState(p).is(net.minecraft.world.level.block.Blocks.STONE_BRICKS)) {
+                    left++;
+                }
+            }
+            log("ghidorah: stone bricks left within 6 of where his beams struck: " + left);
+            return left == 0 ? null : left + " left";
         });
-        until("ghidorah: beams over", () -> {
+        check("ghidorah: his beams heard", () -> heard(beamSince[0], "king_ghidorah.beam").isEmpty() ? "no king_ghidorah.beam" : null);
+        camera("ghidorah: the crater", new Vec3(900.0, 10.0, 120.0), new Vec3(850.5, -55.0, 70.0), 70);
+        waitTicks(20);
+        shot("king_ghidorah_beam_after");
+
+        // his lift: a pig hauled into the air by his beams
+        Pig[] lifted = {null};
+        server("ghidorah: a pig to lift", level -> {
+            KingGhidorahEntity g = serverGhidorah(level);
+            if (g == null) {
+                return;
+            }
+            Vec3 at = g.locator(new Vec3(-12.0, 0.0, 50.0));
+            Pig pig = EntityType.PIG.create(level);
+            pig.moveTo(at.x, -60.0, at.z);
+            pig.setInvulnerable(true);
+            level.addFreshEntity(pig);
+            lifted[0] = pig;
+            g.startLift(pig);
+        });
+        camera("ghidorah: lift", new Vec3(925.0, 0.0, 70.0), new Vec3(840.5, -25.0, 50.0), 85);
+        ghidorahAt("lifting", KingGhidorahEntity.ACTION_LIFT, 55);
+        checkServer("ghidorah: the pig hauled up", level -> {
+            Pig pig = lifted[0];
+            log("ghidorah: the lifted pig is " + (pig == null ? -1 : pig.getY() + 60.0) + " blocks up");
+            return pig != null && pig.getY() > -60.0 + 15.0 ? null : "not lifted";
+        });
+        shot("king_ghidorah_lift");
+        ghidorahIdle("lift over");
+
+        // his grab: off the ground, a pig seized in his talons, carried up, and slammed down
+        Pig[] grabbed = {null};
+        server("ghidorah: a pig to grab", level -> {
+            KingGhidorahEntity g = serverGhidorah(level);
+            if (g == null) {
+                return;
+            }
+            Vec3 at = g.locator(new Vec3(0.0, 0.0, 35.0));
+            Pig pig = EntityType.PIG.create(level);
+            pig.moveTo(at.x, -60.0, at.z);
+            level.addFreshEntity(pig);
+            grabbed[0] = pig;
+            g.setNoAi(false);
+            g.startGrab(pig);
+        });
+        camera("ghidorah: flying", new Vec3(935.0, 20.0, 110.0), new Vec3(850.5, -10.0, 40.0), 85);
+        until("ghidorah: in the air", () -> {
             KingGhidorahEntity g = find(KingGhidorahEntity.class);
-            return g != null && g.getAction() == KingGhidorahEntity.ACTION_NONE;
+            return g != null && g.isFlying() && g.getY() > -45.0;
+        }, 200);
+        shot("king_ghidorah_flying");
+        until("ghidorah: carrying it up", () -> {
+            KingGhidorahEntity g = find(KingGhidorahEntity.class);
+            return g != null && g.isCarrying() && g.getY() > -30.0;
         }, 300);
-        commands("kill @e[type=godzillaminusone:king_ghidorah]");
+        shot("king_ghidorah_carrying");
+        untilServer("ghidorah: slammed it down and landed", level -> {
+            KingGhidorahEntity g = serverGhidorah(level);
+            return g != null && g.hasSlammed() && !g.isFlying();
+        }, 400);
+        shot("king_ghidorah_after_slam");
+        onGhidorah("no AI again", g -> g.setNoAi(true));
+
+        // his retreat: his health low, he flies off
+        onGhidorah("health low: retreat", g -> {
+            g.setNoAi(false);
+            g.setHealth(g.getMaxHealth() * 0.1F);
+            g.startRetreat(new Vec3(g.getX(), g.getY(), g.getZ() - 40.0));
+        });
+        camera("ghidorah: retreating", new Vec3(930.0, 20.0, 60.0), new Vec3(850.5, 10.0, 80.0), 85);
+        until("ghidorah: flying off", () -> {
+            KingGhidorahEntity g = find(KingGhidorahEntity.class);
+            return g != null && g.isFlying() && g.getY() > -30.0;
+        }, 200);
+        shot("king_ghidorah_retreat");
+        commands("kill @e[type=godzillaminusone:king_ghidorah]", "kill @e[type=minecraft:pig]", "weather clear");
         waitTicks(5);
     }
 

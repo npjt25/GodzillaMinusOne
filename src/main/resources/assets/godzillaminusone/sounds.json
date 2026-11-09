@@ -368,5 +368,38 @@
     "name": "godzillaminusone:king_ghidorah_beam"
    }
   ]
+ },
+ "king_ghidorah.rumble": {
+  "subtitle": "subtitles.godzillaminusone.king_ghidorah.rumble",
+  "sounds": [
+   {
+    "name": "godzillaminusone:king_ghidorah_rumble",
+    "attenuation_distance": 240
+   }
+  ]
+ },
+ "king_ghidorah.earth_crack": {
+  "subtitle": "subtitles.godzillaminusone.king_ghidorah.earth_crack",
+  "sounds": [
+   {
+    "name": "godzillaminusone:king_ghidorah_earth_crack"
+   }
+  ]
+ },
+ "king_ghidorah.wing_spread": {
+  "subtitle": "subtitles.godzillaminusone.king_ghidorah.wing_spread",
+  "sounds": [
+   {
+    "name": "godzillaminusone:king_ghidorah_wing_spread"
+   }
+  ]
+ },
+ "king_ghidorah.wing_flap": {
+  "subtitle": "subtitles.godzillaminusone.king_ghidorah.wing_flap",
+  "sounds": [
+   {
+    "name": "godzillaminusone:king_ghidorah_wing_flap"
+   }
+  ]
  }
 }

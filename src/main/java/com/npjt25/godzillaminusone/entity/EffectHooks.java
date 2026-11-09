@@ -25,6 +25,15 @@ public final class EffectHooks {
     public static BeamImpact beamImpact = (godzilla, at, normal, block) -> {
     };
 
+    /** King Ghidorah's effects on the client, each tick: his entrance's cracks and debris, his beams' sparks (client.GhidorahEffects). */
+    @FunctionalInterface
+    public interface Ghidorah {
+        void tick(KingGhidorahEntity ghidorah);
+    }
+
+    public static Ghidorah ghidorah = ghidorah -> {
+    };
+
     private EffectHooks() {
     }
 }

@@ -65,6 +65,12 @@ public final class Config {
     public static final ForgeConfigSpec.DoubleValue PLAYER_ODO_SPEED;
     public static final ForgeConfigSpec.DoubleValue PLAYER_ODO_BITE_DAMAGE;
 
+    // ---- King Ghidorah
+    public static final ForgeConfigSpec.BooleanValue GHIDORAH_RETREATS;
+    public static final ForgeConfigSpec.IntValue GHIDORAH_RETREAT_HEALTH_PERCENT;
+    public static final ForgeConfigSpec.IntValue GHIDORAH_STORM_DELAY_TICKS;
+    public static final ForgeConfigSpec.IntValue GHIDORAH_STORM_DURATION_TICKS;
+
     static {
         BUILDER.push("godzilla");
         GODZILLA_MAX_HEALTH = BUILDER
@@ -252,6 +258,25 @@ public final class Config {
         PLAYER_ODO_BITE_DAMAGE = BUILDER
                 .comment("Playing as the Odo Island Monster: damage of his bite (left click).")
                 .defineInRange("playerOdoBiteDamage", 30.0, 0.0, 1000.0);
+        BUILDER.pop();
+
+        BUILDER.push("king_ghidorah");
+        GHIDORAH_RETREATS = BUILDER
+                .comment("When his health runs low (retreatHealthPercent), King Ghidorah takes to the air and flies away from",
+                        "whatever he's fighting, lands far off and lets it go (healing as Godzilla does while he has no target),",
+                        "and comes back to fight another day. Set false and he fights on to the end. (Also on the in-game config screen.)")
+                .define("retreats", true);
+        GHIDORAH_RETREAT_HEALTH_PERCENT = BUILDER
+                .comment("How low his health (percent of its max) must fall before he retreats.")
+                .defineInRange("retreatHealthPercent", 20, 1, 99);
+        GHIDORAH_STORM_DELAY_TICKS = BUILDER
+                .comment("Ticks (20 a second) after his entrance has finished that a thunderstorm breaks over the dimension he",
+                        "rose in (only where there's weather: not the Nether or the End). Counted from the end of the entrance,",
+                        "not from his spawning.")
+                .defineInRange("entranceStormDelayTicks", 60, 0, 12000);
+        GHIDORAH_STORM_DURATION_TICKS = BUILDER
+                .comment("How long (ticks) the thunderstorm after his entrance lasts. 0: no storm.")
+                .defineInRange("entranceStormDurationTicks", 6000, 0, 1_000_000);
         BUILDER.pop();
     }
 

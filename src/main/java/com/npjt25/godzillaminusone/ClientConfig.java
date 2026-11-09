@@ -19,6 +19,10 @@ public final class ClientConfig {
                     "switched in game with the \"Godzilla: Walk Through / Climb\" key (M by default).")
             .define("playerGodzillaWalkThrough", false);
 
+    public static final ForgeConfigSpec.IntValue GHIDORAH_SHAKE = BUILDER
+            .comment("How hard the ground shakes your view during King Ghidorah's entrance (percent; 0 = not at all).")
+            .defineInRange("ghidorahEntranceShake", 60, 0, 100);
+
     // The atomic blast (client.render.NuclearCloud, client.render.BlastTimeline). The defaults are a proposal for the
     // film's sequence at a playable pace, not timings measured from it.
     static {

@@ -21,6 +21,11 @@
   * king_ghidorah_ambient.ogg - one head chittering to itself: the same trill, short and low.
   * king_ghidorah_beam.ogg - his gravity beams: a crackling, buzzing discharge, an electric hum rising under bursts of
                            sparks, that dies away as the beams end.
+  * king_ghidorah_rumble.ogg - the ground before his entrance: a deep underground rumble, swelling and grinding, 6 s.
+  * king_ghidorah_earth_crack.ogg - the earth breaking open: splitting rock, a crack and the clatter of falling stones.
+  * king_ghidorah_wing_spread.ogg - his wings spreading to their full span: a slow, huge rush of air and the snap of
+                           the membranes drawn taut.
+  * king_ghidorah_wing_flap.ogg - one beat of his wings in flight: a deep whump of air.
 
     python3 tools/make_sounds.py [name ...]   (only those, e.g. godzilla_minus_zero_tail_swing; all of them without)
 
@@ -270,6 +275,66 @@ def ghidorah_beam(rng, seconds=2.4):
     return (hum + crackle * np.minimum(gate, 1.2)) * env
 
 
+def ghidorah_rumble(rng, seconds=6.0):
+    """Deep earth moving: low noise, grinding and swelling, with slow surges."""
+    t = np.arange(int(seconds * RATE)) / RATE
+
+    def low(time, freqs):
+        return band(freqs, 45, 0.7) + 0.6 * band(freqs, 110, 0.6) + 0.15 * band(freqs, 400, 0.5)
+
+    rum = shaped_noise(seconds, low, rng)
+    rum /= np.max(np.abs(rum))
+    surge = 0.55 + 0.45 * np.sin(2 * np.pi * 0.45 * t + 1.0) ** 2
+    env = smooth(t / 1.2) * (1 - smooth((t - (seconds - 1.5)) / 1.5))
+    sub = np.sin(2 * np.pi * 31 * t + 2 * np.sin(2 * np.pi * 0.7 * t)) * 0.4
+    return (rum + sub) * surge * env
+
+
+def ghidorah_crack(rng, seconds=1.6):
+    """Rock splitting: a sharp crack, a grinding tear, then stones clattering down."""
+    t = np.arange(int(seconds * RATE)) / RATE
+
+    def rock(time, freqs):
+        return band(freqs, 220 if time < 0.25 else 600, 0.9) + 0.4 * band(freqs, 2400, 0.6)
+
+    tear = shaped_noise(seconds, rock, rng)
+    tear /= np.max(np.abs(tear))
+    tear *= np.exp(-t / 0.35) * 0.9 + 0.1 * np.exp(-t / 1.0)
+    crack = rng.standard_normal(len(t)) * np.exp(-t / 0.015) * 1.2
+    clatter = np.zeros_like(t)
+    for start in rng.uniform(0.15, seconds - 0.2, 45):
+        clatter += np.exp(-np.maximum(t - start, 0) / 0.012) * (t >= start) * rng.standard_normal(len(t)) * rng.uniform(0.1, 0.45)
+    thump = np.sin(2 * np.pi * 48 * t) * np.exp(-t / 0.18) * 0.8
+    return crack + tear + clatter + thump
+
+
+def ghidorah_wing_spread(rng, seconds=2.2):
+    """A huge, slow rush of air rising to the moment the membranes snap taut (1.5 s in)."""
+    t = np.arange(int(seconds * RATE)) / RATE
+    peak = 1.5
+
+    def air(time, freqs):
+        return band(freqs, 120 + 260 * smooth(time / peak), 0.8) + 0.3 * band(freqs, 1100, 0.5)
+
+    rush = shaped_noise(seconds, air, rng)
+    rush /= np.max(np.abs(rush))
+    rush *= np.where(t < peak, smooth(t / peak) ** 1.5, np.exp(-(t - peak) / 0.35))
+    snap = (rng.standard_normal(len(t)) * 0.6 + np.sin(2 * np.pi * 70 * (t - peak)) * 0.8) * np.exp(-np.maximum(t - peak, 0) / 0.07) * (t >= peak)
+    return rush + snap
+
+
+def ghidorah_wing_flap(rng, seconds=0.7):
+    t = np.arange(int(seconds * RATE)) / RATE
+
+    def air(time, freqs):
+        return band(freqs, 90, 0.7) + 0.3 * band(freqs, 500, 0.5)
+
+    whump = shaped_noise(seconds, air, rng)
+    whump /= np.max(np.abs(whump))
+    env = smooth(t / 0.12) * np.exp(-np.maximum(t - 0.12, 0) / 0.18)
+    return whump * env + np.sin(2 * np.pi * 42 * t) * np.exp(-np.maximum(t - 0.1, 0) / 0.12) * smooth(t / 0.1) * 0.6
+
+
 def write_ogg(samples, name):
     samples = samples / np.max(np.abs(samples)) * 0.89
     pcm = (samples * 32767).astype(np.int16)
@@ -288,7 +353,8 @@ def write_ogg(samples, name):
 def main():
     wanted = set(sys.argv[1:])
     makers = ["godzilla_inhale", "nuke_alarm", "shinden_gun", "shinsei_maru_gun", "shinsei_maru_motor", "godzilla_minus_zero_tail_swing",
-              "king_ghidorah_roar", "king_ghidorah_ambient", "king_ghidorah_beam"]
+              "king_ghidorah_roar", "king_ghidorah_ambient", "king_ghidorah_beam", "king_ghidorah_rumble",
+              "king_ghidorah_earth_crack", "king_ghidorah_wing_spread", "king_ghidorah_wing_flap"]
     if wanted - set(makers):
         sys.exit(__doc__)
     rng = np.random.default_rng(1954)   # (one stream, in this order, for the first five: as they were made)
@@ -302,6 +368,10 @@ def main():
         "king_ghidorah_roar": lambda: ghidorah_roar(np.random.default_rng(1964)),
         "king_ghidorah_ambient": lambda: ghidorah_ambient(np.random.default_rng(1965)),
         "king_ghidorah_beam": lambda: ghidorah_beam(np.random.default_rng(1991)),
+        "king_ghidorah_rumble": lambda: ghidorah_rumble(np.random.default_rng(2019)),
+        "king_ghidorah_earth_crack": lambda: ghidorah_crack(np.random.default_rng(2020)),
+        "king_ghidorah_wing_spread": lambda: ghidorah_wing_spread(np.random.default_rng(2021)),
+        "king_ghidorah_wing_flap": lambda: ghidorah_wing_flap(np.random.default_rng(2022)),
     }
     for name in makers:
         samples = sounds[name]()   # (made in order even when not written, so each keeps its random numbers)

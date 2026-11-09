@@ -30,6 +30,7 @@ import com.npjt25.godzillaminusone.registry.ModItems;
 import com.npjt25.godzillaminusone.registry.ModSounds;
 import net.minecraft.commands.arguments.EntityAnchorArgument;
 import net.minecraft.core.BlockPos;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.gametest.framework.GameTest;
@@ -2148,8 +2149,8 @@ public final class ModGameTests {
     }
 
     /**
-     * King Ghidorah stands as tall as Godzilla Minus Zero (his model, 117.1 units to the tips of his middle head's
-     * horns, drawn at his renderer's scale: 90.74 blocks), with Minus Zero's hitbox.
+     * King Ghidorah stands as tall as Godzilla Minus Zero (his model, 105.5 units to the tips of his heads' horns as he
+     * stands, drawn at his renderer's scale: 90.74 blocks), with Minus Zero's hitbox, health and blows.
      */
     @GameTest(template = FLOOR, batch = "gmo_ghidorah_size", timeoutTicks = 20)
     public static void kingGhidorahIsAsTallAsMinusZero(GameTestHelper helper) {
@@ -2160,6 +2161,9 @@ public final class ModGameTests {
         EntityType<?> minusZero = ModEntities.GODZILLA_MINUS_ZERO.get();
         helper.assertTrue(ghidorah.getWidth() == minusZero.getWidth() && ghidorah.getHeight() == minusZero.getHeight(),
                 "his hitbox " + ghidorah.getWidth() + " x " + ghidorah.getHeight() + " should be Minus Zero's");
+        KingGhidorahEntity g = spawnGhidorah(helper);
+        helper.assertTrue(g.getMaxHealth() == Config.GODZILLA_MAX_HEALTH.get().floatValue(), "Minus Zero's health (maxHealth), was " + g.getMaxHealth());
+        remove(g);
         helper.succeed();
     }
 
@@ -2177,17 +2181,22 @@ public final class ModGameTests {
                 helper.assertTrue(bones.contains(name), "his model should have bone " + name);
             }
         }
-        for (String bone : new String[] {"wing_shoulder_r", "wing_finger3_l", "wing_web4_l", "leg_toes_r", "tail_l_10", "tail_r_tip", "back_spikes"}) {
+        for (String bone : new String[] {"root", "wing_shoulder_r", "wing_finger3_l", "wing_web4_l", "wing_web4_skin_l", "wing_web1_skin_r",
+                "leg_toes_r", "tail_l_10", "tail_r_tip", "back_spikes"}) {
             helper.assertTrue(bones.contains(bone), "his model should have bone " + bone);
         }
         com.google.gson.JsonObject animations = resourceJson("/assets/godzillaminusone/animations/entity/king_ghidorah.animation.json")
                 .getAsJsonObject("animations");
-        for (String name : new String[] {"idle", "walk", "roar", "bite_c", "bite_r", "bite_l", "gravity_beam"}) {
+        for (String name : new String[] {"idle", "walk", "roar", "bite_c", "bite_r", "bite_l", "stomp", "tail_whip", "gravity_beam",
+                "gravity_lift", "fly", "fly_carry", "death", "entrance"}) {
             helper.assertTrue(animations.has("animation.king_ghidorah." + name), "his animations should include " + name);
         }
+        double entrance = animations.getAsJsonObject("animation.king_ghidorah.entrance").get("animation_length").getAsDouble();
+        helper.assertTrue(Math.abs(entrance * 20.0 - KingGhidorahEntity.ENTRANCE_TICKS) < 1.0, "his entrance lasts " + entrance + " s");
         helper.assertTrue(resourceBytes("/assets/godzillaminusone/textures/entity/king_ghidorah.png").length > 1000, "his texture");
         com.google.gson.JsonObject sounds = resourceJson("/assets/godzillaminusone/sounds.json");
-        for (String sound : new String[] {"king_ghidorah.roar", "king_ghidorah.ambient", "king_ghidorah.beam"}) {
+        for (String sound : new String[] {"king_ghidorah.roar", "king_ghidorah.ambient", "king_ghidorah.beam", "king_ghidorah.rumble",
+                "king_ghidorah.earth_crack", "king_ghidorah.wing_spread", "king_ghidorah.wing_flap"}) {
             helper.assertTrue(ModSounds.BY_NAME.containsKey(sound) && sounds.has(sound), sound + " isn't registered");
             String file = sounds.getAsJsonObject(sound).getAsJsonArray("sounds").get(0).getAsJsonObject().get("name").getAsString();
             byte[] ogg = resourceBytes("/assets/godzillaminusone/sounds/" + file.split(":")[1] + ".ogg");
@@ -2197,57 +2206,235 @@ public final class ModGameTests {
         helper.succeed();
     }
 
+    /** Minus Zero's durability: blows and arrows do nothing, a naval mine takes a tenth of his health. */
+    @GameTest(template = FLOOR, batch = "gmo_ghidorah_durable", timeoutTicks = 20)
+    public static void kingGhidorahIsOnlyHurtByNavalMines(GameTestHelper helper) {
+        KingGhidorahEntity g = spawnGhidorah(helper);
+        Player player = helper.makeMockPlayer();
+        float full = g.getHealth();
+        g.hurt(helper.getLevel().damageSources().playerAttack(player), 500.0F);
+        g.hurt(helper.getLevel().damageSources().explosion(null, null), 500.0F);
+        helper.assertTrue(g.getHealth() == full, "only naval mines should hurt him, health " + g.getHealth() + " of " + full);
+        g.hitByNavalMine(ModDamageTypes.source(helper.getLevel(), ModDamageTypes.NAVAL_MINE, null));
+        float expected = full - (float) (g.getMaxHealth() * Config.MINE_DAMAGE_PERCENT.get() / 100.0);
+        helper.assertTrue(Math.abs(g.getHealth() - expected) < 1.0F, "a naval mine should take a tenth of his health, " + g.getHealth() + " not " + expected);
+        remove(g);
+        helper.succeed();
+    }
+
+    /**
+     * Spawned from his egg, he rises out of the ground: the entrance plays once (14.6 s), with him on the ground,
+     * unmoving and unhurt by anything; three seconds after it ends a thunderstorm breaks; loaded again, he doesn't
+     * rise again.
+     */
+    @GameTest(template = FLOOR, batch = "gmo_ghidorah_entrance", timeoutTicks = 420)
+    public static void kingGhidorahRisesOnceThenTheStormBreaks(GameTestHelper helper) {
+        removeLeftoverGhidorahs(helper);
+        ServerLevel level = helper.getLevel();
+        level.setWeatherParameters(6000, 0, false, false);
+        Player player = helper.makeMockPlayer();
+        ItemStack egg = new ItemStack(ModItems.KING_GHIDORAH_SPAWN_EGG.get());
+        player.setItemInHand(InteractionHand.MAIN_HAND, egg);
+        BlockPos ground = helper.absolutePos(new BlockPos(4, floorY(helper), 4));
+        level.setBlockAndUpdate(ground, Blocks.STONE.defaultBlockState());
+        egg.useOn(new UseOnContext(player, InteractionHand.MAIN_HAND,
+                new BlockHitResult(Vec3.atCenterOf(ground).add(0.0, 0.5, 0.0), Direction.UP, ground, false)));
+        List<KingGhidorahEntity> spawned = level.getEntitiesOfClass(KingGhidorahEntity.class, new AABB(ground).inflate(8.0));
+        helper.assertTrue(spawned.size() == 1, "his egg should bring one King Ghidorah, was " + spawned.size());
+        KingGhidorahEntity g = spawned.get(0);
+        g.setWalkFloorY(Integer.MIN_VALUE);
+        g.setNoAi(true);       // (his entrance plays all the same; this keeps him from hunting into the other tests after it)
+        Vec3 start = g.position();
+        long[] ended = {-1};
+        helper.runAtTickTime(3, () -> helper.assertTrue(g.inEntrance(), "he should be rising out of the ground"));
+        helper.runAtTickTime(100, () -> {
+            float health = g.getHealth();
+            g.hitByNavalMine(ModDamageTypes.source(level, ModDamageTypes.NAVAL_MINE, null));
+            helper.assertTrue(g.getHealth() == health, "nothing should hurt him while he rises");
+            helper.assertTrue(g.position().distanceTo(start) < 0.5, "he should rise where he is, moved " + g.position().distanceTo(start));
+            helper.assertTrue(g.getAction() == KingGhidorahEntity.ACTION_ENTRANCE, "his entrance should still be under way");
+        });
+        helper.onEachTick(() -> {
+            if (ended[0] < 0 && g.getAction() != KingGhidorahEntity.ACTION_ENTRANCE && helper.getTick() > 5) {
+                ended[0] = level.getGameTime();
+                helper.assertTrue(g.stormAt() == ended[0] + Config.GHIDORAH_STORM_DELAY_TICKS.get(),
+                        "the storm should be due " + Config.GHIDORAH_STORM_DELAY_TICKS.get() + " ticks after his entrance ends, was "
+                                + (g.stormAt() - ended[0]));
+            }
+        });
+        helper.succeedWhen(() -> {
+            helper.assertTrue(ended[0] > 0 && level.getGameTime() >= ended[0] + Config.GHIDORAH_STORM_DELAY_TICKS.get() + 1,
+                    "waiting for the end of his entrance and the storm after it");
+            helper.assertTrue(level.isThundering() && level.isRaining(), "a thunderstorm should have broken");
+            CompoundTag tag = g.saveWithoutId(new CompoundTag());
+            helper.assertTrue(tag.getBoolean("EntranceDone") && !tag.contains("EntranceTicks"), "loaded again, he shouldn't rise again");
+            level.setWeatherParameters(6000, 0, false, false);
+            remove(g);
+        });
+    }
+
     /** A bite from his middle head hurts what's in front of him, down on the ground below where its jaws snap shut. */
     @GameTest(template = FLOOR, batch = "gmo_ghidorah_bite", timeoutTicks = 60)
     public static void kingGhidorahsBiteHurtsWhatsInFrontOfHim(GameTestHelper helper) {
         KingGhidorahEntity ghidorah = spawnGhidorah(helper);
         List<Runnable> release = new ArrayList<>();
-        Pig pig = cellPig(helper, 4 + 43, release);
+        Pig pig = cellPig(helper, 4 + 55, release);
         float health = pig.getHealth();
         ghidorah.startBite(KingGhidorahEntity.Head.MIDDLE);
         helper.runAtTickTime(KingGhidorahEntity.BITE_SNAP_AT + 4, () -> {
             helper.assertTrue(!pig.isAlive() || pig.getHealth() < health, "the pig in front of him should have been bitten");
-            helper.assertTrue(ghidorah.getAction() == KingGhidorahEntity.ACTION_BITE + KingGhidorahEntity.Head.MIDDLE.ordinal(),
-                    "his middle head should be biting");
             remove(ghidorah, pig);
             release.forEach(Runnable::run);
             helper.succeed();
         });
     }
 
-    /**
-     * His gravity beams, fired at a pig ahead of him (a tunnel cut for them through the rock round the test's pocket):
-     * the middle head's fires 1.2 s in and the pig is hurt and lifted.
-     */
-    @GameTest(template = FLOOR, batch = "gmo_ghidorah_beam", timeoutTicks = 120)
-    public static void kingGhidorahsGravityBeamHurtsAndLifts(GameTestHelper helper) {
+    /** His stomp crushes what's at his right foot; his tails' whip strikes what's behind him. */
+    @GameTest(template = FLOOR, batch = "gmo_ghidorah_stomp_whip", timeoutTicks = 80)
+    public static void kingGhidorahsStompAndTailWhipStrike(GameTestHelper helper) {
         KingGhidorahEntity ghidorah = spawnGhidorah(helper);
         ServerLevel level = helper.getLevel();
-        Vec3 mouth = ghidorah.beamMouth(KingGhidorahEntity.Head.MIDDLE);
-        Vec3 target = mouth.add(0.0, -6.0, 24.0);
-        // the air for his beams, from his mouths to the pig (the rest of him can stand in the rock)
-        BlockPos.betweenClosed(BlockPos.containing(mouth.add(-16, -10, -4)), BlockPos.containing(target.add(16, 8, 6)))
-                .forEach(pos -> level.setBlock(pos, Blocks.AIR.defaultBlockState(), 2));
-        BlockPos floor = BlockPos.containing(target).below(2);
-        for (BlockPos pos : BlockPos.betweenClosed(floor.offset(-2, 0, -2), floor.offset(2, 0, 2))) {
-            level.setBlock(pos, Blocks.STONE.defaultBlockState(), 2);
+        Vec3 foot = ghidorah.stompFoot();
+        Pig under = EntityType.PIG.create(level);
+        under.moveTo(foot.x + 3.0, ghidorah.getY(), foot.z);
+        level.addFreshEntity(under);
+        Vec3 behind = ghidorah.locator(new Vec3(0.0, 0.0, -30.0));
+        BlockPos.betweenClosed(BlockPos.containing(behind).offset(-2, 0, -2), BlockPos.containing(behind).offset(2, 3, 2))
+                .forEach(p -> level.setBlock(p, Blocks.AIR.defaultBlockState(), 2));
+        level.setChunkForced(Mth.floor(behind.x) >> 4, Mth.floor(behind.z) >> 4, true);
+        Pig back = EntityType.PIG.create(level);
+        back.moveTo(behind.x, ghidorah.getY(), behind.z);
+        level.addFreshEntity(back);
+        ghidorah.startStomp();
+        helper.runAtTickTime(KingGhidorahEntity.STOMP_HIT_AT + 3, () -> {
+            helper.assertTrue(!under.isAlive(), "the pig at his foot should be crushed");
+            ghidorah.startWhip();
+        });
+        helper.runAtTickTime(KingGhidorahEntity.STOMP_HIT_AT + 6 + KingGhidorahEntity.WHIP_HIT_AT, () -> {
+            helper.assertTrue(!back.isAlive(), "the pig behind him should be struck by his tails");
+            level.setChunkForced(Mth.floor(behind.x) >> 4, Mth.floor(behind.z) >> 4, false);
+            remove(ghidorah, under, back);
+            helper.succeed();
+        });
+    }
+
+    /**
+     * His gravity beams, fired into the rock ahead of him (the test's pocket is deep underground): they bore through,
+     * and every block 12 round where they strike is vaporized, along with what's caught there.
+     */
+    @GameTest(template = FLOOR, batch = "gmo_ghidorah_beam", timeoutTicks = 120)
+    public static void kingGhidorahsGravityBeamVaporizesWhereItStrikes(GameTestHelper helper) {
+        KingGhidorahEntity ghidorah = spawnGhidorah(helper);
+        ServerLevel level = helper.getLevel();
+        Vec3 aim = ghidorah.locator(new Vec3(0.0, 24.0, 60.0));
+        BlockPos at = BlockPos.containing(aim);
+        level.setChunkForced(at.getX() >> 4, at.getZ() >> 4, true);
+        for (BlockPos p : BlockPos.betweenClosed(at.offset(-1, -1, -1), at.offset(1, 1, 1))) {
+            level.setBlock(p, Blocks.STONE.defaultBlockState(), 2);
         }
-        level.setChunkForced(floor.getX() >> 4, floor.getZ() >> 4, true);
+        level.setBlock(at, Blocks.AIR.defaultBlockState(), 2);
         Pig pig = EntityType.PIG.create(level);
-        pig.moveTo(Vec3.atBottomCenterOf(floor.above()));
-        level.addFreshEntity(pig);   // (with its AI: a mob without any doesn't move at all, lifted or not)
-        double startY = pig.getY();
-        float health = pig.getHealth();
-        double[] highest = {startY};
-        ghidorah.startBeam(pig.getBoundingBox().getCenter());
-        helper.onEachTick(() -> highest[0] = Math.max(highest[0], pig.getY()));
-        helper.runAtTickTime(KingGhidorahEntity.Head.MIDDLE.fireAt + 14, () -> {
+        pig.moveTo(Vec3.atBottomCenterOf(at));
+        pig.setNoAi(true);
+        level.addFreshEntity(pig);
+        ghidorah.startBeam(aim);
+        helper.runAtTickTime(KingGhidorahEntity.Head.LEFT.fireAt + 10, () -> {
             helper.assertTrue(ghidorah.isFiring(KingGhidorahEntity.Head.MIDDLE), "his middle head should be firing");
-            helper.assertTrue(!pig.isAlive() || pig.getHealth() < health, "the pig in his beam should be hurt");
-            helper.assertTrue(highest[0] > startY + 0.5, "the pig in his beam should be lifted, highest " + (highest[0] - startY));
-            level.setChunkForced(floor.getX() >> 4, floor.getZ() >> 4, false);
+            helper.assertTrue(!pig.isAlive(), "the pig where his beams strike should be gone");
+            int solid = 0;
+            int checked = 0;
+            for (BlockPos p : BlockPos.betweenClosed(at.offset(-8, -8, -8), at.offset(8, 8, 8))) {
+                if (p.distSqr(at) <= 8 * 8) {
+                    checked++;
+                    BlockState state = level.getBlockState(p);
+                    if (!state.isAir() && state.getFluidState().isEmpty() && state.getDestroySpeed(level, p) >= 0.0F) {
+                        solid++;
+                    }
+                }
+            }
+            helper.assertTrue(solid == 0, solid + " of " + checked + " breakable blocks within 8 of where his beams strike are still there");
+            level.setChunkForced(at.getX() >> 4, at.getZ() >> 4, false);
             remove(ghidorah, pig);
             helper.succeed();
+        });
+    }
+
+    /** His lift: his beams seize a pig and haul it high into the air (it falls when they let go). */
+    @GameTest(template = FLOOR, batch = "gmo_ghidorah_lift", timeoutTicks = 120)
+    public static void kingGhidorahsLiftHaulsItsTargetUp(GameTestHelper helper) {
+        KingGhidorahEntity ghidorah = spawnGhidorah(helper);
+        ServerLevel level = helper.getLevel();
+        Vec3 spot = ghidorah.locator(new Vec3(0.0, 1.0, 50.0));
+        BlockPos base = BlockPos.containing(spot);
+        level.setChunkForced(base.getX() >> 4, base.getZ() >> 4, true);
+        // a shaft of air above it for it to rise up
+        BlockPos.betweenClosed(base.offset(-3, 0, -3), base.offset(3, 45, 3)).forEach(p -> level.setBlock(p, Blocks.AIR.defaultBlockState(), 2));
+        level.setBlock(base.below(), Blocks.STONE.defaultBlockState(), 2);
+        Pig pig = EntityType.PIG.create(level);
+        pig.moveTo(Vec3.atBottomCenterOf(base));
+        pig.setInvulnerable(true);
+        level.addFreshEntity(pig);   // (with its AI: a mob without any doesn't move at all, lifted or not)
+        double startY = pig.getY();
+        double[] highest = {startY};
+        helper.onEachTick(() -> highest[0] = Math.max(highest[0], pig.getY()));
+        ghidorah.startLift(pig);
+        helper.runAtTickTime(KingGhidorahEntity.BEAM_END_AT, () -> {
+            helper.assertTrue(highest[0] - startY > 20.0, "the pig should have been hauled high up, " + (highest[0] - startY) + " blocks");
+            level.setChunkForced(base.getX() >> 4, base.getZ() >> 4, false);
+            remove(ghidorah, pig);
+            helper.succeed();
+        });
+    }
+
+    /** His grab: he takes off, seizes a pig in his talons, carries it up, and dives, slamming it into the ground. */
+    @GameTest(template = FLOOR, batch = "gmo_ghidorah_grab", timeoutTicks = 500)
+    public static void kingGhidorahGrabsCarriesAndSlams(GameTestHelper helper) {
+        KingGhidorahEntity ghidorah = spawnGhidorah(helper);
+        ghidorah.setNoAi(false);
+        List<Runnable> release = new ArrayList<>();
+        Pig pig = cellPig(helper, 4 + 30, release);
+        pig.setInvulnerable(false);
+        boolean[] carried = {false};
+        boolean[] flew = {false};
+        helper.onEachTick(() -> {
+            carried[0] |= pig.getVehicle() == ghidorah;
+            flew[0] |= ghidorah.isFlying();
+        });
+        ghidorah.startGrab(pig);
+        helper.succeedWhen(() -> {
+            helper.assertTrue(flew[0], "he should have taken off");
+            helper.assertTrue(carried[0], "he should have seized the pig in his talons");
+            helper.assertTrue(ghidorah.hasSlammed(), "he should have dived and slammed it down");
+            helper.assertTrue(!pig.isAlive() || pig.getVehicle() == null, "he should have let it go");
+            helper.assertTrue(!ghidorah.isFlying() && ghidorah.getAction() == KingGhidorahEntity.ACTION_NONE, "he should have landed");
+            remove(ghidorah, pig);
+            release.forEach(Runnable::run);
+        });
+    }
+
+    /** His health low, he flies off away from what he's fighting (retreats on), or fights on (retreats off). */
+    @GameTest(template = FLOOR, batch = "gmo_ghidorah_retreat", timeoutTicks = 200)
+    public static void kingGhidorahRetreatsWhenHisHealthRunsLow(GameTestHelper helper) {
+        boolean was = Config.GHIDORAH_RETREATS.get();
+        KingGhidorahEntity ghidorah = spawnGhidorah(helper);
+        ghidorah.setNoAi(false);
+        List<Runnable> release = new ArrayList<>();
+        Pig pig = cellPig(helper, 4 + 120, release);
+        pig.setInvulnerable(true);
+        ghidorah.setHealth(ghidorah.getMaxHealth() * 0.1F);
+        Config.GHIDORAH_RETREATS.set(false);
+        ghidorah.setTarget(pig);
+        helper.runAtTickTime(10, () -> {
+            helper.assertTrue(ghidorah.getAction() != KingGhidorahEntity.ACTION_RETREAT, "with retreats off he should fight on");
+            Config.GHIDORAH_RETREATS.set(true);
+        });
+        // (once his roar at finding it is over: he flies off as soon as he's free to)
+        helper.succeedWhen(() -> {
+            helper.assertTrue(ghidorah.getAction() == KingGhidorahEntity.ACTION_RETREAT && ghidorah.isFlying(),
+                    "with his health low he should be flying off, action " + ghidorah.getAction());
+            Config.GHIDORAH_RETREATS.set(was);
+            remove(ghidorah, pig);
+            release.forEach(Runnable::run);
         });
     }
 }

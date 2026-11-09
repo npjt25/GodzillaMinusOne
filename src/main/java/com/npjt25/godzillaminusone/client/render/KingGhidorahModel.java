@@ -30,10 +30,12 @@ public class KingGhidorahModel extends DefaultedEntityGeoModel<KingGhidorahEntit
     public void setCustomAnimations(KingGhidorahEntity entity, long instanceId, AnimationState<KingGhidorahEntity> state) {
         super.setCustomAnimations(entity, instanceId, state);
         float t = (entity.tickCount + state.getPartialTick()) / 20.0F + (entity.getId() % 97);
-        float calm = entity.isBusy() ? 0.25F : 1.0F;
+        // (his entrance has its heads' every move worked out: they're left to it; anything else he does, they settle)
+        float calm = entity.inEntrance() || entity.isDeadOrDying() ? 0.0F : entity.isBusy() ? 0.25F : 1.0F;
         EntityModelData data = state.getData(DataTickets.ENTITY_MODEL_DATA);
-        float lookYaw = data != null ? Mth.clamp(data.netHeadYaw(), -60.0F, 60.0F) : 0.0F;
-        float lookPitch = data != null ? Mth.clamp(data.headPitch(), -30.0F, 30.0F) : 0.0F;
+        float follow = calm > 0.0F ? 1.0F : 0.0F;
+        float lookYaw = data != null ? Mth.clamp(data.netHeadYaw(), -60.0F, 60.0F) * follow : 0.0F;
+        float lookPitch = data != null ? Mth.clamp(data.headPitch(), -30.0F, 30.0F) * follow : 0.0F;
         for (int k = 0; k < 3; k++) {
             float[] m = MINDS[k];
             // its own glances about: a slow sweep, a quicker twitch, now and then a long look one way

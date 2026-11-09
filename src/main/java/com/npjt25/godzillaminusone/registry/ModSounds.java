@@ -61,6 +61,10 @@ public final class ModSounds {
     public static final RegistryObject<SoundEvent> KING_GHIDORAH_ROAR = register("king_ghidorah.roar");
     public static final RegistryObject<SoundEvent> KING_GHIDORAH_AMBIENT = register("king_ghidorah.ambient");
     public static final RegistryObject<SoundEvent> KING_GHIDORAH_BEAM = register("king_ghidorah.beam");
+    public static final RegistryObject<SoundEvent> KING_GHIDORAH_RUMBLE = register("king_ghidorah.rumble");
+    public static final RegistryObject<SoundEvent> KING_GHIDORAH_EARTH_CRACK = register("king_ghidorah.earth_crack");
+    public static final RegistryObject<SoundEvent> KING_GHIDORAH_WING_SPREAD = register("king_ghidorah.wing_spread");
+    public static final RegistryObject<SoundEvent> KING_GHIDORAH_WING_FLAP = register("king_ghidorah.wing_flap");
     public static final RegistryObject<SoundEvent> SHINSEI_MARU_GUN = register("shinsei_maru.gun");
     public static final RegistryObject<SoundEvent> SHINSEI_MARU_MOTOR = register("shinsei_maru.motor");
 

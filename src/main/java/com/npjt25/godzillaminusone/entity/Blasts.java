@@ -57,6 +57,8 @@ public final class Blasts {
         for (LivingEntity target : livingNear(level, pos, radius, mine)) {
             if (target instanceof GodzillaEntity godzilla) {
                 godzilla.hitByNavalMine(source);
+            } else if (target instanceof KingGhidorahEntity ghidorah) {
+                ghidorah.hitByNavalMine(source);
             } else if (isPilot(target) || isMinesweeperCrew(target) || (mine instanceof ShindenEntity && target == attacker)) {
                 target.hurt(source, Config.PILOT_BLAST_DAMAGE.get().floatValue());
             } else {
@@ -162,7 +164,7 @@ public final class Blasts {
 
     /** Caught in a nuclear blast (or Godzilla's beam). */
     public static void nuclearHit(LivingEntity entity, DamageSource source, boolean burnsOdo) {
-        if (entity instanceof GodzillaEntity) {
+        if (entity instanceof GodzillaEntity || entity instanceof KingGhidorahEntity) {
             return;
         }
         if (burnsOdo && entity instanceof OdoIslandMonsterEntity odo) {

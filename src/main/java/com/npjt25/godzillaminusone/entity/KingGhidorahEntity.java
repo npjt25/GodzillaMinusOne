@@ -2,6 +2,8 @@ package com.npjt25.godzillaminusone.entity;
 
 import com.npjt25.godzillaminusone.Config;
 import com.npjt25.godzillaminusone.GodzillaMinusOne;
+import com.npjt25.godzillaminusone.network.ModNetwork;
+import com.npjt25.godzillaminusone.registry.ModDamageTypes;
 import com.npjt25.godzillaminusone.registry.ModSounds;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.particles.ParticleTypes;
@@ -15,13 +17,18 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundSource;
+import net.minecraft.tags.DamageTypeTags;
 import net.minecraft.tags.FluidTags;
 import net.minecraft.util.Mth;
 import net.minecraft.world.BossEvent;
+import net.minecraft.world.DifficultyInstance;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.MobSpawnType;
+import net.minecraft.world.entity.SpawnGroupData;
+import net.minecraft.world.entity.ai.attributes.AttributeInstance;
 import net.minecraft.world.entity.ai.attributes.AttributeSupplier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.ai.goal.Goal;
@@ -30,13 +37,17 @@ import net.minecraft.world.entity.ai.goal.RandomLookAroundGoal;
 import net.minecraft.world.entity.ai.goal.target.HurtByTargetGoal;
 import net.minecraft.world.entity.ai.goal.target.NearestAttackableTargetGoal;
 import net.minecraft.world.entity.animal.IronGolem;
+import net.minecraft.world.entity.decoration.ArmorStand;
+import net.minecraft.world.entity.monster.Enemy;
 import net.minecraft.world.entity.monster.Monster;
-import net.minecraft.world.entity.npc.AbstractVillager;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.ServerLevelAccessor;
+import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.LiquidBlock;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
@@ -52,26 +63,42 @@ import software.bernie.geckolib.core.animation.RawAnimation;
 import software.bernie.geckolib.core.object.PlayState;
 import software.bernie.geckolib.util.GeckoLibUtil;
 
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.EnumSet;
+import java.util.List;
 
 /**
- * King Ghidorah: an enormous, ancient three-headed golden dragon, as tall as Godzilla Minus Zero (90.74 blocks: his
- * model, tools/make_ghidorah.py, drawn at {@link #RENDER_SCALE}), with Minus Zero's hitbox (20 x 80).
+ * King Ghidorah: an enormous, ancient three-headed golden dragon, as tall as Godzilla Minus Zero (his heads 90.74
+ * blocks up as he stands: his model, tools/make_ghidorah.py, drawn at {@link #RENDER_SCALE}), with Minus Zero's
+ * hitbox (20 x 80), his health (maxHealth) and his durability: only naval mines hurt him (each a tenth of his health:
+ * onlyHurtByNavalMines, mineDamagePercent), nothing of a nuclear blast does, and while he has nothing to fight he heals
+ * (calmRegenPercent). He hunts as Minus Zero does (every creature, or with targetsAllMobs off the dangerous ones), and
+ * Godzilla too, roars as often (roarIntervalSeconds), and tears through what's built as he goes (walkBreaksFromY up).
  *
- * <p>He hunts players, iron golems and villagers (and whoever hurts him) across 160 blocks, striding straight at them
- * and through what's built (as Godzilla does: only at Y 60 and up, {@code walkBreaksFromY}), and:
+ * <p>He stands crouched with his wings raised and half spread, never folded (but as he digs himself out of the
+ * ground), and he fights with:
  * <ul>
- *   <li>bites what's in front of him with whichever of his three heads is nearest it, the other two staying busy;</li>
- *   <li>from 40 to 160 blocks off, fires his gravity beams: his necks brace, his heads aim, and each in turn
- *       (staggered) looses a crackling golden bolt that stops at what's in its way, hurts and lifts whatever it
- *       touches, and blasts and flings up the blocks where it lands;</li>
- *   <li>roars, all three heads at once, when he finds something to hunt, and now and then while he does.</li>
+ *   <li>a bite from whichever of his three heads is nearest;</li>
+ *   <li>a stomp of his right foot on whatever is under him;</li>
+ *   <li>a whip of both his tails round behind him;</li>
+ *   <li>his gravity beams, from 40 to 160 blocks: three concentrated golden bolts that bore through whatever is in
+ *       their way and vaporize every block 12 blocks round where they strike, and what's caught there;</li>
+ *   <li>a lift: the beams seize their target, haul it high into the air and let it fall;</li>
+ *   <li>a grab: he takes off, seizes his target (a player, Godzilla, anything) in his talons, carries it high and dives,
+ *       slamming it into the ground.</li>
  * </ul>
- * Each head minds its own business between attacks (client.render.KingGhidorahModel).
+ * With his health low he flies off and away (retreats, retreatHealthPercent).
+ *
+ * <p>Spawned (his egg, /summon), he rises out of the ground ({@link #ENTRANCE_TICKS}, client.GhidorahEffects), once:
+ * not when he's loaded again. A thunderstorm follows {@code entranceStormDelayTicks} after it ends.
+ *
+ * <p>Everything he does runs on the server's clock ({@link #getActionTicks}): his animations and their effects are
+ * where the server is in them, for a player who starts watching halfway through as for one who saw it begin.
  */
 public class KingGhidorahEntity extends Monster implements GeoEntity {
-    /** His model's height standing (tools/make_ghidorah.py: the tops of his middle head's horns, idling). */
-    public static final double MODEL_HEIGHT = 117.1;
+    /** His model's height standing (tools/make_ghidorah.py: the tops of his heads' horns, idling in his crouch). */
+    public static final double MODEL_HEIGHT = 105.5;
     /** As tall as Godzilla Minus Zero (twice Minus One's standing height). */
     public static final double REAL_HEIGHT = GodzillaEntity.REAL_HEIGHT * GodzillaMinusZeroEntity.SCALE;
     /** How big his renderer draws him (sixteenths of a block per model unit). */
@@ -83,34 +110,56 @@ public class KingGhidorahEntity extends Monster implements GeoEntity {
     public static final int ACTION_ROAR = 1;
     public static final int ACTION_BITE = 2;   // + the head: 2 middle, 3 right, 4 left
     public static final int ACTION_BEAM = 5;
+    public static final int ACTION_LIFT = 6;
+    public static final int ACTION_STOMP = 7;
+    public static final int ACTION_WHIP = 8;
+    public static final int ACTION_ENTRANCE = 9;
+    public static final int ACTION_GRAB = 10;
+    public static final int ACTION_RETREAT = 11;
 
     /** Ticks each animation lasts (animation.king_ghidorah.*). */
     public static final int ROAR_TICKS = 64;
     public static final int BITE_TICKS = 26;
     public static final int BEAM_TICKS = 84;
-    /** The tick his roar sounds (the middle head throws itself up), the tick a bite's jaws snap shut. */
+    public static final int STOMP_TICKS = 32;
+    public static final int WHIP_TICKS = 36;
+    public static final int ENTRANCE_TICKS = 292;
     private static final int ROAR_SOUND_AT = 6;
     public static final int BITE_SNAP_AT = 12;
+    public static final int STOMP_HIT_AT = 17;
+    public static final int WHIP_HIT_AT = 15;
     /** The tick his beams stop (the animation's BEAM_END). */
     public static final int BEAM_END_AT = 66;
 
     public static final double BEAM_MIN_RANGE = 40.0;
     public static final double BEAM_RANGE = 160.0;
-    private static final int BEAM_COOLDOWN = 15 * 20;
-    private static final int ROAR_INTERVAL = 45 * 20;
+    /** Every block this far round where a beam strikes is vaporized. */
+    public static final double VAPORIZE_RADIUS = 12.0;
+    /** And this far round its path, all the way there. */
+    private static final double BORE_RADIUS = 2.5;
+    /** How high his lift hauls what it holds before it lets go. */
+    public static final double LIFT_HEIGHT = 34.0;
     private static final double BITE_RADIUS = 18.0;
-    private static final float BEAM_DAMAGE = 14.0F;
-    private static final double BEAM_RADIUS = 2.5;
+    private static final double STOMP_RADIUS = 16.0;
+    private static final double WHIP_INNER = 8.0;
+    private static final double WHIP_OUTER = 66.0;
+    /** How high over the ground he carries what he's grabbed before he slams it down. */
+    public static final double GRAB_ALTITUDE = 48.0;
+    private static final double FLY_SPEED = 1.6;
+    private static final int BEAM_COOLDOWN = 15 * 20;
+    private static final int LIFT_COOLDOWN = 20 * 20;
+    private static final int GRAB_COOLDOWN = 45 * 20;
+    private static final int RETREAT_COOLDOWN = 2 * 60 * 20;
 
     /**
      * His three heads, and where their mouths are (model units: his right, up, forward) as they fire their beams
-     * (animation.king_ghidorah.gravity_beam at 2 s), and as they snap shut on a bite (bite_*, 0.62 s), and when their
+     * (animation.king_ghidorah.gravity_beam, 2 s in), and as they snap shut on a bite (bite_*, 0.62 s), and when their
      * beams fire (animation seconds).
      */
     public enum Head {
-        MIDDLE("c", 0.0, 90.9, 41.8, 0.0, 70.5, 55.2, 1.2),
-        RIGHT("r", 20.0, 85.6, 38.7, 26.2, 66.3, 48.6, 1.35),
-        LEFT("l", -20.0, 85.9, 38.8, -26.2, 66.3, 48.6, 1.5);
+        MIDDLE("c", 0.0, 70.1, 55.4, 0.0, 49.1, 65.2, 1.2),
+        RIGHT("r", 19.4, 66.6, 51.2, 25.7, 47.5, 57.7, 1.35),
+        LEFT("l", -19.4, 66.9, 51.4, -25.7, 47.5, 57.7, 1.5);
 
         public final String bone;
         final Vec3 beamMouth;
@@ -125,54 +174,94 @@ public class KingGhidorahEntity extends Monster implements GeoEntity {
             this.fireAt = (int) Math.round(fireSeconds * 20);
         }
 
-        /** Each head's beam lands a little apart from the others: {right, up} blocks off the aim. */
+        /** Each head's beam strikes a little apart from the others': {right, up} blocks off the aim. */
         public Vec3 spread(int tick) {
-            double wobble = Math.sin(tick * 0.31 + ordinal() * 2.1) * 1.5;
+            double wobble = Math.sin(tick * 0.31 + ordinal() * 2.1) * 1.2;
             return switch (this) {
                 case MIDDLE -> new Vec3(wobble, 0.0, 0.0);
-                case RIGHT -> new Vec3(3.5 + wobble, -0.5, 0.0);
-                case LEFT -> new Vec3(-3.5 + wobble, -0.5, 0.0);
+                case RIGHT -> new Vec3(4.0 + wobble, -0.5, 0.0);
+                case LEFT -> new Vec3(-4.0 + wobble, -0.5, 0.0);
             };
         }
     }
 
+    /** Where a flight is: up off the ground, after its prey, carrying it up, diving, landing; or fleeing. */
+    private enum Flight {
+        TAKEOFF, APPROACH, ASCEND, DIVE, FLEE, LAND
+    }
+
     private static final RawAnimation IDLE = RawAnimation.begin().thenLoop("animation.king_ghidorah.idle");
     private static final RawAnimation WALK = RawAnimation.begin().thenLoop("animation.king_ghidorah.walk");
+    private static final RawAnimation FLY = RawAnimation.begin().thenLoop("animation.king_ghidorah.fly");
+    private static final RawAnimation FLY_CARRY = RawAnimation.begin().thenLoop("animation.king_ghidorah.fly_carry");
+    private static final RawAnimation DEATH = RawAnimation.begin().thenPlayAndHold("animation.king_ghidorah.death");
 
     private static final EntityDataAccessor<Integer> DATA_ACTION = SynchedEntityData.defineId(KingGhidorahEntity.class, EntityDataSerializers.INT);
+    /** The game time (its low 32 bits) the action began: both sides count from it. */
+    private static final EntityDataAccessor<Integer> DATA_ACTION_START = SynchedEntityData.defineId(KingGhidorahEntity.class, EntityDataSerializers.INT);
     private static final EntityDataAccessor<Vector3f> DATA_AIM = SynchedEntityData.defineId(KingGhidorahEntity.class, EntityDataSerializers.VECTOR3);
+    private static final EntityDataAccessor<Boolean> DATA_FLYING = SynchedEntityData.defineId(KingGhidorahEntity.class, EntityDataSerializers.BOOLEAN);
+    private static final EntityDataAccessor<Boolean> DATA_CARRYING = SynchedEntityData.defineId(KingGhidorahEntity.class, EntityDataSerializers.BOOLEAN);
 
     private final AnimatableInstanceCache cache = GeckoLibUtil.createInstanceCache(this);
     private final ServerBossEvent bossEvent = new ServerBossEvent(
             Component.translatable("boss." + GodzillaMinusOne.MODID + ".king_ghidorah"),
             BossEvent.BossBarColor.YELLOW, BossEvent.BossBarOverlay.PROGRESS);
 
-    private int actionTicks;
-    private int clientActionStart;
     private int beamCooldown = 60;
-    private int roarCooldown;
+    private int liftCooldown = 200;
+    private int grabCooldown = 200;
     private int biteCooldown;
+    private int stompCooldown;
+    private int whipCooldown;
+    private int retreatCooldown;
+    private int roarTimer;
+    private int decisionDelay;
     @Nullable
     private LivingEntity lastTarget;
     @Nullable
     private Integer walkFloorOverride;
     @Nullable
     private Vec3 walkTarget;
+    // his entrance
+    private boolean wantsEntrance;
+    private boolean entranceDone;
+    private long stormAt = -1L;
+    private float entranceYaw;
+    // a flight
+    private Flight flight = Flight.TAKEOFF;
+    private int flightTicks;
+    @Nullable
+    private LivingEntity prey;
+    @Nullable
+    private Vec3 fleeFrom;
+    private boolean slammed;
+    // what his lift holds, and where it was taken from
+    @Nullable
+    private LivingEntity lifted;
+    private double liftedFromY;
+    /** Beams vaporizing what they strike, a bit at a time. */
+    private final List<Vaporize> vaporizing = new ArrayList<>();
     /** (client) Where each head's mouth was last drawn, relative to him (client.render.KingGhidorahRenderer). */
     public final Vec3[] drawnMouths = new Vec3[3];
 
     public KingGhidorahEntity(EntityType<? extends KingGhidorahEntity> type, Level level) {
         super(type, level);
         this.xpReward = 500;
+        this.noCulling = true;          // (his wings and tails reach far outside his hitbox)
         this.setMaxUpStep(6.0F);
         this.setPersistenceRequired();
         this.moveControl = new GodzillaEntity.GodzillaMoveControl(this, 4.0F);
+        if (!level.isClientSide) {
+            applyConfig();
+            this.roarTimer = Config.ROAR_INTERVAL.get() * 20;
+        }
     }
 
     public static AttributeSupplier.Builder createAttributes() {
         return Monster.createMonsterAttributes()
-                .add(Attributes.MAX_HEALTH, 2000.0D)
-                .add(Attributes.ATTACK_DAMAGE, 60.0D)
+                .add(Attributes.MAX_HEALTH, 1000.0D)
+                .add(Attributes.ATTACK_DAMAGE, 2000.0D)
                 .add(Attributes.ATTACK_KNOCKBACK, 3.0D)
                 .add(Attributes.MOVEMENT_SPEED, 0.3D)
                 .add(Attributes.FOLLOW_RANGE, BEAM_RANGE)
@@ -180,42 +269,63 @@ public class KingGhidorahEntity extends Monster implements GeoEntity {
                 .add(Attributes.ARMOR, 20.0D);
     }
 
+    /** Minus Zero's health and the damage of his blows (maxHealth, attackDamage). */
+    private void applyConfig() {
+        AttributeInstance health = getAttribute(Attributes.MAX_HEALTH);
+        if (health != null) {
+            health.setBaseValue(Config.GODZILLA_MAX_HEALTH.get());
+        }
+        AttributeInstance damage = getAttribute(Attributes.ATTACK_DAMAGE);
+        if (damage != null) {
+            damage.setBaseValue(Config.GODZILLA_ATTACK_DAMAGE.get());
+        }
+        setHealth(getMaxHealth());
+    }
+
     @Override
     protected void defineSynchedData() {
         super.defineSynchedData();
         this.entityData.define(DATA_ACTION, ACTION_NONE);
+        this.entityData.define(DATA_ACTION_START, 0);
         this.entityData.define(DATA_AIM, new Vector3f());
-    }
-
-    @Override
-    public void onSyncedDataUpdated(EntityDataAccessor<?> accessor) {
-        super.onSyncedDataUpdated(accessor);
-        if (DATA_ACTION.equals(accessor)) {
-            this.clientActionStart = this.tickCount;
-        }
+        this.entityData.define(DATA_FLYING, false);
+        this.entityData.define(DATA_CARRYING, false);
     }
 
     @Override
     protected void registerGoals() {
         this.goalSelector.addGoal(2, new HuntGoal(this));
-        this.goalSelector.addGoal(6, new LookAtPlayerGoal(this, Player.class, 64.0F));
-        this.goalSelector.addGoal(7, new RandomLookAroundGoal(this));
+        this.goalSelector.addGoal(6, new LookAtPlayerGoal(this, Player.class, 64.0F) {
+            @Override
+            public boolean canUse() {
+                return !((KingGhidorahEntity) this.mob).isBusy() && super.canUse();
+            }
+        });
+        this.goalSelector.addGoal(7, new RandomLookAroundGoal(this) {
+            @Override
+            public boolean canUse() {
+                return !isBusy() && super.canUse();
+            }
+        });
         this.targetSelector.addGoal(1, new HurtByTargetGoal(this));
-        this.targetSelector.addGoal(2, new Prey<>(this, Player.class));
-        this.targetSelector.addGoal(3, new Prey<>(this, IronGolem.class));
-        this.targetSelector.addGoal(4, new Prey<>(this, AbstractVillager.class));
+        this.targetSelector.addGoal(2, new Prey(this));
     }
 
     // ------------------------------------------------------------------ state
 
-    /** What he's doing: {@link #ACTION_NONE}, {@link #ACTION_ROAR}, a bite ({@link #ACTION_BITE} + a head) or his beam. */
+    /** What he's doing: {@link #ACTION_NONE}, a roar, a bite ({@link #ACTION_BITE} + a head), his beam... */
     public int getAction() {
         return this.entityData.get(DATA_ACTION);
     }
 
-    /** Ticks into what he's doing (on either side). */
+    /** Ticks into what he's doing, by the server's clock (on either side). */
     public int getActionTicks() {
-        return level().isClientSide ? this.tickCount - this.clientActionStart : this.actionTicks;
+        return (int) level().getGameTime() - this.entityData.get(DATA_ACTION_START);
+    }
+
+    /** The same, to the fraction of a tick (for his animations). */
+    public double getActionTicks(double partialTick) {
+        return getActionTicks() + partialTick;
     }
 
     /** Where his beams are aimed (world). */
@@ -224,14 +334,27 @@ public class KingGhidorahEntity extends Monster implements GeoEntity {
         return new Vec3(v.x(), v.y(), v.z());
     }
 
-    /** Whether a head's beam is firing now. */
+    public boolean isFlying() {
+        return this.entityData.get(DATA_FLYING);
+    }
+
+    public boolean isCarrying() {
+        return this.entityData.get(DATA_CARRYING);
+    }
+
+    /** Whether a beam fires from this head now (his gravity beams or his lift). */
     public boolean isFiring(Head head) {
+        int action = getAction();
         int t = getActionTicks();
-        return getAction() == ACTION_BEAM && t >= head.fireAt && t < BEAM_END_AT + head.ordinal() * 2;
+        return (action == ACTION_BEAM || action == ACTION_LIFT) && t >= head.fireAt && t < BEAM_END_AT + head.ordinal() * 2;
     }
 
     public boolean isBusy() {
         return getAction() != ACTION_NONE;
+    }
+
+    public boolean inEntrance() {
+        return getAction() == ACTION_ENTRANCE;
     }
 
     /** The lowest Y his stride destroys anything at (walkBreaksFromY; a game test sets its own). */
@@ -243,7 +366,7 @@ public class KingGhidorahEntity extends Monster implements GeoEntity {
         this.walkFloorOverride = y;
     }
 
-    /** World position of a point on him: {@code side} blocks to his right, {@code up}, {@code forward}. */
+    /** World position of a point on him: {@code x} blocks to his right, {@code y} up, {@code z} forward. */
     public Vec3 locator(Vec3 local) {
         Vec3 fwd = Vec3.directionFromRotation(0.0F, this.yBodyRot);
         Vec3 right = new Vec3(-fwd.z, 0.0, fwd.x);
@@ -254,88 +377,262 @@ public class KingGhidorahEntity extends Monster implements GeoEntity {
         return locator(head.beamMouth);
     }
 
-    /** Where a head's beam ends: at its aim (spread a little from the others'), or at the first block in the way. */
+    /**
+     * Where a head's beam strikes: its aim, spread a little from the others' (his gravity beams bore through what's
+     * in their way); his lift's beams, at what they hold.
+     */
     public Vec3 beamEnd(Head head, Vec3 from, Vec3 aim) {
         Vec3 fwd = aim.subtract(from);
         Vec3 right = new Vec3(-fwd.z, 0.0, fwd.x).normalize();
-        Vec3 off = head.spread(this.tickCount);
-        Vec3 to = aim.add(right.scale(off.x)).add(0.0, off.y, 0.0);
-        Vec3 far = from.add(to.subtract(from).normalize().scale(BEAM_RANGE + 40.0));
-        HitResult hit = level().clip(new ClipContext(from, far, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, this));
-        return hit.getType() == HitResult.Type.MISS ? far : hit.getLocation();
+        Vec3 off = getAction() == ACTION_LIFT ? head.spread(this.tickCount).scale(0.15) : head.spread(this.tickCount);
+        return aim.add(right.scale(off.x)).add(0.0, off.y, 0.0);
     }
 
     // ------------------------------------------------------------------ ticking
 
     @Override
     public void tick() {
+        if (!level().isClientSide && this.wantsEntrance && !this.entranceDone && getAction() == ACTION_NONE) {
+            this.wantsEntrance = false;
+            startEntrance();
+        }
+        if (inEntrance()) {
+            // he rises where he is: no turning, no walking, nothing moves him
+            setYRot(this.entranceYaw);
+            this.yBodyRot = this.entranceYaw;
+            this.yHeadRot = this.entranceYaw;
+            setDeltaMovement(0.0, Math.min(0.0, getDeltaMovement().y), 0.0);
+        }
         super.tick();
         if (level().isClientSide) {
-            beamSparks();
+            EffectHooks.ghidorah.tick(this);
             return;
         }
         ServerLevel level = (ServerLevel) level();
         this.bossEvent.setProgress(Mth.clamp(getHealth() / getMaxHealth(), 0.0F, 1.0F));
+        if (this.stormAt >= 0 && level.getGameTime() >= this.stormAt) {
+            this.stormAt = -1L;
+            storm(level);
+        }
+        tickVaporizing(level);
+        if (isDeadOrDying()) {
+            return;
+        }
         if (this.beamCooldown > 0) {
             this.beamCooldown--;
         }
-        if (this.roarCooldown > 0) {
-            this.roarCooldown--;
+        if (this.liftCooldown > 0) {
+            this.liftCooldown--;
+        }
+        if (this.grabCooldown > 0) {
+            this.grabCooldown--;
         }
         if (this.biteCooldown > 0) {
             this.biteCooldown--;
         }
+        if (this.stompCooldown > 0) {
+            this.stompCooldown--;
+        }
+        if (this.whipCooldown > 0) {
+            this.whipCooldown--;
+        }
+        if (this.retreatCooldown > 0) {
+            this.retreatCooldown--;
+        }
         LivingEntity target = getTarget();
-        if (target != null && target != this.lastTarget && !isBusy() && this.roarCooldown <= 0) {
+        if (target != null && (!target.isAlive() || !isValidTarget(target))) {
+            setTarget(null);
+            target = null;
+        }
+        if (target == null && !isBusy() && this.tickCount % 100 == 0 && getHealth() < getMaxHealth()) {
+            heal((float) (getMaxHealth() * Config.CALM_REGEN_PERCENT.get() / 100.0));     // (as Godzilla does)
+        }
+        if (target != null && target != this.lastTarget && !isBusy()) {
             startAction(ACTION_ROAR);       // (he lets what he's found to hunt know it)
         }
         this.lastTarget = target;
         int action = getAction();
         if (action != ACTION_NONE) {
-            this.actionTicks++;
-            if (action == ACTION_ROAR && this.actionTicks == ROAR_SOUND_AT) {
-                roar(level, 1.0F);
-            } else if (action >= ACTION_BITE && action < ACTION_BEAM && this.actionTicks == BITE_SNAP_AT) {
-                bite(level, Head.values()[action - ACTION_BITE]);
-            } else if (action == ACTION_BEAM) {
-                beamTick(level, target);
+            tickAction(level, action, getActionTicks(), target);
+        } else {
+            int interval = Config.ROAR_INTERVAL.get() * 20;
+            if (interval > 0 && --this.roarTimer <= 0) {
+                this.roarTimer = interval;
+                startAction(ACTION_ROAR);
             }
-            int length = action == ACTION_ROAR ? ROAR_TICKS : action == ACTION_BEAM ? BEAM_TICKS : BITE_TICKS;
-            if (this.actionTicks >= length) {
-                this.entityData.set(DATA_ACTION, ACTION_NONE);
-            }
-        }
-        if (this.walkTarget != null && target == null && !isBusy()) {
-            if (position().distanceToSqr(this.walkTarget.x, getY(), this.walkTarget.z) < 16.0) {
-                this.walkTarget = null;
-            } else {
-                getMoveControl().setWantedPosition(this.walkTarget.x, this.walkTarget.y, this.walkTarget.z, 1.0);
+            if (this.walkTarget != null && target == null) {
+                if (position().distanceToSqr(this.walkTarget.x, getY(), this.walkTarget.z) < 16.0) {
+                    this.walkTarget = null;
+                } else {
+                    getMoveControl().setWantedPosition(this.walkTarget.x, this.walkTarget.y, this.walkTarget.z, 1.0);
+                }
             }
         }
-        if (this.tickCount % 4 == 0 && getDeltaMovement().horizontalDistanceSqr() > 1.0E-4) {
+        if (this.tickCount % 4 == 0 && !isFlying() && getDeltaMovement().horizontalDistanceSqr() > 1.0E-4) {
             smashBlocks(level);
         }
     }
 
-    /** Stride to a point and stop there (the harness; with nothing to hunt). */
-    public void walkTo(@Nullable Vec3 at) {
-        this.walkTarget = at;
+    private void tickAction(ServerLevel level, int action, int t, @Nullable LivingEntity target) {
+        switch (action) {
+            case ACTION_ROAR -> {
+                if (t == ROAR_SOUND_AT) {
+                    roar(level);
+                }
+                if (t >= ROAR_TICKS) {
+                    endAction();
+                }
+            }
+            case ACTION_BITE, ACTION_BITE + 1, ACTION_BITE + 2 -> {
+                if (t == BITE_SNAP_AT) {
+                    bite(level, Head.values()[action - ACTION_BITE]);
+                }
+                if (t >= BITE_TICKS) {
+                    endAction();
+                }
+            }
+            case ACTION_STOMP -> {
+                if (t == STOMP_HIT_AT) {
+                    stomp(level);
+                }
+                if (t >= STOMP_TICKS) {
+                    endAction();
+                }
+            }
+            case ACTION_WHIP -> {
+                if (t == WHIP_HIT_AT - 6) {
+                    level.playSound(null, getX(), getY() + 10.0, getZ(), ModSounds.MINUS_ZERO_TAIL_SWING.get(), SoundSource.HOSTILE, 12.0F, 0.8F);
+                }
+                if (t == WHIP_HIT_AT) {
+                    whip(level);
+                }
+                if (t >= WHIP_TICKS) {
+                    endAction();
+                }
+            }
+            case ACTION_BEAM, ACTION_LIFT -> {
+                beamTick(level, action, t, target);
+                if (t >= BEAM_TICKS) {
+                    this.lifted = null;
+                    endAction();
+                }
+            }
+            case ACTION_ENTRANCE -> entranceTick(level, t);
+            case ACTION_GRAB, ACTION_RETREAT -> flightTick(level, action, target);
+            default -> endAction();
+        }
     }
 
     private void startAction(int action) {
-        this.actionTicks = 0;
+        this.entityData.set(DATA_ACTION_START, (int) level().getGameTime());
         this.entityData.set(DATA_ACTION, action);
         if (action == ACTION_ROAR) {
-            this.roarCooldown = ROAR_INTERVAL;
+            this.roarTimer = Math.max(Config.ROAR_INTERVAL.get() * 20, 1);
         }
+    }
+
+    private void endAction() {
+        this.entityData.set(DATA_ACTION, ACTION_NONE);
+    }
+
+    // ------------------------------------------------------------------ his entrance
+
+    @Override
+    public SpawnGroupData finalizeSpawn(ServerLevelAccessor level, DifficultyInstance difficulty, MobSpawnType reason,
+                                        @Nullable SpawnGroupData data, @Nullable CompoundTag tag) {
+        // spawned (his egg, /summon, a spawner): he rises out of the ground, once (not when he's loaded again)
+        this.wantsEntrance = true;
+        return super.finalizeSpawn(level, difficulty, reason, data, tag);
+    }
+
+    /** Rise out of the ground now (his spawn does this; the harness and game tests call it). */
+    public void startEntrance() {
+        if (!(level() instanceof ServerLevel level)) {
+            return;
+        }
+        settleOnGround(level);
+        this.entranceYaw = getYRot();
+        this.entranceDone = true;
+        getNavigation().stop();
+        startAction(ACTION_ENTRANCE);
+    }
+
+    /** On solid ground: down onto it if he was put in the air, up out of it if he was put inside it. */
+    private void settleOnGround(ServerLevel level) {
+        BlockPos.MutableBlockPos p = BlockPos.containing(getX(), getY(), getZ()).mutable();
+        int moved = 0;
+        while (moved < 16 && !level.getBlockState(p).getCollisionShape(level, p).isEmpty()) {
+            p.move(0, 1, 0);
+            moved++;
+        }
+        if (moved == 0) {
+            while (moved < 96 && p.getY() > level.getMinBuildHeight()
+                    && level.getBlockState(p.below()).getCollisionShape(level, p.below()).isEmpty()) {
+                p.move(0, -1, 0);
+                moved++;
+            }
+        }
+        if (moved > 0) {
+            setPos(getX(), p.getY(), getZ());
+        }
+    }
+
+    /** The sounds of his entrance, from the server so everyone in earshot hears them (the effects are the client's). */
+    private void entranceTick(ServerLevel level, int t) {
+        Vec3 at = position();
+        if (t == 0 || t == 110) {
+            sound(level, at, ModSounds.KING_GHIDORAH_RUMBLE.get(), 14.0F, 0.85F);
+        }
+        if (t == 18 || t == 36 || t == 52 || t == 62 || t == 112 || t == 124 || t == 160 || t == 179 || t == 197) {
+            sound(level, at, ModSounds.KING_GHIDORAH_EARTH_CRACK.get(), t >= 160 ? 14.0F : 9.0F, 0.75F + this.random.nextFloat() * 0.25F);
+        }
+        if (t == 174 || t == 193 || t == 212) {
+            sound(level, at, ModSounds.GODZILLA_STOMP.get(), 14.0F, 0.6F);
+        }
+        if (t == 216) {
+            sound(level, at.add(0.0, 40.0, 0.0), ModSounds.KING_GHIDORAH_WING_SPREAD.get(), 16.0F, 0.9F);
+        }
+        if (t == 250) {
+            roar(level);
+        }
+        if (t >= ENTRANCE_TICKS) {
+            endAction();
+            // the storm follows the end of his entrance, not his spawning
+            int duration = Config.GHIDORAH_STORM_DURATION_TICKS.get();
+            if (duration > 0) {
+                this.stormAt = level.getGameTime() + Config.GHIDORAH_STORM_DELAY_TICKS.get();
+            }
+        }
+    }
+
+    private void sound(ServerLevel level, Vec3 at, SoundEvent sound, float volume, float pitch) {
+        level.playSound(null, at.x, at.y, at.z, sound, SoundSource.HOSTILE, volume, pitch);
+    }
+
+    /**
+     * The thunderstorm after his entrance: rain and thunder over the whole dimension (through the game's own weather,
+     * so every player in it gets it, and lightning strikes as it does in any storm) for entranceStormDurationTicks.
+     * Only where there is weather: a dimension with a sky and no ceiling, with weather of its own (the Overworld).
+     */
+    private void storm(ServerLevel level) {
+        int duration = Config.GHIDORAH_STORM_DURATION_TICKS.get();
+        if (duration <= 0 || !level.dimensionType().hasSkyLight() || level.dimensionType().hasCeiling()) {
+            return;
+        }
+        level.setWeatherParameters(0, duration, true, true);
+    }
+
+    /** When his storm is due (game time), or -1. */
+    public long stormAt() {
+        return this.stormAt;
     }
 
     // ------------------------------------------------------------------ the roar
 
-    private void roar(ServerLevel level, float volume) {
+    private void roar(ServerLevel level) {
         // (loud enough to carry 400 blocks, from up where his heads are)
         level.playSound(null, getX(), getY() + REAL_HEIGHT * 0.8, getZ(), ModSounds.KING_GHIDORAH_ROAR.get(),
-                SoundSource.HOSTILE, 25.0F * volume, 0.95F + this.random.nextFloat() * 0.1F);
+                SoundSource.HOSTILE, 25.0F, 0.95F + this.random.nextFloat() * 0.1F);
     }
 
     /** Roar now (a game test, or the harness). */
@@ -343,17 +640,23 @@ public class KingGhidorahEntity extends Monster implements GeoEntity {
         startAction(ACTION_ROAR);
     }
 
-    // ------------------------------------------------------------------ bites
+    // ------------------------------------------------------------------ bites, stomps, his tails
 
     /** The head nearest a point: the middle one unless it's well off to his right or left. */
     public Head nearestHead(Vec3 point) {
-        Vec3 fwd = Vec3.directionFromRotation(0.0F, this.yBodyRot);
-        Vec3 right = new Vec3(-fwd.z, 0.0, fwd.x);
-        double side = point.subtract(position()).dot(right);
+        double side = localOf(point).x;
         return side > 10.0 ? Head.RIGHT : side < -10.0 ? Head.LEFT : Head.MIDDLE;
     }
 
-    /** Where a head's bite reaches: around the point below where its jaws snap shut, from the ground up to them. */
+    /** A point relative to him: {right, up, forward} blocks. */
+    public Vec3 localOf(Vec3 point) {
+        Vec3 fwd = Vec3.directionFromRotation(0.0F, this.yBodyRot);
+        Vec3 right = new Vec3(-fwd.z, 0.0, fwd.x);
+        Vec3 d = point.subtract(position());
+        return new Vec3(d.dot(right), d.y, d.dot(fwd));
+    }
+
+    /** Where a head's bite reaches: round the point below where its jaws snap shut, from the ground up to them. */
     boolean inBiteReach(Entity target, Head head) {
         Vec3 jaws = locator(head.biteMouth);
         Vec3 c = target.getBoundingBox().getCenter();
@@ -370,28 +673,89 @@ public class KingGhidorahEntity extends Monster implements GeoEntity {
     private void bite(ServerLevel level, Head head) {
         Vec3 jaws = locator(head.biteMouth);
         level.playSound(null, jaws.x, jaws.y, jaws.z, ModSounds.GODZILLA_BITE.get(), SoundSource.HOSTILE, 10.0F, 1.15F);
-        float damage = (float) getAttributeValue(Attributes.ATTACK_DAMAGE);
         AABB zone = new AABB(jaws.x - BITE_RADIUS, getY() - 6.0, jaws.z - BITE_RADIUS, jaws.x + BITE_RADIUS, jaws.y + 10.0, jaws.z + BITE_RADIUS);
-        for (LivingEntity e : level.getEntitiesOfClass(LivingEntity.class, zone, e -> e != this && e.isAlive()
-                && !(e instanceof KingGhidorahEntity) && !e.isSpectator() && inBiteReach(e, head))) {
-            if (e.hurt(damageSources().mobAttack(this), damage)) {
-                Vec3 away = e.position().subtract(position()).multiply(1, 0, 1).normalize();
-                e.setDeltaMovement(e.getDeltaMovement().add(away.scale(2.0)).add(0.0, 0.8, 0.0));
-                e.hurtMarked = true;
+        for (LivingEntity e : victims(level, zone)) {
+            if (inBiteReach(e, head)) {
+                strike(e, (float) getAttributeValue(Attributes.ATTACK_DAMAGE), e.position().subtract(position()), 2.0, 0.8);
             }
         }
-        if (Config.GODZILLA_BREAKS_BLOCKS.get() && ForgeEventFactory.getMobGriefingEvent(level, this)) {
+        if (breaksBlocks(level)) {
             Vec3 push = Vec3.directionFromRotation(0.0F, this.yBodyRot).scale(0.6).add(0.0, 0.4, 0.0);
             Destruction.tearThrough(level, this, jaws, 7.0, push);
         }
     }
 
-    // ------------------------------------------------------------------ gravity beams
+    /** Where his right foot comes down. */
+    public Vec3 stompFoot() {
+        return locator(new Vec3(11.4, 0.0, 2.2).scale(UNIT));
+    }
+
+    public void startStomp() {
+        this.stompCooldown = 60;
+        startAction(ACTION_STOMP);
+    }
+
+    private void stomp(ServerLevel level) {
+        Vec3 foot = stompFoot();
+        level.playSound(null, foot.x, foot.y, foot.z, ModSounds.GODZILLA_STOMP.get(), SoundSource.HOSTILE, 14.0F, 0.75F);
+        ModNetwork.shake(level, foot, 80.0, 1.6F, 1.2F);
+        for (LivingEntity e : victims(level, new AABB(foot, foot).inflate(STOMP_RADIUS, 8.0, STOMP_RADIUS))) {
+            Vec3 d = e.position().subtract(foot);
+            if (d.horizontalDistance() < STOMP_RADIUS + e.getBbWidth() / 2.0 && e.getY() < foot.y + 8.0) {
+                strike(e, (float) getAttributeValue(Attributes.ATTACK_DAMAGE), d, 1.6, 1.2);
+            }
+        }
+        if (breaksBlocks(level) && Config.FOOTPRINTS.get()) {
+            Destruction.footprint(level, this, foot, this.yBodyRot, 9.0, 12.0);
+        }
+        level.sendParticles(ParticleTypes.EXPLOSION_EMITTER, foot.x, foot.y + 1.0, foot.z, 2, 4.0, 0.5, 4.0, 0.0);
+    }
+
+    public void startWhip() {
+        this.whipCooldown = 100;
+        startAction(ACTION_WHIP);
+    }
+
+    /** Both tails swung round behind and about him: whatever's in their sweep is struck and flung, what's built swept away. */
+    private void whip(ServerLevel level) {
+        Vec3 c = position();
+        level.playSound(null, c.x, c.y + 6.0, c.z, ModSounds.GODZILLA_ATTACK.get(), SoundSource.HOSTILE, 12.0F, 0.7F);
+        for (LivingEntity e : victims(level, getBoundingBox().inflate(WHIP_OUTER, 10.0, WHIP_OUTER))) {
+            Vec3 local = localOf(e.position());
+            double d = local.horizontalDistance();
+            if (d > WHIP_INNER && d < WHIP_OUTER && local.z < 20.0 && e.getY() < getY() + 30.0) {
+                strike(e, (float) getAttributeValue(Attributes.ATTACK_DAMAGE), e.position().subtract(c), 3.0, 1.0);
+            }
+        }
+        if (breaksBlocks(level)) {
+            Destruction.tailSweep(level, this, c, WHIP_INNER, WHIP_OUTER, 24);
+        }
+    }
+
+    /** Hurt and fling something (spared: other King Ghidorahs, spectators). */
+    private void strike(LivingEntity e, float damage, Vec3 away, double push, double up) {
+        if (e.hurt(damageSources().mobAttack(this), damage)) {
+            Vec3 h = away.multiply(1, 0, 1);
+            h = h.lengthSqr() > 1.0E-6 ? h.normalize() : Vec3.ZERO;
+            e.setDeltaMovement(e.getDeltaMovement().add(h.scale(push)).add(0.0, up, 0.0));
+            e.hurtMarked = true;
+        }
+    }
+
+    private List<LivingEntity> victims(ServerLevel level, AABB box) {
+        return level.getEntitiesOfClass(LivingEntity.class, box, e -> e != this && e.isAlive() && !e.isSpectator()
+                && !(e instanceof KingGhidorahEntity) && e.getVehicle() != this && !(e instanceof ArmorStand));
+    }
+
+    private boolean breaksBlocks(ServerLevel level) {
+        return Config.GODZILLA_BREAKS_BLOCKS.get() && ForgeEventFactory.getMobGriefingEvent(level, this);
+    }
+
+    // ------------------------------------------------------------------ gravity beams, and the lift
 
     public boolean canFireBeam(LivingEntity target) {
         double d = target.position().subtract(position()).horizontalDistance();
-        return this.beamCooldown <= 0 && d >= BEAM_MIN_RANGE && d <= BEAM_RANGE
-                && clearLine(beamMouth(Head.MIDDLE), target.getBoundingBox().getCenter());
+        return d >= BEAM_MIN_RANGE && d <= BEAM_RANGE;
     }
 
     private boolean clearLine(Vec3 from, Vec3 to) {
@@ -405,12 +769,22 @@ public class KingGhidorahEntity extends Monster implements GeoEntity {
         startAction(ACTION_BEAM);
     }
 
-    private void beamTick(ServerLevel level, @Nullable LivingEntity target) {
-        int t = this.actionTicks;
-        if (target != null && target.isAlive() && t < BEAM_END_AT) {
-            // his aim follows his target, a step behind
-            Vec3 aim = getAim().lerp(target.getBoundingBox().getCenter(), 0.15);
-            this.entityData.set(DATA_AIM, aim.toVector3f());
+    /** Seize something with his beams and lift it up high (a game test, the harness, or the hunt). */
+    public void startLift(LivingEntity target) {
+        this.entityData.set(DATA_AIM, target.getBoundingBox().getCenter().toVector3f());
+        this.lifted = target;
+        this.liftedFromY = target.getY();
+        this.liftCooldown = LIFT_COOLDOWN;
+        this.beamCooldown = Math.max(this.beamCooldown, BEAM_COOLDOWN / 2);
+        startAction(ACTION_LIFT);
+    }
+
+    private void beamTick(ServerLevel level, int action, int t, @Nullable LivingEntity target) {
+        LivingEntity follow = action == ACTION_LIFT ? this.lifted : target;
+        if (follow != null && follow.isAlive() && t < BEAM_END_AT) {
+            // the aim follows what it's after (a step behind, the beams: at once, the lift)
+            Vec3 c = follow.getBoundingBox().getCenter();
+            this.entityData.set(DATA_AIM, (action == ACTION_LIFT ? c : getAim().lerp(c, 0.15)).toVector3f());
         }
         Vec3 aim = getAim();
         for (Head head : Head.values()) {
@@ -418,85 +792,336 @@ public class KingGhidorahEntity extends Monster implements GeoEntity {
                 Vec3 m = beamMouth(head);
                 level.playSound(null, m.x, m.y, m.z, ModSounds.KING_GHIDORAH_BEAM.get(), SoundSource.HOSTILE, 20.0F,
                         0.9F + head.ordinal() * 0.08F);
+                if (action == ACTION_BEAM && breaksBlocks(level)) {
+                    this.vaporizing.add(new Vaporize(level, m, beamEnd(head, m, aim)));
+                }
             }
-            if (!isFiring(head) || (t - head.fireAt) % 4 != 0) {
+            if (!isFiring(head)) {
                 continue;
             }
             Vec3 from = beamMouth(head);
             Vec3 end = beamEnd(head, from, aim);
-            hurtAlong(level, from, end);
-            if ((t - head.fireAt) % 8 == 0) {
-                impact(level, end, from);
+            if (action == ACTION_BEAM && (t - head.fireAt) % 4 == 0) {
+                zap(level, from, end);
             }
+        }
+        if (action == ACTION_LIFT && this.lifted != null) {
+            lift(level, t);
         }
     }
 
-    /** (client) Sparks and smoke where his beams land, and crackling along them. */
-    private void beamSparks() {
-        if (getAction() != ACTION_BEAM) {
-            return;
-        }
-        Vec3 aim = getAim();
-        for (Head head : Head.values()) {
-            if (!isFiring(head)) {
-                continue;
-            }
-            Vec3 drawn = this.drawnMouths[head.ordinal()];
-            Vec3 from = drawn != null ? position().add(drawn) : beamMouth(head);
-            Vec3 end = beamEnd(head, from, aim);
-            for (int i = 0; i < 6; i++) {
-                level().addParticle(ParticleTypes.ELECTRIC_SPARK, end.x + this.random.nextGaussian() * 1.5,
-                        end.y + this.random.nextDouble() * 2.0, end.z + this.random.nextGaussian() * 1.5,
-                        this.random.nextGaussian() * 0.6, 0.4 + this.random.nextDouble() * 0.8, this.random.nextGaussian() * 0.6);
-            }
-            if (this.tickCount % 3 == 0) {
-                level().addParticle(ParticleTypes.EXPLOSION, end.x, end.y + 1.0, end.z, 0.0, 0.0, 0.0);
-            }
-            level().addParticle(ParticleTypes.LARGE_SMOKE, end.x, end.y + 1.0, end.z, 0.0, 0.25, 0.0);
-            Vec3 along = from.lerp(end, this.random.nextDouble());
-            level().addParticle(ParticleTypes.ELECTRIC_SPARK, along.x, along.y, along.z, 0.0, 0.0, 0.0);
-        }
-    }
-
-    /** Whatever the beam touches is hurt and lifted off its feet. */
-    private void hurtAlong(ServerLevel level, Vec3 from, Vec3 to) {
-        AABB box = new AABB(from, to).inflate(BEAM_RADIUS);
+    /** What his beams touch, and everything round where they strike, is struck down and flung. */
+    private void zap(ServerLevel level, Vec3 from, Vec3 to) {
+        float damage = (float) getAttributeValue(Attributes.ATTACK_DAMAGE);
+        AABB box = new AABB(from, to).inflate(VAPORIZE_RADIUS);
         Vec3 d = to.subtract(from);
         double len2 = d.lengthSqr();
-        for (LivingEntity e : level.getEntitiesOfClass(LivingEntity.class, box, e -> e != this && e.isAlive()
-                && !(e instanceof KingGhidorahEntity) && !e.isSpectator())) {
+        for (LivingEntity e : victims(level, box)) {
             Vec3 c = e.getBoundingBox().getCenter();
             double f = len2 > 0 ? Mth.clamp(c.subtract(from).dot(d) / len2, 0.0, 1.0) : 0.0;
-            Vec3 nearest = from.add(d.scale(f));
-            double reach = BEAM_RADIUS + e.getBbWidth() / 2.0;
-            if (nearest.distanceToSqr(c) > reach * reach) {
-                continue;
-            }
-            if (e.hurt(damageSources().indirectMagic(this, this), BEAM_DAMAGE)) {
-                Vec3 push = d.normalize().scale(0.6);
-                e.setDeltaMovement(e.getDeltaMovement().multiply(0.5, 0.0, 0.5).add(push.x, 0.9, push.z));
+            boolean onBeam = from.add(d.scale(f)).distanceTo(c) < BORE_RADIUS + 1.0 + e.getBbWidth() / 2.0;
+            boolean atStrike = c.distanceTo(to) < VAPORIZE_RADIUS + e.getBbWidth() / 2.0;
+            if ((onBeam || atStrike) && e.hurt(damageSources().indirectMagic(this, this), damage)) {
+                Vec3 away = c.subtract(to);
+                e.setDeltaMovement(e.getDeltaMovement().add(away.normalize().scale(0.8)).add(0.0, 1.0, 0.0));
                 e.hurtMarked = true;
             }
         }
+        level.sendParticles(ParticleTypes.FLASH, to.x, to.y, to.z, 1, 0.0, 0.0, 0.0, 0.0);
     }
 
-    /** Where a beam lands: a blast, and the blocks there torn loose and flung up. */
-    private void impact(ServerLevel level, Vec3 at, Vec3 from) {
-        level.explode(this, at.x, at.y, at.z, 2.5F, Level.ExplosionInteraction.NONE);
-        if (Config.GODZILLA_BREAKS_BLOCKS.get() && ForgeEventFactory.getMobGriefingEvent(level, this)) {
-            Vec3 back = from.subtract(at).multiply(1, 0, 1).normalize().scale(0.25);
-            Destruction.tearThrough(level, this, at, 4.0, back.add(0.0, 1.1, 0.0));
+    /** His lift: the beams haul what they hold straight up, hold it there, and let go (it falls). */
+    private void lift(ServerLevel level, int t) {
+        LivingEntity e = this.lifted;
+        if (e == null || !e.isAlive()) {
+            this.lifted = null;
+            return;
         }
+        int first = Head.MIDDLE.fireAt;
+        if (t < first || t >= BEAM_END_AT) {
+            return;
+        }
+        double rise = e.getY() - this.liftedFromY;
+        double vy = rise < LIFT_HEIGHT ? 0.95 : 0.06;
+        e.setDeltaMovement(e.getDeltaMovement().multiply(0.3, 0.0, 0.3).add(0.0, vy, 0.0));
+        e.hurtMarked = true;
+        e.fallDistance = 0.0F;
+        if ((t - first) % 20 == 0) {
+            e.hurt(damageSources().indirectMagic(this, this), 2.0F);     // (it's the fall that does the harm)
+        }
+        if (t == BEAM_END_AT - 1) {
+            e.setDeltaMovement(e.getDeltaMovement().multiply(1.0, 0.0, 1.0).add(0.0, -0.4, 0.0));
+            e.hurtMarked = true;
+        }
+    }
+
+    /** What's being lifted, if anything. */
+    @Nullable
+    public LivingEntity getLifted() {
+        return this.lifted;
+    }
+
+    /**
+     * Where a gravity beam strikes, every block within {@link #VAPORIZE_RADIUS} goes, and every block within
+     * {@link #BORE_RADIUS} of its path there (all but liquids and what can't be broken: bedrock); nearest first, a few
+     * thousand a tick, so a strike into a hillside doesn't stall the server.
+     */
+    private static final class Vaporize {
+        private static final int PER_TICK = 2500;
+        private final ServerLevel level;
+        private final List<BlockPos> blocks = new ArrayList<>();
+        private int next;
+
+        Vaporize(ServerLevel level, Vec3 from, Vec3 to) {
+            this.level = level;
+            BlockPos c = BlockPos.containing(to);
+            int r = Mth.ceil(VAPORIZE_RADIUS);
+            List<BlockPos> sphere = new ArrayList<>();
+            for (BlockPos p : BlockPos.betweenClosed(c.offset(-r, -r, -r), c.offset(r, r, r))) {
+                if (p.distSqr(c) <= VAPORIZE_RADIUS * VAPORIZE_RADIUS) {
+                    sphere.add(p.immutable());
+                }
+            }
+            sphere.sort(Comparator.comparingDouble(p -> p.distSqr(c)));
+            // the bore along the path, from the strike back towards his mouth (only near the strike's end: 40 blocks)
+            Vec3 d = from.subtract(to);
+            double len = Math.min(d.length(), 40.0);
+            Vec3 step = d.normalize();
+            for (double s = VAPORIZE_RADIUS; s < len; s += 1.0) {
+                BlockPos m = BlockPos.containing(to.add(step.scale(s)));
+                int b = Mth.ceil(BORE_RADIUS);
+                for (BlockPos p : BlockPos.betweenClosed(m.offset(-b, -b, -b), m.offset(b, b, b))) {
+                    if (p.distSqr(m) <= BORE_RADIUS * BORE_RADIUS) {
+                        this.blocks.add(p.immutable());
+                    }
+                }
+            }
+            this.blocks.addAll(0, sphere);
+        }
+
+        /** Vaporize the next lot; true once all of it is gone. */
+        boolean run(Entity breaker) {
+            int end = Math.min(this.blocks.size(), this.next + PER_TICK);
+            for (; this.next < end; this.next++) {
+                BlockPos p = this.blocks.get(this.next);
+                BlockState state = this.level.getBlockState(p);
+                if (state.isAir() || !state.getFluidState().isEmpty() || state.getBlock() instanceof LiquidBlock) {
+                    continue;
+                }
+                if (Destruction.canBreak(this.level, p, state, breaker instanceof LivingEntity l ? l : null)) {
+                    this.level.setBlock(p, Blocks.AIR.defaultBlockState(), 2);
+                }
+            }
+            return this.next >= this.blocks.size();
+        }
+    }
+
+    private void tickVaporizing(ServerLevel level) {
+        this.vaporizing.removeIf(v -> v.run(this));
+    }
+
+    // ------------------------------------------------------------------ flight: the grab, and his retreat
+
+    /** Take off, seize {@code target} in his talons, carry it up and dive, slamming it into the ground. */
+    public void startGrab(LivingEntity target) {
+        this.prey = target;
+        this.slammed = false;
+        this.grabCooldown = GRAB_COOLDOWN;
+        beginFlight(ACTION_GRAB);
+    }
+
+    /** Fly off away from {@code from} (his health low: retreatHealthPercent). */
+    public void startRetreat(@Nullable Vec3 from) {
+        this.fleeFrom = from != null ? from : position().add(Vec3.directionFromRotation(0.0F, getYRot()).scale(10.0));
+        this.retreatCooldown = RETREAT_COOLDOWN;
+        beginFlight(ACTION_RETREAT);
+    }
+
+    private void beginFlight(int action) {
+        this.flight = Flight.TAKEOFF;
+        this.flightTicks = 0;
+        getNavigation().stop();
+        startAction(action);
+        setFlying(true);
+        level().playSound(null, getX(), getY() + 30.0, getZ(), ModSounds.KING_GHIDORAH_WING_SPREAD.get(), SoundSource.HOSTILE, 16.0F, 1.0F);
+    }
+
+    private void setFlying(boolean flying) {
+        this.entityData.set(DATA_FLYING, flying);
+        setNoGravity(flying);
+        this.noPhysics = flying;        // (his wings and body clear what's below them: he flies over it, not into it)
+        if (!flying) {
+            this.entityData.set(DATA_CARRYING, false);
+        }
+    }
+
+    private int groundBelow() {
+        return level().getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, Mth.floor(getX()), Mth.floor(getZ()));
+    }
+
+    private void flightTick(ServerLevel level, int action, @Nullable LivingEntity target) {
+        this.flightTicks++;
+        if (this.flightTicks % 24 == 1) {
+            level.playSound(null, getX(), getY() + 30.0, getZ(), ModSounds.KING_GHIDORAH_WING_FLAP.get(), SoundSource.HOSTILE, 12.0F, 0.9F);
+        }
+        int ground = groundBelow();
+        Vec3 v = Vec3.ZERO;
+        switch (this.flight) {
+            case TAKEOFF -> {
+                v = new Vec3(0.0, 1.1, 0.0);
+                if (this.flightTicks >= 18) {
+                    next(action == ACTION_GRAB ? Flight.APPROACH : Flight.FLEE);
+                }
+            }
+            case APPROACH -> {
+                LivingEntity p = this.prey;
+                if (p == null || !p.isAlive() || this.flightTicks > 240) {
+                    next(Flight.LAND);
+                    break;
+                }
+                // his talons (his feet) to just over its head
+                Vec3 want = new Vec3(p.getX(), p.getY() + p.getBbHeight() + 1.0, p.getZ());
+                Vec3 d = want.subtract(position());
+                faceTowards(want);
+                v = d.length() > FLY_SPEED ? d.normalize().scale(FLY_SPEED) : d;
+                if (d.length() < 3.5) {
+                    p.stopRiding();
+                    p.startRiding(this, true);
+                    this.entityData.set(DATA_CARRYING, true);
+                    level.playSound(null, p.getX(), p.getY(), p.getZ(), ModSounds.GODZILLA_BITE.get(), SoundSource.HOSTILE, 10.0F, 0.7F);
+                    next(Flight.ASCEND);
+                }
+            }
+            case ASCEND -> {
+                LivingEntity p = this.prey;
+                regrip(p);
+                double carried = p != null ? p.getBbHeight() : 0.0;
+                v = new Vec3(0.0, 0.85, 0.0).add(Vec3.directionFromRotation(0.0F, getYRot()).scale(0.3));
+                if (getY() - ground >= GRAB_ALTITUDE + carried || this.flightTicks > 100 || p == null || !p.isAlive()) {
+                    next(Flight.DIVE);
+                }
+            }
+            case DIVE -> {
+                LivingEntity p = this.prey;
+                regrip(p);
+                double carried = p != null && p.getVehicle() == this ? p.getBbHeight() : 0.0;
+                v = new Vec3(0.0, -2.6, 0.0).add(Vec3.directionFromRotation(0.0F, getYRot()).scale(0.6));
+                if (getY() - ground <= carried + 2.0 || this.flightTicks > 60) {
+                    slam(level, p);
+                    next(Flight.LAND);
+                }
+            }
+            case FLEE -> {
+                Vec3 from = this.fleeFrom != null ? this.fleeFrom : position();
+                Vec3 away = position().subtract(from).multiply(1, 0, 1);
+                away = away.lengthSqr() > 1.0E-4 ? away.normalize() : Vec3.directionFromRotation(0.0F, getYRot());
+                double climb = Mth.clamp((ground + 50.0 - getY()) * 0.05, -0.6, 0.9);
+                v = away.scale(FLY_SPEED).add(0.0, climb, 0.0);
+                faceTowards(position().add(away));
+                if (this.flightTicks > 320 || position().subtract(from).horizontalDistance() > 220.0) {
+                    setTarget(null);
+                    next(Flight.LAND);
+                }
+            }
+            case LAND -> {
+                v = new Vec3(0.0, getY() - ground > 6.0 ? -1.4 : -0.5, 0.0);
+                if (getY() + v.y <= ground) {
+                    setPos(getX(), ground, getZ());
+                    setFlying(false);
+                    setDeltaMovement(Vec3.ZERO);
+                    ejectPassengers();
+                    this.prey = null;
+                    level.playSound(null, getX(), getY(), getZ(), ModSounds.GODZILLA_STOMP.get(), SoundSource.HOSTILE, 14.0F, 0.6F);
+                    ModNetwork.shake(level, position(), 90.0, 1.2F, 1.0F);
+                    endAction();
+                    return;
+                }
+                if (this.flightTicks > 200) {
+                    setPos(getX(), ground, getZ());       // (somehow still up: down he comes)
+                }
+            }
+        }
+        setDeltaMovement(v);       // (the game moves him by it next tick: he flies through whatever's below, noPhysics)
+    }
+
+    private void next(Flight phase) {
+        this.flight = phase;
+        this.flightTicks = 0;
+    }
+
+    /** Keep hold of what he's carrying (a player can't wriggle free by sneaking). */
+    private void regrip(@Nullable LivingEntity p) {
+        if (p != null && p.isAlive() && p.getVehicle() != this && p.distanceTo(this) < 20.0 + p.getBbHeight()) {
+            p.startRiding(this, true);
+        }
+    }
+
+    /** At the bottom of his dive he lets go: what he carried is dashed into the ground. */
+    private void slam(ServerLevel level, @Nullable LivingEntity p) {
+        Vec3 at = position();
+        if (p != null && p.isAlive()) {
+            p.stopRiding();
+            at = p.position();
+            p.setDeltaMovement(0.0, -2.5, 0.0);
+            p.hurtMarked = true;
+            p.hurt(damageSources().mobAttack(this), (float) getAttributeValue(Attributes.ATTACK_DAMAGE));
+        }
+        this.slammed = true;
+        this.entityData.set(DATA_CARRYING, false);
+        level.explode(this, at.x, at.y, at.z, 5.0F, Level.ExplosionInteraction.NONE);
+        level.playSound(null, at.x, at.y, at.z, ModSounds.GODZILLA_STOMP.get(), SoundSource.HOSTILE, 16.0F, 0.5F);
+        ModNetwork.shake(level, at, 100.0, 2.0F, 1.5F);
+        for (LivingEntity e : victims(level, new AABB(at, at).inflate(12.0, 6.0, 12.0))) {
+            if (e != p) {
+                strike(e, (float) getAttributeValue(Attributes.ATTACK_DAMAGE) * 0.25F, e.position().subtract(at), 1.5, 0.8);
+            }
+        }
+    }
+
+    /** Whether his last dive slammed what he carried into the ground (game tests). */
+    public boolean hasSlammed() {
+        return this.slammed;
+    }
+
+    private void faceTowards(Vec3 point) {
+        double dx = point.x - getX();
+        double dz = point.z - getZ();
+        if (dx * dx + dz * dz < 1.0E-4) {
+            return;
+        }
+        float yaw = (float) (Mth.atan2(dz, dx) * Mth.RAD_TO_DEG) - 90.0F;
+        float turned = Mth.approachDegrees(getYRot(), yaw, 6.0F);
+        setYRot(turned);
+        this.yBodyRot = turned;
+        this.yHeadRot = turned;
+    }
+
+    @Override
+    protected void positionRider(Entity passenger, MoveFunction move) {
+        // held in his talons, hanging below him
+        Vec3 fwd = Vec3.directionFromRotation(0.0F, this.yBodyRot);
+        move.accept(passenger, getX() + fwd.x * 2.0, getY() - passenger.getBbHeight() + 1.5, getZ() + fwd.z * 2.0);
+    }
+
+    @Override
+    public boolean shouldRiderSit() {
+        return false;
+    }
+
+    @Nullable
+    @Override
+    public LivingEntity getControllingPassenger() {
+        return null;     // (what he carries doesn't steer him)
     }
 
     // ------------------------------------------------------------------ walking through things
 
     private void smashBlocks(ServerLevel level) {
-        if (!Config.GODZILLA_BREAKS_BLOCKS.get() || !ForgeEventFactory.getMobGriefingEvent(level, this)) {
+        if (!breaksBlocks(level)) {
             return;
         }
         Vec3 forward = Vec3.directionFromRotation(0.0F, getYRot());
-        // (his legs, hips and folded wings: half his height; his necks rise above what he walks through)
+        // (his legs and body: half his height; his necks and raised wings rise above what he walks through)
         AABB box = getBoundingBox().expandTowards(forward.x * 4.0, 0.0, forward.z * 4.0).inflate(1.0, 0.0, 1.0);
         int minY = Math.max(Mth.floor(getY()) + 1, walkFloorY());
         int maxY = Mth.floor(getY() + REAL_HEIGHT * 0.55);
@@ -521,14 +1146,67 @@ public class KingGhidorahEntity extends Monster implements GeoEntity {
         }
     }
 
-    // ------------------------------------------------------------------ the rest
+    /** Stride to a point and stop there (the harness; with nothing to hunt). */
+    public void walkTo(@Nullable Vec3 at) {
+        this.walkTarget = at;
+    }
 
+    // ------------------------------------------------------------------ damage, death
+
+    /**
+     * Minus Zero's durability: only naval mines hurt him (onlyHurtByNavalMines), /kill and the void aside; nothing
+     * does while he rises out of the ground, nor another King Ghidorah.
+     */
     @Override
     public boolean hurt(DamageSource source, float amount) {
-        if (source.getEntity() instanceof KingGhidorahEntity) {
+        if (source.is(DamageTypeTags.BYPASSES_INVULNERABILITY)) {
+            return super.hurt(source, amount);
+        }
+        if (inEntrance() || source.getEntity() instanceof KingGhidorahEntity) {
+            return false;
+        }
+        if (!source.is(ModDamageTypes.NAVAL_MINE) && Config.GODZILLA_ONLY_HURT_BY_EXPLOSIVES.get()) {
             return false;
         }
         return super.hurt(source, amount);
+    }
+
+    /** Called by {@link Blasts#navalMine}: as for Minus Zero, a flat share of his max health (mineDamagePercent). */
+    public void hitByNavalMine(DamageSource source) {
+        if (inEntrance()) {
+            return;
+        }
+        float amount = (float) (getMaxHealth() * Config.MINE_DAMAGE_PERCENT.get() / 100.0);
+        this.invulnerableTime = 0;
+        if (amount > 0.0F) {
+            hurt(source, amount);
+        }
+    }
+
+    /** Whether he should fly off: his health low, retreats on, and not just back from a retreat. */
+    boolean shouldRetreat() {
+        return Config.GHIDORAH_RETREATS.get() && this.retreatCooldown <= 0
+                && getHealth() <= getMaxHealth() * Config.GHIDORAH_RETREAT_HEALTH_PERCENT.get() / 100.0;
+    }
+
+    @Override
+    public void die(DamageSource source) {
+        ejectPassengers();
+        if (isFlying() && !level().isClientSide) {
+            setFlying(false);
+            setNoGravity(false);
+        }
+        super.die(source);
+    }
+
+    /** Brought down, he collapses (animation.king_ghidorah.death, 3.6 s) before he's gone. */
+    @Override
+    protected void tickDeath() {
+        this.deathTime++;
+        if (this.deathTime >= 72 && !level().isClientSide && !isRemoved()) {
+            level().broadcastEntityEvent(this, (byte) 60);
+            remove(RemovalReason.KILLED);
+        }
     }
 
     @Override
@@ -597,12 +1275,31 @@ public class KingGhidorahEntity extends Monster implements GeoEntity {
     public void addAdditionalSaveData(CompoundTag tag) {
         super.addAdditionalSaveData(tag);
         tag.putInt("BeamCooldown", this.beamCooldown);
+        // (his entrance is had once: a reload neither replays it nor loses one under way)
+        tag.putBoolean("EntranceDone", this.entranceDone || this.wantsEntrance);
+        if (inEntrance()) {
+            tag.putInt("EntranceTicks", getActionTicks());
+        }
+        tag.putLong("StormAt", this.stormAt);
+        tag.putInt("RetreatCooldown", this.retreatCooldown);
     }
 
     @Override
     public void readAdditionalSaveData(CompoundTag tag) {
         super.readAdditionalSaveData(tag);
         this.beamCooldown = tag.getInt("BeamCooldown");
+        this.entranceDone = tag.getBoolean("EntranceDone");
+        this.wantsEntrance = false;
+        if (tag.contains("EntranceTicks")) {
+            this.entranceYaw = getYRot();
+            this.entityData.set(DATA_ACTION_START, (int) level().getGameTime() - tag.getInt("EntranceTicks"));
+            this.entityData.set(DATA_ACTION, ACTION_ENTRANCE);
+        }
+        this.stormAt = tag.contains("StormAt") ? tag.getLong("StormAt") : -1L;
+        this.retreatCooldown = tag.getInt("RetreatCooldown");
+        // (a flight isn't saved: loaded mid-air, he comes down and carries on from the ground)
+        setNoGravity(false);
+        this.noPhysics = false;
         if (hasCustomName()) {
             this.bossEvent.setName(getDisplayName());
         }
@@ -614,16 +1311,25 @@ public class KingGhidorahEntity extends Monster implements GeoEntity {
     public void registerControllers(AnimatableManager.ControllerRegistrar controllers) {
         controllers.add(new AnimationController<>(this, "main", 6, this::mainAnimation)
                 .setAnimationSpeedHandler(KingGhidorahEntity::strideSpeed));
-        controllers.add(new AnimationController<>(this, "action", 4, this::actionAnimation));
+        controllers.add(new ServerClockController(this, "action", 4, this::actionAnimation));
     }
 
     /** Plays his walk as fast as he's actually going, so his feet don't slide (about 0.6 blocks a tick, at its own pace). */
     private static double strideSpeed(KingGhidorahEntity ghidorah) {
+        if (ghidorah.isFlying() || ghidorah.isDeadOrDying()) {
+            return 1.0;
+        }
         double speed = ghidorah.getDeltaMovement().horizontalDistance();
         return speed < 0.02 ? 1.0 : Mth.clamp(speed / 0.6, 0.4, 1.6);
     }
 
     private PlayState mainAnimation(AnimationState<KingGhidorahEntity> state) {
+        if (isDeadOrDying()) {
+            return state.setAndContinue(DEATH);
+        }
+        if (isFlying()) {
+            return state.setAndContinue(isCarrying() ? FLY_CARRY : FLY);
+        }
         return state.setAndContinue(state.isMoving() && !isBusy() ? WALK : IDLE);
     }
 
@@ -632,13 +1338,18 @@ public class KingGhidorahEntity extends Monster implements GeoEntity {
             RawAnimation.begin().thenPlay("animation.king_ghidorah.bite_c"),
             RawAnimation.begin().thenPlay("animation.king_ghidorah.bite_r"),
             RawAnimation.begin().thenPlay("animation.king_ghidorah.bite_l"),
-            RawAnimation.begin().thenPlay("animation.king_ghidorah.gravity_beam")};
+            RawAnimation.begin().thenPlay("animation.king_ghidorah.gravity_beam"),
+            RawAnimation.begin().thenPlay("animation.king_ghidorah.gravity_lift"),
+            RawAnimation.begin().thenPlay("animation.king_ghidorah.stomp"),
+            RawAnimation.begin().thenPlay("animation.king_ghidorah.tail_whip"),
+            RawAnimation.begin().thenPlayAndHold("animation.king_ghidorah.entrance"),
+            null, null};
 
     private int playing = ACTION_NONE;
 
     private PlayState actionAnimation(AnimationState<KingGhidorahEntity> state) {
         int action = getAction();
-        if (action == ACTION_NONE) {
+        if (isDeadOrDying() || action < 0 || action >= ACTIONS.length || ACTIONS[action] == null) {
             this.playing = ACTION_NONE;
             return PlayState.STOP;
         }
@@ -654,21 +1365,66 @@ public class KingGhidorahEntity extends Monster implements GeoEntity {
         return this.cache;
     }
 
+    /**
+     * Plays what he's doing at the point the server is in it (DATA_ACTION_START): a player who starts watching him
+     * halfway through his entrance (or anything else) sees it from there, not from its beginning.
+     */
+    static final class ServerClockController extends AnimationController<KingGhidorahEntity> {
+        ServerClockController(KingGhidorahEntity animatable, String name, int transition,
+                              AnimationStateHandler<KingGhidorahEntity> handler) {
+            super(animatable, name, transition, handler);
+        }
+
+        @Override
+        protected double adjustTick(double tick) {
+            double t = super.adjustTick(tick);
+            if (getAnimationState() == State.RUNNING && this.currentAnimation != null && this.animatable.isBusy()) {
+                return Math.max(0.0, this.animatable.getActionTicks(tick - Math.floor(tick)));
+            }
+            return t;
+        }
+    }
+
     // ------------------------------------------------------------------ AI
 
-    /** Who he hunts: players, iron golems and villagers, across his whole range. */
-    static class Prey<T extends LivingEntity> extends NearestAttackableTargetGoal<T> {
-        Prey(KingGhidorahEntity ghidorah, Class<T> type) {
-            super(ghidorah, type, 20, true, false, e -> !(e instanceof Player p && (p.isCreative() || p.isSpectator())));
+    /**
+     * Whom he hunts, as Minus Zero: every creature (targetsAllMobs), or else players, Shinden fighters, iron golems and
+     * hostile mobs; Godzilla too (not other King Ghidorahs, naval mines, unmanned planes, creative or spectating players).
+     */
+    boolean isValidTarget(LivingEntity entity) {
+        if (entity instanceof KingGhidorahEntity || entity instanceof NavalMineEntity || entity instanceof ArmorStand) {
+            return false;
+        }
+        if (entity instanceof ShindenEntity shinden && !shinden.isVehicle()) {
+            return false;
+        }
+        if (entity instanceof Player player && (player.isCreative() || player.isSpectator())) {
+            return false;
+        }
+        return Config.GODZILLA_TARGETS_ALL_MOBS.get() || entity instanceof Player || entity instanceof ShindenEntity
+                || entity instanceof Enemy || entity instanceof IronGolem || entity instanceof GodzillaEntity;
+    }
+
+    static class Prey extends NearestAttackableTargetGoal<LivingEntity> {
+        Prey(KingGhidorahEntity ghidorah) {
+            super(ghidorah, LivingEntity.class, 20, true, false, ghidorah::isValidTarget);
         }
 
         @Override
         protected AABB getTargetSearchArea(double range) {
             return this.mob.getBoundingBox().inflate(range, range / 2.0, range);
         }
+
+        @Override
+        public boolean canUse() {
+            return !((KingGhidorahEntity) this.mob).inEntrance() && super.canUse();
+        }
     }
 
-    /** Strides straight at his target; bites it when it's in reach of a head, fires his beams when it's far. */
+    /**
+     * Strides at his target and fights it: bites what's in reach of a head, stomps what's under him, whips his tails
+     * at what's behind him, and from further off fires his beams, lifts it with them, or flies at it and grabs it.
+     */
     static class HuntGoal extends Goal {
         private final KingGhidorahEntity ghidorah;
 
@@ -680,7 +1436,7 @@ public class KingGhidorahEntity extends Monster implements GeoEntity {
         @Override
         public boolean canUse() {
             LivingEntity target = this.ghidorah.getTarget();
-            return target != null && target.isAlive();
+            return target != null && target.isAlive() || this.ghidorah.isBusy();
         }
 
         @Override
@@ -690,39 +1446,63 @@ public class KingGhidorahEntity extends Monster implements GeoEntity {
 
         @Override
         public void tick() {
-            LivingEntity target = this.ghidorah.getTarget();
-            if (target == null) {
-                return;
-            }
-            this.ghidorah.getLookControl().setLookAt(target, 10.0F, 10.0F);
-            if (this.ghidorah.isBusy()) {
-                this.ghidorah.getNavigation().stop();
-                this.ghidorah.getMoveControl().setWantedPosition(this.ghidorah.getX(), this.ghidorah.getY(), this.ghidorah.getZ(), 0.0);
-                if (this.ghidorah.getAction() == ACTION_BEAM) {
-                    turnTowards(target);
+            KingGhidorahEntity g = this.ghidorah;
+            if (g.isBusy()) {
+                g.getNavigation().stop();
+                if (!g.isFlying()) {
+                    g.getMoveControl().setWantedPosition(g.getX(), g.getY(), g.getZ(), 0.0);
+                }
+                LivingEntity target = g.getTarget();
+                int action = g.getAction();
+                if (target != null && (action == ACTION_BEAM || action == ACTION_LIFT)) {
+                    g.faceTowards(target.position());
                 }
                 return;
             }
-            Head head = this.ghidorah.nearestHead(target.position());
-            if (this.ghidorah.biteCooldown <= 0 && this.ghidorah.inBiteReach(target, head)) {
-                this.ghidorah.startBite(head);
+            LivingEntity target = g.getTarget();
+            if (target == null) {
                 return;
             }
-            if (this.ghidorah.canFireBeam(target)) {
-                turnTowards(target);
-                this.ghidorah.startBeam(target.getBoundingBox().getCenter());
+            g.getLookControl().setLookAt(target, 10.0F, 10.0F);
+            if (g.shouldRetreat()) {
+                g.startRetreat(target.position());
                 return;
             }
-            this.ghidorah.getMoveControl().setWantedPosition(target.getX(), target.getY(), target.getZ(), 1.0);
-        }
-
-        private void turnTowards(Entity target) {
-            double dx = target.getX() - this.ghidorah.getX();
-            double dz = target.getZ() - this.ghidorah.getZ();
-            float yaw = (float) (Mth.atan2(dz, dx) * Mth.RAD_TO_DEG) - 90.0F;
-            float turned = Mth.approachDegrees(this.ghidorah.getYRot(), yaw, 3.0F);
-            this.ghidorah.setYRot(turned);
-            this.ghidorah.setYBodyRot(turned);
+            Vec3 local = g.localOf(target.position());
+            double d = local.horizontalDistance();
+            Head head = g.nearestHead(target.position());
+            if (g.biteCooldown <= 0 && g.inBiteReach(target, head)) {
+                g.startBite(head);
+                return;
+            }
+            if (g.stompCooldown <= 0 && d < STOMP_RADIUS + 8.0 && local.z > -10.0 && target.getY() < g.getY() + 10.0) {
+                g.startStomp();
+                return;
+            }
+            if (g.whipCooldown <= 0 && local.z < -6.0 && d > WHIP_INNER && d < WHIP_OUTER - 6.0) {
+                g.startWhip();
+                return;
+            }
+            if (--g.decisionDelay <= 0) {
+                g.decisionDelay = 20;
+                if (g.grabCooldown <= 0 && d > 20.0 && d < 90.0 && g.random.nextInt(3) == 0) {
+                    g.startGrab(target);
+                    return;
+                }
+                if (g.canFireBeam(target) && g.clearLine(g.beamMouth(Head.MIDDLE), target.getBoundingBox().getCenter())) {
+                    if (g.liftCooldown <= 0 && g.random.nextInt(5) < 2) {
+                        g.faceTowards(target.position());
+                        g.startLift(target);
+                        return;
+                    }
+                    if (g.beamCooldown <= 0) {
+                        g.faceTowards(target.position());
+                        g.startBeam(target.getBoundingBox().getCenter());
+                        return;
+                    }
+                }
+            }
+            g.getMoveControl().setWantedPosition(target.getX(), target.getY(), target.getZ(), 1.0);
         }
     }
 }

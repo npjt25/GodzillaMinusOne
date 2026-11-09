@@ -338,19 +338,17 @@ def scallops(a, b, n, depth):
     return pts
 
 
-def web(m, name, parent, pivot, along, polygon):
-    """A membrane panel: a flat, double-sided sheet on its own bone, turned in the wings' plane so its x runs
-    along `along` (a finger, an arm): scaling the bone's y folds the panel in against it."""
-    angle = math.degrees(math.atan2(along[1], -along[0]))      # above the outward (-x) direction
-    b = m.bone(name, parent, pivot, (0, 0, angle))
-    R = geo_rot(0, 0, angle)
-    piv = np.asarray(pivot, float)
-    local = [R.T @ (np.array([p[0], p[1], WEB_Z]) - piv) + piv for p in polygon]
-    xs, ys = [p[0] for p in local], [p[1] for p in local]
+def web(m, name, parent, pivot, polygon):
+    """A membrane panel: a flat, double-sided sheet, authored where it lies with the wing spread, on two bones
+    pivoting at `pivot`: wing_webN (turned and scaled) holding wing_webN_skin (turned), so that any wing pose can
+    stretch it, exactly, between the bones it hangs from (solve_webs)."""
+    outer = m.bone(name, parent, pivot)
+    skin = m.bone(name.replace('_r', '_skin_r'), outer, pivot)
+    xs, ys = [q[0] for q in polygon], [q[1] for q in polygon]
     x0, x1, y0, y1 = min(xs), max(xs), min(ys), max(ys)
-    c = m.box(b, (x0, y0, WEB_Z), (x1 - x0, y1 - y0, 0.0), 'membrane')
-    c['polygon'] = [(p[0], p[1]) for p in local]
-    return b
+    c = m.box(skin, (x0, y0, WEB_Z), (x1 - x0, y1 - y0, 0.0), 'membrane')
+    c['polygon'] = [(q[0], q[1]) for q in polygon]
+    return outer
 
 
 def wing(m, parent):
@@ -391,11 +389,10 @@ def wing(m, parent):
     # the membranes: finger to finger, the last finger to the elbow, and the arm to his flank
     T1, T2, T3 = (np.array(t[:2]) for t in TIPS)
     W2, E2, S2 = W[:2], E[:2], np.array(SHOULDER[:2])
-    web(m, 'wing_web1_r', fingers[0], W, T1 - W2, [W2, T1] + scallops(T1, T2, 2, 5.0))
-    web(m, 'wing_web2_r', fingers[1], W, T2 - W2, [W2, T2] + scallops(T2, T3, 2, 4.5))
-    web(m, 'wing_web3_r', fingers[2], W, T3 - W2, [W2, T3] + scallops(T3, np.array(TRAIL[:2]), 2, 3.8) + [E2])
-    web(m, 'wing_web4_r', up, Se, E2 - S2,
-        [S2, E2, np.array(TRAIL[:2])] + scallops(np.array(TRAIL[:2]), np.array(FLANK[:2]), 2, 3.4))
+    web(m, 'wing_web1_r', ha, W, [W2, T1] + scallops(T1, T2, 2, 5.0))
+    web(m, 'wing_web2_r', ha, W, [W2, T2] + scallops(T2, T3, 2, 4.5))
+    web(m, 'wing_web3_r', ha, W, [W2, T3] + scallops(T3, np.array(TRAIL[:2]), 2, 3.8) + [E2])
+    web(m, 'wing_web4_r', parent, Se, [S2, E2, np.array(TRAIL[:2])] + scallops(np.array(TRAIL[:2]), np.array(FLANK[:2]), 2, 3.4))
 
 
 def leg(m, parent):
@@ -921,31 +918,123 @@ def window(t, a, b, c, d):
     return 1.0 - smooth((t - c) / (d - c))
 
 
-# the wings folded against his sides: swept back, the arm down and the forearm folded up along it, the fingers
-# bunched and hanging, the membranes gathered in between (their bones squeezed across)
-FOLD = {'wing_shoulder': (-8, 66, 4), 'wing_upper': (0, 0, -40), 'wing_fore': (0, 0, 128), 'wing_hand': (0, 0, -170),
+# ---------------------------------------------------------------- wings and their membranes
+# The wing's poses, each a rotation per bone of his right wing (the left mirrors it). His wings are never folded but
+# while he digs himself out of the ground (TUCK, the entrance only): he stands with them raised and half spread
+# (STANCE, after the first reference picture), spreads them right out for a roar or a beam, and beats them flying.
+TUCK = {'wing_shoulder': (-8, 66, 4), 'wing_upper': (0, 0, -40), 'wing_fore': (0, 0, 128), 'wing_hand': (0, 0, -170),
         'wing_finger1': (0, 0, -4), 'wing_finger2': (0, 0, 27), 'wing_finger3': (0, 0, 55), 'wing_claw': (0, 0, 85)}
-FOLD_WEB = {'wing_web1': 0.22, 'wing_web2': 0.26, 'wing_web3': 0.42, 'wing_web4': 0.55}
+STANCE = {'wing_shoulder': (-10, 14, 16), 'wing_upper': (0, 0, 10), 'wing_fore': (0, 0, 8), 'wing_hand': (0, 0, 10),
+          'wing_finger1': (0, 0, 6), 'wing_finger2': (0, 0, 0), 'wing_finger3': (0, 0, -6), 'wing_claw': (0, 0, -10)}
+SPREAD = {'wing_shoulder': (0, 6, 10), 'wing_upper': (0, 0, 4), 'wing_fore': (0, 0, 2), 'wing_hand': (0, 0, 2),
+          'wing_finger1': (0, 0, 4), 'wing_finger2': (0, 0, 0), 'wing_finger3': (0, 0, -4)}
 
 
-def wings(p, fold, flap=0.0, side_only=None):
-    """Wings fold (1: folded, 0: spread as built); flap (degrees) beats them from the shoulder."""
-    for bone, (x, y, z) in FOLD.items():
-        r = [fold * x, fold * y, fold * z]
-        if bone == 'wing_shoulder':
-            r[2] += flap
-        if bone == 'wing_fore':
-            r[2] -= flap * 0.5
-        for s in SIDES:
-            if side_only and s != side_only:
-                continue
-            p.add('%s_%s' % (bone, s), 'rotation', r if s == 'r' else [r[0], -r[1], -r[2]])
-    for bone, sq in FOLD_WEB.items():
-        k = 1.0 + (sq - 1.0) * fold
-        for s in SIDES:
-            p.add('%s_%s' % (bone, s), 'scale', [1.0, k, 1.0])
+def wing_pose(p, pose, weight=1.0):
+    for bone, (x, y, z) in pose.items():
+        p.sym(bone, x * weight, y * weight, z * weight)
 
 
+def blend_wings(p, poses):
+    """[(pose, weight)]: the wings somewhere between poses."""
+    for pose, weight in poses:
+        if weight:
+            wing_pose(p, pose, weight)
+
+
+def flap(p, phase, amp=1.0, row=1.0):
+    """A wingbeat (phase in radians, 0 at the top of the upstroke): the shoulder drives it, each joint further out a
+    beat behind the one before, so the wing ripples down and up rather than swinging stiffly."""
+    s = math.sin(phase)
+    p.sym('wing_shoulder', 0, -9 * row * math.sin(phase + 0.6) * amp, 32 * s * amp)
+    p.sym('wing_upper', 0, 0, 8 * math.sin(phase - 0.5) * amp)
+    p.sym('wing_fore', 0, 0, -14 * math.sin(phase - 0.9) * amp)
+    p.sym('wing_hand', 0, 0, -10 * math.sin(phase - 1.3) * amp)
+    for i, lag in enumerate((1.6, 1.8, 2.0)):
+        p.sym('wing_finger%d' % (i + 1), 0, 0, -5 * math.sin(phase - lag) * amp)
+
+
+# Each membrane is pinned between three points: its pivot, and two points on the bones it spans; the bones it hangs
+# on (wing_webN, wing_webN_skin) are turned and scaled so that it reaches all three, whatever the wing does.
+_S, _E, _W = np.array(SHOULDER), np.array(ELBOW), np.array(WRIST)
+_T = [np.array(t) for t in TIPS]
+WEBS = {
+    1: ('wing_hand', _W, ('wing_finger1', _T[0]), ('wing_finger2', _T[1])),
+    2: ('wing_hand', _W, ('wing_finger2', _T[1]), ('wing_finger3', _T[2])),
+    3: ('wing_hand', _W, ('wing_finger3', _T[2]), ('wing_upper', _E)),
+    4: ('chest', np.array([_S[0], _S[1], WEB_Z]), ('wing_upper', _E), ('chest', np.array(FLANK))),
+}
+G4 = np.diag([-1.0, 1.0, 1.0, 1.0])
+SHIFT = np.zeros(3)     # (how far the built model was raised to stand on y = 0: main())
+
+
+def sided(bone, side):
+    return bone if bone == 'chest' else '%s_%s' % (bone, side)
+
+
+def solve_webs(bones, pose, memory):
+    """Set every membrane's two bones in `pose` so the membrane spans its anchors (memory keeps the last frame's
+    decomposition per membrane, so that it changes smoothly from frame to frame)."""
+    mats = {k: G4 @ M @ G4 for k, M in rp.bone_matrices(bones, pose).items()}
+
+    def at(bone, point):
+        return (mats[bone] @ np.append(point, 1.0))[:3]
+
+    for side in SIDES:
+        flip = np.array([1.0 if side == 'r' else -1.0, 1.0, 1.0])
+        for k, (parent, pivot, (bone_a, point_a), (bone_b, point_b)) in WEBS.items():
+            P, A, B = pivot * flip + SHIFT, point_a * flip + SHIFT, point_b * flip + SHIFT
+            Q = mats[sided(parent, side)]
+            Pw = at(sided(parent, side), P)
+            Aw, Bw = at(sided(bone_a, side), A), at(sided(bone_b, side), B)
+            Ql = Q[:3, :3]
+            a = np.linalg.solve(Ql, Aw - Pw)
+            b = np.linalg.solve(Ql, Bw - Pw)
+            dA, dB = A - P, B - P
+            n0 = unit(np.cross(dA, dB))
+            n = unit(np.cross(a, b))
+            L = np.stack([a, b, n], 1) @ np.linalg.inv(np.stack([dA, dB, n0], 1))
+            U, sv, Vt = np.linalg.svd(L)
+            key = (side, k)
+            Up, prev_euler = memory.get(key, (np.eye(3), None))
+            U, sv, Vt = align_svd(U, sv, Vt, Up)
+            outer, inner = '%s_web%d_%s' % ('wing', k, side), 'wing_web%d_skin_%s' % (k, side)
+            e1, e2 = euler(U), euler(Vt)
+            if prev_euler is not None:
+                e1 = unwrap(e1, prev_euler[0])
+                e2 = unwrap(e2, prev_euler[1])
+            memory[key] = (U, (e1, e2))
+            pose.setdefault(outer, {})['rotation'] = list(e1)
+            pose[outer]['scale'] = [float(v) for v in sv]
+            pose.setdefault(inner, {})['rotation'] = list(e2)
+
+
+def align_svd(U, sv, Vt, Up):
+    import itertools
+    best = None
+    for perm in itertools.permutations(range(3)):
+        Uq = U[:, perm]
+        score = sum(abs(Uq[:, i] @ Up[:, i]) for i in range(3))
+        if best is None or score > best[0]:
+            best = (score, perm)
+    perm = list(best[1])
+    U, sv, Vt = U[:, perm].copy(), sv[perm].copy(), Vt[perm, :].copy()
+    for i in range(3):
+        if U[:, i] @ Up[:, i] < 0:
+            U[:, i] *= -1
+            Vt[i, :] *= -1
+    if np.linalg.det(U) < 0:
+        i = int(np.argmin([abs(U[:, j] @ Up[:, j]) for j in range(3)]))
+        U[:, i] *= -1
+        Vt[i, :] *= -1
+    return U, sv, Vt
+
+
+def unwrap(e, prev):
+    return [v + 360.0 * round((pv - v) / 360.0) for v, pv in zip(e, prev)]
+
+
+# ---------------------------------------------------------------- his body's poses
 def neck_curl(p, head, amounts, yaw=0.0, roll=0.0):
     """Pitch a neck's segments (degrees each, from its base), and turn it (spread along it)."""
     for i, a in enumerate(amounts):
@@ -960,6 +1049,7 @@ def head_look(p, head, pitch=0.0, yaw=0.0, roll=0.0, jaw=0.0):
 
 # each head's own rhythm: (pitch, yaw) frequencies in cycles per loop, phases, and how far it wanders
 MINDS = {'c': (1, 2, 0.0, 0.35, 1.0), 'r': (2, 1, 0.55, 0.1, 1.15), 'l': (1, 3, 0.8, 0.7, 1.1)}
+SIDE = {'c': 0.0, 'r': -1.0, 'l': 1.0}
 
 
 def wander(p, head, t, length, amount=1.0):
@@ -969,21 +1059,21 @@ def wander(p, head, t, length, amount=1.0):
     u = t / length
     pitch = 5 * math.sin(TAU * (fp * u + php)) * a
     yaw = 12 * math.sin(TAU * (fy * u + phy)) * a + 4 * math.sin(TAU * (3 * u + php)) * a
-    spread = {'c': 0.0, 'r': -6.0, 'l': 6.0}[head] * a      # the outer heads look a little outwards
+    spread = SIDE[head] * 10.0 * a      # the outer heads look outwards
     for i in range(NECK_SEGS):
         f = (i + 1) / NECK_SEGS
         p.rot('neck_%s_%d' % (head, i + 1), pitch * 0.25 * f, (yaw + spread) * 0.07 * f, 0)
     head_look(p, head, -pitch * 0.6, yaw * 0.5 + spread * 0.5, yaw * 0.12)
 
 
-def tails(p, t, length, amp=3.0, cycles=1, lift=0.0):
-    """Both tails swaying, a wave running down each, the two out of step."""
+def tails(p, t, length, amp=3.0, cycles=1, lift=0.0, low=0.0):
+    """Both tails swaying, a wave running down each, the two out of step; low: lowered along the ground."""
     for k, s in enumerate(SIDES):
         sign = 1 if s == 'r' else -1
         for i in range(TAIL_SEGS):
             ph = TAU * (cycles * t / length) - i * 0.45 + k * 2.1
-            p.rot('tail_%s_%d' % (s, i + 1), lift * (1 if i < 3 else 0) + 1.2 * math.sin(ph + 1.0),
-                  sign * amp * math.sin(ph), 0)
+            p.rot('tail_%s_%d' % (s, i + 1), lift * (1 if i < 3 else 0) - low * (1.0 if i < 2 else -0.25)
+                  + 1.2 * math.sin(ph + 1.0), sign * amp * math.sin(ph), 0)
 
 
 def breathe(p, t, length, cycles=2, depth=1.0):
@@ -993,16 +1083,42 @@ def breathe(p, t, length, cycles=2, depth=1.0):
     p.add('torso', 'position', [0, 0.25 * b * depth, 0])
 
 
+CROUCH_DROP = -4.0      # (set so his feet stay on the ground: main() checks)
+
+
+def crouch(p, amount=1.0):
+    """The stance of the first reference picture: hunched low and forward on bent legs, necks reared up from it."""
+    # (a thigh's positive pitch swings its knee back, a shin's its foot back: knees forward, feet back under him)
+    p.add('pelvis', 'position', [0, CROUCH_DROP * amount, -1.5 * amount])
+    p.sym('leg_thigh', -26 * amount)
+    p.sym('leg_shin', 40 * amount)
+    p.sym('leg_foot', -14 * amount)
+    p.rot('pelvis', 6 * amount)
+    p.rot('torso', 14 * amount)
+    p.rot('chest', 10 * amount)
+    for h in HEADS:
+        neck_curl(p, h, [-10 * amount, -8 * amount, -5 * amount, -2 * amount, 0, 2 * amount, 3 * amount, 4 * amount])
+
+
+def stance(p, t, length, wings=1.0, heads=1.0):
+    crouch(p)
+    wing_pose(p, STANCE, wings)
+    # (the raised wings breathe with him)
+    b = math.sin(TAU * 2 * t / length)
+    p.sym('wing_shoulder', 0, 1.5 * b, 2.0 * b)
+    p.sym('wing_fore', 0, 0, -1.5 * b)
+    breathe(p, t, length, 2)
+    for h in HEADS:
+        wander(p, h, t, length, heads)
+
+
 IDLE_LEN = 6.0
 
 
 def idle(t):
     p = Pose()
-    wings(p, 1.0, flap=1.5 * math.sin(TAU * t / IDLE_LEN))
-    breathe(p, t, IDLE_LEN, 2)
-    for h in HEADS:
-        wander(p, h, t, IDLE_LEN)
-    tails(p, t, IDLE_LEN, 3.0, 1)
+    stance(p, t, IDLE_LEN)
+    tails(p, t, IDLE_LEN, 3.0, 1, low=4.0)
     return p
 
 
@@ -1011,28 +1127,36 @@ WALK_LEN = 2.4
 
 def walk(t):
     p = Pose()
+    crouch(p)
+    wing_pose(p, STANCE)
     ph = TAU * t / WALK_LEN
     for s, off in (('r', 0.0), ('l', math.pi)):
         a = ph + off
         swing = 22 * math.sin(a)                    # + forward
         lift = max(0.0, math.cos(a))                # the foot's up while the leg swings forward
-        knee = -28 * lift - 4
-        p.rot('leg_thigh_' + s, swing + 6 * lift, 0, 0)
+        thigh = -swing - 8 * lift
+        knee = 30 * lift + 2
+        p.rot('leg_thigh_' + s, thigh, 0, 0)
         p.rot('leg_shin_' + s, knee, 0, 0)
-        p.rot('leg_foot_' + s, -(swing + 6 * lift + knee) * 0.85, 0, 0)
-        p.rot('leg_toes_' + s, 18 * lift * math.sin(a) if math.sin(a) < 0 else -8 * lift, 0, 0)
+        p.rot('leg_foot_' + s, -(thigh + knee) * 0.85, 0, 0)
+        p.rot('leg_toes_' + s, -14 * lift * math.sin(a) if math.sin(a) < 0 else 8 * lift, 0, 0)
     # his weight going from foot to foot: the hips drop at each footfall, roll and turn with the stride
     p.add('pelvis', 'position', [1.4 * math.sin(ph), -1.6 * abs(math.sin(ph)) + 0.4, 0])
     p.rot('pelvis', 0, 5 * math.sin(ph), 3.5 * math.cos(ph))
     p.rot('torso', 2 + 1.5 * math.cos(2 * ph), -3.5 * math.sin(ph), -2.5 * math.cos(ph))
     p.rot('chest', 1.0 * math.cos(2 * ph - 0.6), -2 * math.sin(ph), -1.5 * math.cos(ph))
-    wings(p, 1.0, flap=3 * math.sin(2 * ph - 0.8))
+    # the raised wings rock with his stride, half a beat behind, and lift a little at each footfall
+    for s, off in (('r', 0.0), ('l', math.pi)):
+        sign = 1 if s == 'r' else -1
+        rock = math.sin(ph + off - 0.8)
+        p.rot('wing_shoulder_' + s, 2 * rock, sign * 4 * rock, sign * (5 * rock + 3 * abs(math.sin(ph))))
+        p.rot('wing_fore_' + s, 0, 0, sign * -4 * math.sin(ph + off - 1.4))
     for k, h in enumerate(HEADS):
         bob = math.sin(2 * ph - 1.2 - 0.4 * k)
         neck_curl(p, h, [1.2 * bob] * 4 + [-1.0 * bob] * 4, yaw=4 * math.sin(ph + k), roll=0)
         head_look(p, h, -1.5 * bob, -3 * math.sin(ph + k * 2.0))
         wander(p, h, t, WALK_LEN, 0.4)
-    tails(p, t, WALK_LEN, 5.0, 1, lift=2.0)
+    tails(p, t, WALK_LEN, 5.0, 1, lift=1.0, low=3.0)
     return p
 
 
@@ -1042,24 +1166,29 @@ ROAR_AT = {'c': 0.35, 'r': 0.55, 'l': 0.75}
 
 def roar(t):
     p = Pose()
+    crouch(p, 1.0 - 0.5 * window(t, 0.2, 0.8, 2.3, 3.0))
     spread = window(t, 0.25, 0.85, 2.3, 3.0)
-    wings(p, 1.0 - 0.55 * spread, flap=6 * spread * math.sin(TAU * t * 2.2))
+    blend_wings(p, [(STANCE, 1.0 - spread), (SPREAD, spread)])
+    p.sym('wing_shoulder', 0, 0, 5 * spread * math.sin(TAU * t * 2.2))
     breathe(p, t, ROAR_LEN, 1, 0.6)
     p.rot('torso', -4 * spread)
     p.rot('chest', -5 * spread)
     for h in HEADS:
-        t0 = ROAR_AT[h]
-        rear = window(t, t0 - 0.35, t0, t0, t0 + 0.35)              # draws back
-        up = window(t, t0, t0 + 0.3, t0 + 1.6, t0 + 2.1)            # throws its head up and roars
-        tremble = math.sin(TAU * 9 * t + len(h) + ord(h)) * up
-        spread_h = {'c': 0.0, 'r': -1.0, 'l': 1.0}[h]
-        neck_curl(p, h, [-6 * rear - 4 * up, -5 * rear - 3 * up, -3 * rear, 0, 2 * rear + 3 * up,
-                         3 * rear + 5 * up, 4 * rear + 6 * up, 2 * rear + 4 * up],
-                  yaw=spread_h * 16 * up, roll=spread_h * 10 * up)
-        head_look(p, h, 14 * rear - 34 * up + 1.5 * tremble, spread_h * 10 * up, 0,
-                  jaw=8 * rear + 42 * up + 2 * tremble)
-    tails(p, t, ROAR_LEN, 4.0 + 4 * spread, 2)
+        roar_head(p, h, t, ROAR_AT[h])
+    tails(p, t, ROAR_LEN, 4.0 + 4 * spread, 2, low=3.0)
     return p
+
+
+def roar_head(p, h, t, t0, hold=1.6):
+    rear = window(t, t0 - 0.35, t0, t0, t0 + 0.35)              # draws back
+    up = window(t, t0, t0 + 0.3, t0 + hold, t0 + hold + 0.5)    # throws its head up and roars
+    tremble = math.sin(TAU * 9 * t + ord(h)) * up
+    side = SIDE[h]
+    neck_curl(p, h, [-6 * rear - 4 * up, -5 * rear - 3 * up, -3 * rear, 0, 2 * rear + 3 * up,
+                     3 * rear + 5 * up, 4 * rear + 6 * up, 2 * rear + 4 * up],
+              yaw=side * 16 * up, roll=side * 10 * up)
+    head_look(p, h, 14 * rear - 34 * up + 1.5 * tremble, side * 10 * up, 0, jaw=8 * rear + 42 * up + 2 * tremble)
+    return up
 
 
 BITE_LEN = 1.3
@@ -1069,12 +1198,14 @@ BITE_SNAP = 0.62
 def bite_of(head):
     def bite(t):
         p = Pose()
-        wings(p, 1.0, flap=4 * window(t, 0.3, 0.55, 0.7, 1.1))
+        crouch(p)
+        wing_pose(p, STANCE)
+        p.sym('wing_shoulder', 0, 0, 5 * window(t, 0.3, 0.55, 0.7, 1.1))
         breathe(p, t, BITE_LEN, 1, 0.4)
         draw = window(t, 0.0, 0.35, 0.35, BITE_SNAP)                  # draws back
         lunge = window(t, 0.35, BITE_SNAP, BITE_SNAP + 0.12, 1.25)   # strikes, and comes back
         jaw = window(t, 0.2, 0.5, 0.5, BITE_SNAP) * 38               # gapes, and snaps shut
-        side = {'c': 0.0, 'r': -1.0, 'l': 1.0}[head]
+        side = SIDE[head]
         neck_curl(p, head, [-7 * draw + 16 * lunge, -6 * draw + 12 * lunge, -4 * draw + 8 * lunge,
                             -2 * draw + 4 * lunge, 2 * draw - 4 * lunge, 5 * draw - 6 * lunge,
                             6 * draw - 2 * lunge, 4 * draw + 4 * lunge],
@@ -1087,14 +1218,68 @@ def bite_of(head):
                 continue
             # the others keep busy: rear away from the strike, snarl, and look on
             wander(p, other, t + 0.7 * HEADS.index(other), BITE_LEN * 4, 0.6)
-            away = 1 if HEADS.index(other) > HEADS.index(head) or (head == 'r' and other == 'l') else -1
-            if head == 'c':
-                away = 1 if other == 'l' else -1
+            away = SIDE[other] if other != 'c' else -SIDE[head]
             neck_curl(p, other, [-2 * lunge] * 3 + [2 * lunge] * 5, yaw=away * 8 * lunge)
             head_look(p, other, -6 * lunge, away * -10 * lunge, 0, jaw=10 * window(t, 0.3, 0.6, 0.8, 1.2))
-        tails(p, t, BITE_LEN, 3.0, 1)
+        tails(p, t, BITE_LEN, 3.0, 1, low=3.0)
         return p
     return bite
+
+
+STOMP_LEN = 1.6
+STOMP_HIT = 0.85
+
+
+def stomp(t):
+    """His right foot raised high, and brought down."""
+    p = Pose()
+    crouch(p)
+    wing_pose(p, STANCE)
+    raise_ = window(t, 0.0, 0.6, 0.6, STOMP_HIT)
+    down = window(t, 0.6, STOMP_HIT, STOMP_HIT + 0.1, STOMP_LEN)
+    p.rot('leg_thigh_r', -52 * raise_ + 6 * down)
+    p.rot('leg_shin_r', 70 * raise_ - 6 * down)
+    p.rot('leg_foot_r', -18 * raise_)
+    p.rot('leg_toes_r', -16 * raise_)
+    p.add('pelvis', 'position', [2.2 * raise_, 1.5 * raise_ - 1.2 * down, 0])
+    p.rot('pelvis', 0, 0, -4 * raise_)
+    p.rot('torso', -6 * raise_ + 10 * down)
+    p.rot('chest', -3 * raise_ + 5 * down)
+    p.sym('wing_shoulder', 0, -6 * raise_, 8 * raise_ + 6 * down)
+    p.sym('wing_fore', 0, 0, 8 * raise_)
+    for k, h in enumerate(HEADS):
+        neck_curl(p, h, [-4 * raise_ + 5 * down] * 4 + [2 * raise_ + 3 * down] * 4)
+        head_look(p, h, -8 * raise_ + 12 * down, SIDE[h] * 8 * raise_, 0, jaw=18 * window(t, 0.5, 0.75, 1.0, 1.4))
+        wander(p, h, t + k, STOMP_LEN * 3, 0.3)
+    tails(p, t, STOMP_LEN, 4.0, 1, lift=6 * raise_, low=3.0)
+    return p
+
+
+WHIP_LEN = 1.8
+WHIP_HIT = 0.75
+
+
+def tail_whip(t):
+    """Both tails swung round behind him, his hips and body twisting into it."""
+    p = Pose()
+    crouch(p)
+    wing_pose(p, STANCE)
+    wind = window(t, 0.0, 0.5, 0.5, 0.85)
+    whip = window(t, 0.5, 0.85, 0.95, WHIP_LEN)
+    p.rot('pelvis', 0, 22 * wind - 34 * whip, 0)
+    p.rot('torso', 0, -10 * wind + 14 * whip, 0)
+    p.rot('chest', 0, -8 * wind + 12 * whip, 0)
+    p.sym('wing_shoulder', 0, 0, 6 * wind + 10 * whip)
+    for s in SIDES:
+        for i in range(TAIL_SEGS):
+            lag = min(1.0, max(0.0, (t - 0.5 - i * 0.025) / 0.3))
+            sweep = smooth(lag) * window(t, 0.5, 0.6, 1.0, WHIP_LEN)
+            p.rot('tail_%s_%d' % (s, i + 1), 2 * wind + (3 if i < 3 else -1) * whip, 9 * wind - 16 * sweep, 0)
+    for k, h in enumerate(HEADS):
+        neck_curl(p, h, [0, 0, 0, 0, 2 * whip, 2 * whip, 0, 0], yaw=-20 * wind + 26 * whip)
+        head_look(p, h, -4 * whip, -10 * wind + 18 * whip, 0, jaw=14 * whip)
+        wander(p, h, t + k, WHIP_LEN * 3, 0.3)
+    return p
 
 
 BEAM_LEN = 4.2
@@ -1102,16 +1287,14 @@ BEAM_FIRE = {'c': 1.2, 'r': 1.35, 'l': 1.5}
 BEAM_END = 3.3
 
 
-def gravity_beam(t):
+def gravity_beam(t, lift=False):
     p = Pose()
     brace = window(t, 0.0, 0.9, BEAM_END, BEAM_LEN)
-    wings(p, 1.0 - 0.45 * brace, flap=8 * brace)
-    p.add('pelvis', 'position', [0, -1.8 * brace, 0])
-    p.sym('leg_thigh', 10 * brace)
-    p.sym('leg_shin', -14 * brace)
-    p.sym('leg_foot', 4 * brace)
-    p.rot('torso', 6 * brace)
-    p.rot('chest', 4 * brace)
+    crouch(p, 1.0 + 0.3 * brace)
+    blend_wings(p, [(STANCE, 1.0 - 0.6 * brace), (SPREAD, 0.6 * brace)])
+    p.sym('wing_shoulder', 0, 0, 6 * brace * math.sin(TAU * t * 1.4))
+    p.add('pelvis', 'position', [0, -1.0 * brace, 0])
+    p.rot('torso', 4 * brace)
     breathe(p, t, BEAM_LEN, 1, 0.5)
     for k, h in enumerate(HEADS):
         t0 = BEAM_FIRE[h]
@@ -1119,15 +1302,163 @@ def gravity_beam(t):
         fire = window(t, t0 - 0.05, t0 + 0.08, BEAM_END - 0.1 * k, BEAM_END + 0.5)
         kick = math.exp(-((t - t0) / 0.09) ** 2) if t > t0 - 0.3 else 0.0      # the recoil
         shake = math.sin(TAU * 11 * t + k * 1.7) * fire
-        side = {'c': 0.0, 'r': -1.0, 'l': 1.0}[h]
-        # necks braced: the bases pulled back, the tops forward, aiming the heads level at what's ahead
-        neck_curl(p, h, [-8 * coil - 4 * fire, -5 * coil - 3 * fire, -2 * coil, 2 * coil + 1 * fire,
-                         4 * coil + 3 * fire, 4 * coil + 4 * fire, 2 * coil + 2 * fire - 6 * kick,
+        side = SIDE[h]
+        raise_ = window(t, 1.7, 3.1, BEAM_END, BEAM_END + 0.5) if lift else 0.0  # lifting what it holds
+        neck_curl(p, h, [-8 * coil - 4 * fire, -5 * coil - 3 * fire, -2 * coil - 3 * raise_, 2 * coil + 1 * fire,
+                         4 * coil + 3 * fire - 4 * raise_, 4 * coil + 4 * fire - 4 * raise_, 2 * coil + 2 * fire - 6 * kick,
                          -2 * coil - 4 * kick],
                   yaw=-side * 8 * (coil + fire))
-        head_look(p, h, -10 * (coil + fire) * 0.8 - 12 * kick + 0.8 * shake, side * 4 * fire, 0,
+        head_look(p, h, -10 * (coil + fire) * 0.8 - 12 * kick + 0.8 * shake - 30 * raise_, side * 4 * fire, 0,
                   jaw=20 * coil + 34 * fire + 8 * kick + 1.5 * shake)
-    tails(p, t, BEAM_LEN, 3.0 + 3 * brace, 2, lift=4 * brace)
+    tails(p, t, BEAM_LEN, 3.0 + 3 * brace, 2, lift=4 * brace, low=3.0)
+    return p
+
+
+def gravity_lift(t):
+    return gravity_beam(t, lift=True)
+
+
+FLY_LEN = 1.2
+
+
+def fly(t, carrying=False):
+    """Flying (the third reference picture): his body pitched forward into the air, his wings beating hard,
+    his legs drawn up under him (reaching down, talons clenched, when he's carrying something), tails streaming."""
+    p = Pose()
+    ph = TAU * t / FLY_LEN
+    p.rot('root', 28)
+    flap(p, ph, 1.0)
+    wing_pose(p, SPREAD)
+    for h in HEADS:
+        neck_curl(p, h, [-5, -5, -4, -2, 0, 2, 3, 3], yaw=SIDE[h] * 6)
+        head_look(p, h, -10 + 2 * math.sin(ph + 1.0), SIDE[h] * 8)
+        wander(p, h, t, FLY_LEN * 5, 0.5)
+    bob = math.sin(ph - 1.0)
+    if carrying:
+        # legs reaching down and forward, talons clenched round what they hold
+        p.sym('leg_thigh', -12 - 2 * bob)
+        p.sym('leg_shin', 10)
+        p.sym('leg_foot', -28)
+        p.sym('leg_toes', 45)
+    else:
+        p.sym('leg_thigh', -48 - 3 * bob)
+        p.sym('leg_shin', 70)
+        p.sym('leg_foot', -40)
+        p.sym('leg_toes', 25)
+    for k, s in enumerate(SIDES):
+        sign = 1 if s == 'r' else -1
+        for i in range(TAIL_SEGS):
+            wave = math.sin(ph - i * 0.5 + k * 1.3)
+            p.rot('tail_%s_%d' % (s, i + 1), (14 if i == 0 else 1.5) + 2.5 * wave, sign * (-3 + 2 * wave), 0)
+    p.add('root', 'position', [0, 2.5 * math.sin(ph + math.pi), 0])     # (rising with each downstroke)
+    return p
+
+
+def fly_carry(t):
+    return fly(t, carrying=True)
+
+
+DEATH_LEN = 3.6
+
+
+def death(t):
+    """Brought down: he staggers, his heads sag one after another, and he crashes forward onto his chest."""
+    p = Pose()
+    fall = smooth(t / 2.6)
+    crouch(p, 1.0 + fall)
+    blend_wings(p, [(STANCE, 1.0 - fall), (SPREAD, fall)])
+    p.sym('wing_shoulder', 6 * fall, 0, -38 * fall)
+    p.sym('wing_fore', 0, 0, -12 * fall)
+    p.add('root', 'position', [0, -14 * fall, -6 * fall])
+    p.rot('root', 34 * fall, 0, 6 * fall)
+    for k, h in enumerate(HEADS):
+        sag = smooth((t - 0.3 * k) / 1.6)
+        neck_curl(p, h, [6 * sag, 7 * sag, 7 * sag, 8 * sag, 8 * sag, 6 * sag, 4 * sag, 2 * sag], yaw=SIDE[h] * 20 * sag)
+        head_look(p, h, 20 * sag, SIDE[h] * 15 * sag, SIDE[h] * 20 * sag, jaw=18 * sag)
+    tails(p, t, DEATH_LEN, 4.0 * (1 - fall), 1, low=4.0 + 4 * fall)
+    return p
+
+
+# ---------------------------------------------------------------- his entrance, out of the ground
+ENTRANCE_LEN = 14.6
+DEEP = -128.0          # all of him below the surface (his model's tops are 117 units up)
+BURIED = -90.0         # his chest, back spikes and tucked wings still below it, his necks long enough to reach out
+FIRST_HEAD = 'l'
+HEAD_RISE = {'l': (3.0, 5.6), 'r': (5.4, 7.2), 'c': (6.0, 7.8)}
+CLIMB = [(8.0, 8.7, BURIED, -60.0), (8.95, 9.65, -60.0, -29.0), (9.85, 10.6, -29.0, 0.0)]
+WINGS_OPEN = (10.8, 12.4)
+ROAR_FROM = 12.5
+ENTRANCE_ROAR = {'c': 12.6, 'r': 12.75, 'l': 12.9}
+
+
+def ease(t, a, b):
+    return smooth((t - a) / (b - a))
+
+
+def entrance(t):
+    """Fourteen and a half seconds: the ground cracks (only the effects are seen), one head rises through it and
+    looks about, the other two follow, uncoiling, each its own way; his body hauls itself out after them, lurch by
+    lurch, wings tucked; he pauses, then spreads his wings to their full span; and all three heads throw themselves up
+    and roar. It ends in his stance, as his idle and walk begin."""
+    p = Pose()
+    # where his body is: deep below the surface, then just below it, then hauled up and out in three lurches
+    y = DEEP if t < 2.9 else BURIED
+    if 2.6 <= t < 3.0:
+        y = DEEP + (BURIED - DEEP) * ease(t, 2.6, 3.0)
+    for a, b, y0, y1 in CLIMB:
+        if t >= a:
+            y = y0 + (y1 - y0) * ease(t, a, b)
+    climbing = window(t, 7.8, 8.2, 10.4, 10.9)
+    heave = sum(math.exp(-((t - b) / 0.14) ** 2) for a, b, _, _ in CLIMB)      # the jolt at the end of each lurch
+    p.add('root', 'position', [0, y - 1.5 * heave, 0])
+    p.rot('root', 16 * climbing - 4 * heave, 0, 3 * math.sin(t * 2.3) * climbing)
+    # his legs push and claw at the earth as he climbs
+    for s, off in (('r', 0.0), ('l', math.pi)):
+        push = math.sin(t * 4.2 + off) * climbing
+        p.rot('leg_thigh_' + s, -30 * climbing - 18 * push)
+        p.rot('leg_shin_' + s, 40 * climbing + 15 * max(0.0, push))
+        p.rot('leg_foot_' + s, -20 * climbing)
+    after = ease(t, 10.4, 11.4)
+    crouch(p, after)
+    # wings: tucked until he's out, a pause, then spread slowly to their full span, then settled into his stance
+    spread = ease(t, *WINGS_OPEN)
+    settle = ease(t, 13.4, ENTRANCE_LEN)
+    blend_wings(p, [(TUCK, 1.0 - spread), (SPREAD, spread * (1.0 - settle)), (STANCE, settle)])
+    p.sym('wing_shoulder', 0, 0, 18 * math.sin(math.pi * spread) * (1.0 - settle))   # (the last of the push)
+    p.sym('wing_hand', 0, 0, -10 * math.sin(math.pi * spread))
+    # his necks: curled down out of sight, then each uncoiling and rising, base first, in its own time
+    for h in HEADS:
+        t0, t1 = HEAD_RISE[h]
+        segs = []
+        for i in range(NECK_SEGS):
+            u = ease(t, t0 + (t1 - t0) * 0.55 * i / NECK_SEGS, t0 + (t1 - t0) * (0.45 + 0.55 * i / NECK_SEGS))
+            curl = 34.0 * (1.0 - u)                                         # curled forward and down, hidden
+            snake = 9.0 * math.sin(TAU * (t * 0.45 + i * 0.13) + ord(h)) * u * (1.0 - u) * 4.0   # serpentine
+            segs.append(curl + snake)
+        live = ease(t, t0, t1)
+        neck_curl(p, h, segs, yaw=SIDE[h] * 14 * live)
+        # looking about: the first slowly, deliberately, one way then the other; the outer heads off their own ways,
+        # the middle one settling to stare straight ahead
+        if h == FIRST_HEAD:
+            look = 38 * math.sin(math.pi * ease(t, 5.0, 7.6)) - 22 * math.sin(math.pi * ease(t, 7.4, 9.4))
+            head_look(p, h, -12 * live + 8 * math.sin(math.pi * ease(t, 4.6, 6.0)), look, 6 * math.sin(math.pi * ease(t, 5.0, 7.6)))
+        elif h == 'r':
+            head_look(p, h, -10 * live, -30 * math.sin(math.pi * ease(t, 6.6, 9.8)) - 8 * live, -5 * live)
+        else:
+            head_look(p, h, -16 * live + 10 * ease(t, 7.6, 9.0), 6 * (1.0 - ease(t, 7.6, 9.0)) * live)
+        # the roar
+        up = roar_head(p, h, t, ENTRANCE_ROAR[h], hold=0.9) if t >= ROAR_FROM - 0.4 else 0.0
+    breathe(p, t, ENTRANCE_LEN, 4, 0.8)
+    tails(p, t, ENTRANCE_LEN, 4.0 * after, 3, low=3.0 * after)
+    # the idle's first moment at the end, so it carries straight on into it
+    if t > 13.6:
+        k = ease(t, 13.6, ENTRANCE_LEN)
+        q = Pose()
+        for h in HEADS:
+            wander(q, h, 0.0, IDLE_LEN)
+        for bone, ch in q.items():
+            for c, v in ch.items():
+                p.add(bone, c, [x * k for x in v])
     return p
 
 
@@ -1138,15 +1469,28 @@ CLIPS = {
     'bite_c': (bite_of('c'), BITE_LEN, False),
     'bite_r': (bite_of('r'), BITE_LEN, False),
     'bite_l': (bite_of('l'), BITE_LEN, False),
+    'stomp': (stomp, STOMP_LEN, False),
+    'tail_whip': (tail_whip, WHIP_LEN, False),
     'gravity_beam': (gravity_beam, BEAM_LEN, False),
+    'gravity_lift': (gravity_lift, BEAM_LEN, False),
+    'fly': (fly, FLY_LEN, True),
+    'fly_carry': (fly_carry, FLY_LEN, True),
+    'death': (death, DEATH_LEN, False),
+    'entrance': (entrance, ENTRANCE_LEN, False),
 }
 FPS = 10
 
 
-def bake(fn, length, loop):
+def bake(fn, length, loop, bones):
     n = int(round(length * FPS))
-    frames = [(i / FPS, fn(i / FPS)) for i in range(n + 1)]
-    bones = {}
+    memory = {}
+    frames = []
+    for i in range(n + 1):
+        t = i / FPS
+        pose = fn(t)
+        solve_webs(bones, pose, memory)
+        frames.append((t, pose))
+    clip_bones = {}
     names = sorted({b for _, p in frames for b in p})
     for b in names:
         out = {}
@@ -1156,24 +1500,26 @@ def bake(fn, length, loop):
             if all(max(abs(a - r) for a, r in zip(v, rest)) < 1e-3 for _, v in vals):
                 continue
             out[ch] = {('%.2f' % t).rstrip('0').rstrip('.') if t else '0.0':
-                       {'post': [round(x, 2) for x in v], 'lerp_mode': 'catmullrom'} for t, v in vals}
+                       {'post': [round(x, 2 if ch != 'scale' else 3) for x in v], 'lerp_mode': 'catmullrom'} for t, v in vals}
         if out:
-            bones[b] = out
-    clip = {'animation_length': length, 'bones': bones}
+            clip_bones[b] = out
+    clip = {'animation_length': length, 'bones': clip_bones}
     if loop:
         clip['loop'] = True
     return clip
 
 
-def animations():
+def animations(bones):
     return {'format_version': '1.8.0', 'animations': {
-        'animation.king_ghidorah.' + name: bake(fn, length, loop) for name, (fn, length, loop) in CLIPS.items()}}
+        'animation.king_ghidorah.' + name: bake(fn, length, loop, bones) for name, (fn, length, loop) in CLIPS.items()}}
 
 
 def main():
+    global SHIFT
     m = build()
     pts = world_points(m)
     m.shift(-pts[:, 1].min())
+    SHIFT = np.array([0.0, -pts[:, 1].min(), 0.0])
     used = layout(m)
     tex = paint(m)
     os.makedirs(os.path.dirname(GEO), exist_ok=True)
@@ -1182,7 +1528,7 @@ def main():
         f.write('\n')
     tex.save(TEXTURE)
     with open(ANIMS, 'w') as f:
-        json.dump(animations(), f, separators=(',', ':'))
+        json.dump(animations(geo_json(m)['minecraft:geometry'][0]['bones']), f, separators=(',', ':'))
         f.write('\n')
     pts = world_points(m)
     print(len(m.bones), 'bones', sum(len(b['cubes']) for b in m.bones), 'cubes; texture rows used', used, 'of', TEX)
