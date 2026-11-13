@@ -901,8 +901,12 @@ final class Scenes {
             if (server == null || client == null) {
                 return "missing";
             }
-            log(String.format("ghidorah: entrance at tick %d on the server, %d on the client", server.getActionTicks(), client.getActionTicks()));
-            return Math.abs(server.getActionTicks() - client.getActionTicks()) <= 3 ? null : "out of step";
+            log(String.format("ghidorah: entrance at tick %d on the server, %d on the client (began at game time %d, %d on the client)",
+                    server.getActionTicks(), client.getActionTicks(), server.getActionStart(), client.getActionStart()));
+            // (his entrance is had by when it began, synced exactly; the client's game time only follows the server's, a
+            // few ticks behind when it's drawing slowly, put right every second by the game itself)
+            return server.getActionStart() != client.getActionStart() ? "his entrance began at different times"
+                    : Math.abs(server.getActionTicks() - client.getActionTicks()) <= 10 ? null : "out of step";
         });
         long[] ended = {-1};
         untilServer("ghidorah: his entrance over", level -> {

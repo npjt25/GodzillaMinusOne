@@ -349,6 +349,11 @@ public class KingGhidorahEntity extends Monster implements GeoEntity {
     }
 
     /** Ticks into what he's doing, by the server's clock (on either side). */
+    /** When (game time) what he's doing began: the server's, synced to every client watching. */
+    public int getActionStart() {
+        return this.entityData.get(DATA_ACTION_START);
+    }
+
     public int getActionTicks() {
         return (int) level().getGameTime() - this.entityData.get(DATA_ACTION_START);
     }
