@@ -912,7 +912,8 @@ final class Scenes {
         untilServer("ghidorah: his entrance over", level -> {
             KingGhidorahEntity g = serverGhidorah(level);
             if (g != null && !g.inEntrance() && ended[0] < 0) {
-                ended[0] = level.getGameTime();
+                // (the tick it ended, which this may notice a tick or two after: his storm is due a set time after it)
+                ended[0] = g.stormAt() >= 0 ? g.stormAt() - Config.GHIDORAH_STORM_DELAY_TICKS.get() : level.getGameTime();
                 g.setNoAi(true);          // (Minus Zero stands there for his size, not to be fought)
                 g.setTarget(null);
             }
@@ -1031,11 +1032,24 @@ final class Scenes {
         waitTicks(30);
 
         // a bite (his right head's), a stomp, his tails' whip
-        camera("ghidorah: close", new Vec3(915.0, 10.0, 110.0), new Vec3(850.5, -15.0, 40.0), 75);
+        // (cameras within about 110 blocks of him across the ground: at render distance 8 the game stops showing a mob
+        // 128 blocks off, and he's left wherever his walk ended)
+        camera("ghidorah: close", new Vec3(908.0, 10.0, 98.0), new Vec3(850.5, -15.0, 40.0), 75);
         int[] attackSince = {0};
         once("ghidorah: mark the attacks", () -> attackSince[0] = now());
         onGhidorah("bite", g -> g.startBite(KingGhidorahEntity.Head.RIGHT));
         ghidorahAt("his jaws snapping shut", KingGhidorahEntity.ACTION_BITE + KingGhidorahEntity.Head.RIGHT.ordinal(), KingGhidorahEntity.BITE_SNAP_AT - 2);
+        checkServer("ghidorah: where the bite is, and who's in earshot", level -> {
+            KingGhidorahEntity g = serverGhidorah(level);
+            ServerPlayer player = serverPlayer(level);
+            if (g == null || player == null) {
+                return "missing";
+            }
+            Vec3 jaws = g.locator(KingGhidorahEntity.Head.RIGHT.biteMouth);
+            log(String.format("ghidorah: on the server, biting (action %d, tick %d), him at %s, jaws at %s; the player at %s, %.1f from them",
+                    g.getAction(), g.getActionTicks(), g.position(), jaws, player.position(), player.position().distanceTo(jaws)));
+            return null;
+        });
         shot("king_ghidorah_bite");
         ghidorahIdle("bite over");
         onGhidorah("stomp", g -> g.startStomp());
@@ -1168,7 +1182,7 @@ final class Scenes {
             g.setNoAi(false);
             g.startGrab(pig);
         });
-        camera("ghidorah: flying", new Vec3(935.0, 20.0, 110.0), new Vec3(850.5, -10.0, 40.0), 85);
+        camera("ghidorah: flying", new Vec3(925.0, 15.0, 95.0), new Vec3(850.5, -10.0, 40.0), 85);
         until("ghidorah: in the air", () -> {
             KingGhidorahEntity g = find(KingGhidorahEntity.class);
             return g != null && g.isFlying() && g.getY() > -45.0;
