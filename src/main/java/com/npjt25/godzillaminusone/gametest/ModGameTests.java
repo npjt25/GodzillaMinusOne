@@ -259,16 +259,25 @@ public final class ModGameTests {
     @GameTest(template = FLOOR, batch = "gmo_regenerate", timeoutTicks = 1600)
     public static void godzillaCollapsesAndRegenerates(GameTestHelper helper) {
         GodzillaEntity godzilla = spawnActiveGodzilla(helper);
-        godzilla.setHealth(10.0F);
         godzilla.setEvolves(false);
-        detonateMine(helper, 4, 14);
-        helper.assertTrue(godzilla.getDefeat() == GodzillaEntity.Defeat.REGENERATE, "evolving off, he should regenerate, was " + godzilla.getDefeat());
-        helper.assertTrue(godzilla.getPhase() == GodzillaEntity.Phase.COLLAPSING, "at zero health he should collapse, was " + godzilla.getPhase());
-        helper.assertTrue(godzilla.isAlive(), "he should not really die");
         Map<GodzillaEntity.Phase, Integer> starts = phaseStarts(helper, godzilla);
+        boolean[] blown = {false};
+        helper.onEachTick(() -> {
+            // (the mine goes off once he can be found where he stands: before then its blast would pass him by)
+            if (blown[0] || !findable(helper, godzilla)) {
+                return;
+            }
+            blown[0] = true;
+            godzilla.setHealth(10.0F);
+            detonateMine(helper, 4, 14);
+            helper.assertTrue(godzilla.getDefeat() == GodzillaEntity.Defeat.REGENERATE, "evolving off, he should regenerate, was " + godzilla.getDefeat());
+            helper.assertTrue(godzilla.getPhase() == GodzillaEntity.Phase.COLLAPSING, "at zero health he should collapse, was " + godzilla.getPhase());
+            helper.assertTrue(godzilla.isAlive(), "he should not really die");
+        });
         // downedSeconds counts from the end of his 5 s collapse
         int downed = Config.DOWNED_SECONDS.get() * 20;
         helper.succeedWhen(() -> {
+            helper.assertTrue(blown[0], "the mine hasn't gone off yet");
             helper.assertTrue(godzilla.isActive() && godzilla.getHealth() >= godzilla.getMaxHealth() - 0.5F,
                     "he should rise again at full health, was " + godzilla.getPhase() + " / " + godzilla.getHealth());
             int collapse = ticksBetween(starts, GodzillaEntity.Phase.COLLAPSING, GodzillaEntity.Phase.DEAD);
@@ -2143,6 +2152,21 @@ public final class ModGameTests {
         return pig;
     }
 
+    /**
+     * Whether the game can find each of {@code entities} where it stands. The tests stand in a world still being
+     * generated round them, and for a few ticks after its chunk loads (a forced chunk far off, or even the test's own)
+     * an entity is there but can't be found by anything: a bite, a blast or a beam would pass it by. Tests that strike
+     * something wait for this first.
+     */
+    private static boolean findable(GameTestHelper helper, Entity... entities) {
+        for (Entity e : entities) {
+            if (helper.getLevel().getEntitiesOfClass(Entity.class, e.getBoundingBox().inflate(0.5), x -> x == e).isEmpty()) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     /** (A King Ghidorah left over from a failed test would go on hunting through the next ones.) */
     private static void removeLeftoverGhidorahs(GameTestHelper helper) {
         for (KingGhidorahEntity leftover : helper.getLevel().getEntities(ModEntities.KING_GHIDORAH.get(), e -> true)) {
@@ -2307,36 +2331,42 @@ public final class ModGameTests {
     }
 
     /** A bite from his middle head hurts what's in front of him, down on the ground below where its jaws snap shut. */
-    @GameTest(template = FLOOR, batch = "gmo_ghidorah_bite", timeoutTicks = 60)
+    @GameTest(template = FLOOR, batch = "gmo_ghidorah_bite", timeoutTicks = 120)
     public static void kingGhidorahsBiteHurtsWhatsInFrontOfHim(GameTestHelper helper) {
         KingGhidorahEntity ghidorah = spawnGhidorah(helper);
         List<Runnable> release = new ArrayList<>();
         // (in front of him as he faces: the test's structure may be turned in the world)
         Pig pig = cellPigAt(helper, ghidorah.locator(new Vec3(0.0, 0.0, 55.0)), release);
         float health = pig.getHealth();
-        ghidorah.startBite(KingGhidorahEntity.Head.MIDDLE);
+        long[] from = {-1};
         String[] atSnap = {"no tick at the snap"};
         helper.onEachTick(() -> {
-            if (ghidorah.getActionTicks() == KingGhidorahEntity.BITE_SNAP_AT) {
-                Vec3 jaws = ghidorah.locator(KingGhidorahEntity.Head.MIDDLE.biteMouth);
-                atSnap[0] = String.format("at the snap: action %d tick %d, him at %s facing %.1f (body %.1f), jaws at %s, pig at %s"
-                                + " (%.1f from below the jaws), %s", ghidorah.getAction(), ghidorah.getActionTicks(), ghidorah.position(),
-                        ghidorah.getYRot(), ghidorah.yBodyRot, jaws, pig.position(), pig.position().subtract(jaws).horizontalDistance(),
-                        helper.getLevel().getEntitiesOfClass(Pig.class, pig.getBoundingBox().inflate(1.0)).contains(pig)
-                                ? "the pig findable" : "the pig NOT findable");
+            // (he bites once the pig, in its chunk only just loaded, can be found: until then nothing could bite it)
+            if (from[0] < 0) {
+                if (!findable(helper, ghidorah, pig)) {
+                    return;
+                }
+                from[0] = helper.getTick();
+                ghidorah.startBite(KingGhidorahEntity.Head.MIDDLE);
             }
-        });
-        helper.runAtTickTime(KingGhidorahEntity.BITE_SNAP_AT + 4, () -> {
-            GodzillaMinusOne.LOGGER.info("bite test: {}", atSnap[0]);
-            helper.assertTrue(!pig.isAlive() || pig.getHealth() < health, "the pig in front of him should have been bitten; " + atSnap[0]);
-            remove(ghidorah, pig);
-            release.forEach(Runnable::run);
-            helper.succeed();
+            if (ghidorah.getAction() == KingGhidorahEntity.ACTION_BITE && ghidorah.getActionTicks() == KingGhidorahEntity.BITE_SNAP_AT) {
+                Vec3 jaws = ghidorah.locator(KingGhidorahEntity.Head.MIDDLE.biteMouth);
+                atSnap[0] = String.format("at the snap (test tick %d, %d after it began): him at %s facing %.1f (body %.1f), jaws at %s,"
+                                + " pig at %s (%.1f from below the jaws)", helper.getTick(), helper.getTick() - from[0], ghidorah.position(),
+                        ghidorah.getYRot(), ghidorah.yBodyRot, jaws, pig.position(), pig.position().subtract(jaws).horizontalDistance());
+            }
+            if (helper.getTick() == from[0] + KingGhidorahEntity.BITE_SNAP_AT + 4) {
+                GodzillaMinusOne.LOGGER.info("bite test: {}", atSnap[0]);
+                helper.assertTrue(!pig.isAlive() || pig.getHealth() < health, "the pig in front of him should have been bitten; " + atSnap[0]);
+                remove(ghidorah, pig);
+                release.forEach(Runnable::run);
+                helper.succeed();
+            }
         });
     }
 
     /** His stomp crushes what's at his right foot; his tails' whip strikes what's behind him. */
-    @GameTest(template = FLOOR, batch = "gmo_ghidorah_stomp_whip", timeoutTicks = 80)
+    @GameTest(template = FLOOR, batch = "gmo_ghidorah_stomp_whip", timeoutTicks = 140)
     public static void kingGhidorahsStompAndTailWhipStrike(GameTestHelper helper) {
         KingGhidorahEntity ghidorah = spawnGhidorah(helper);
         ServerLevel level = helper.getLevel();
@@ -2351,16 +2381,26 @@ public final class ModGameTests {
         Pig back = EntityType.PIG.create(level);
         back.moveTo(behind.x, ghidorah.getY(), behind.z);
         level.addFreshEntity(back);
-        ghidorah.startStomp();
-        helper.runAtTickTime(KingGhidorahEntity.STOMP_HIT_AT + 3, () -> {
-            helper.assertTrue(!under.isAlive(), "the pig at his foot should be crushed");
-            ghidorah.startWhip();
-        });
-        helper.runAtTickTime(KingGhidorahEntity.STOMP_HIT_AT + 6 + KingGhidorahEntity.WHIP_HIT_AT, () -> {
-            helper.assertTrue(!back.isAlive(), "the pig behind him should be struck by his tails");
-            level.setChunkForced(Mth.floor(behind.x) >> 4, Mth.floor(behind.z) >> 4, false);
-            remove(ghidorah, under, back);
-            helper.succeed();
+        long[] from = {-1};
+        helper.onEachTick(() -> {
+            if (from[0] < 0) {
+                if (!findable(helper, ghidorah, under, back)) {
+                    return;
+                }
+                from[0] = helper.getTick();
+                ghidorah.startStomp();
+            }
+            long t = helper.getTick() - from[0];
+            if (t == KingGhidorahEntity.STOMP_HIT_AT + 3) {
+                helper.assertTrue(!under.isAlive(), "the pig at his foot should be crushed");
+                ghidorah.startWhip();
+            }
+            if (t == KingGhidorahEntity.STOMP_HIT_AT + 6 + KingGhidorahEntity.WHIP_HIT_AT) {
+                helper.assertTrue(!back.isAlive(), "the pig behind him should be struck by his tails");
+                level.setChunkForced(Mth.floor(behind.x) >> 4, Mth.floor(behind.z) >> 4, false);
+                remove(ghidorah, under, back);
+                helper.succeed();
+            }
         });
     }
 
@@ -2368,7 +2408,7 @@ public final class ModGameTests {
      * His gravity beams, fired into the rock ahead of him (the test's pocket is deep underground): they bore through,
      * and every block 12 round where they strike is vaporized, along with what's caught there.
      */
-    @GameTest(template = FLOOR, batch = "gmo_ghidorah_beam", timeoutTicks = 120)
+    @GameTest(template = FLOOR, batch = "gmo_ghidorah_beam", timeoutTicks = 180)
     public static void kingGhidorahsGravityBeamVaporizesWhereItStrikes(GameTestHelper helper) {
         KingGhidorahEntity ghidorah = spawnGhidorah(helper);
         ServerLevel level = helper.getLevel();
@@ -2383,8 +2423,18 @@ public final class ModGameTests {
         pig.moveTo(Vec3.atBottomCenterOf(at));
         pig.setNoAi(true);
         level.addFreshEntity(pig);
-        ghidorah.startBeam(aim);
-        helper.runAtTickTime(KingGhidorahEntity.Head.LEFT.fireAt + 10, () -> {
+        long[] from = {-1};
+        helper.onEachTick(() -> {
+            if (from[0] < 0) {
+                if (!findable(helper, ghidorah, pig)) {
+                    return;
+                }
+                from[0] = helper.getTick();
+                ghidorah.startBeam(aim);
+            }
+            if (helper.getTick() != from[0] + KingGhidorahEntity.Head.LEFT.fireAt + 10) {
+                return;
+            }
             helper.assertTrue(ghidorah.isFiring(KingGhidorahEntity.Head.MIDDLE), "his middle head should be firing");
             helper.assertTrue(!pig.isAlive(), "the pig where his beams strike should be gone");
             int solid = 0;
@@ -2406,7 +2456,7 @@ public final class ModGameTests {
     }
 
     /** His lift: his beams seize a pig and haul it high into the air (it falls when they let go). */
-    @GameTest(template = FLOOR, batch = "gmo_ghidorah_lift", timeoutTicks = 200)
+    @GameTest(template = FLOOR, batch = "gmo_ghidorah_lift", timeoutTicks = 260)
     public static void kingGhidorahsLiftHaulsItsTargetUp(GameTestHelper helper) {
         KingGhidorahEntity ghidorah = spawnGhidorah(helper);
         ServerLevel level = helper.getLevel();
@@ -2422,13 +2472,22 @@ public final class ModGameTests {
         level.addFreshEntity(pig);   // (with its AI: a mob without any doesn't move at all, lifted or not)
         double startY = pig.getY();
         double[] highest = {startY};
-        helper.onEachTick(() -> highest[0] = Math.max(highest[0], pig.getY()));
-        ghidorah.startLift(pig);
-        helper.runAtTickTime(KingGhidorahEntity.BEAM_END_AT, () -> {
-            helper.assertTrue(highest[0] - startY > 20.0, "the pig should have been hauled high up, " + (highest[0] - startY) + " blocks");
-            level.setChunkForced(base.getX() >> 4, base.getZ() >> 4, false);
-            remove(ghidorah, pig);
-            helper.succeed();
+        long[] from = {-1};
+        helper.onEachTick(() -> {
+            highest[0] = Math.max(highest[0], pig.getY());
+            if (from[0] < 0) {
+                if (!findable(helper, ghidorah, pig)) {
+                    return;
+                }
+                from[0] = helper.getTick();
+                ghidorah.startLift(pig);
+            }
+            if (helper.getTick() == from[0] + KingGhidorahEntity.BEAM_END_AT) {
+                helper.assertTrue(highest[0] - startY > 20.0, "the pig should have been hauled high up, " + (highest[0] - startY) + " blocks");
+                level.setChunkForced(base.getX() >> 4, base.getZ() >> 4, false);
+                remove(ghidorah, pig);
+                helper.succeed();
+            }
         });
     }
 
@@ -2442,12 +2501,17 @@ public final class ModGameTests {
         pig.setInvulnerable(false);
         boolean[] carried = {false};
         boolean[] flew = {false};
+        boolean[] started = {false};
         helper.onEachTick(() -> {
+            if (!started[0] && findable(helper, ghidorah, pig)) {
+                started[0] = true;
+                ghidorah.startGrab(pig);
+            }
             carried[0] |= pig.getVehicle() == ghidorah;
             flew[0] |= ghidorah.isFlying();
         });
-        ghidorah.startGrab(pig);
         helper.succeedWhen(() -> {
+            helper.assertTrue(started[0], "the pig can't be found yet");
             helper.assertTrue(flew[0], "he should have taken off");
             helper.assertTrue(carried[0], "he should have seized the pig in his talons");
             helper.assertTrue(ghidorah.hasSlammed(), "he should have dived and slammed it down");
