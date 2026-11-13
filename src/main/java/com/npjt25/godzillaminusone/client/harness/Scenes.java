@@ -974,7 +974,8 @@ final class Scenes {
             }
             double moved = Math.sqrt((g.getX() - g.xo) * (g.getX() - g.xo) + (g.getZ() - g.zo) * (g.getZ() - g.zo));
             log(String.format("ghidorah: walking %.2f blocks a tick on the client, his walk at %.2f its own pace", moved, g.walkPace()));
-            return Math.abs(g.walkPace() - Math.max(0.4, moved / 0.6)) < 0.25 ? null : "his walk at " + g.walkPace() + " for " + moved;
+            return Math.abs(g.walkPace() - Math.max(0.25, moved / KingGhidorahEntity.WALK_BLOCKS_PER_TICK)) < 0.25 ? null
+                    : "his walk at " + g.walkPace() + " for " + moved;
         });
         shot("king_ghidorah_walk_1");
         waitTicks(12);
@@ -989,7 +990,7 @@ final class Scenes {
             return g != null && g.getZ() > GHIDORAH_AT.z + 10.0 ? null : "he hasn't moved: " + (g == null ? "gone" : g.position());
         });
         // (on a little further, for a few more footfalls; then back where the shots after expect him)
-        waitTicks(50);
+        waitTicks(80);
         check("ghidorah: a footstep each time a foot came down, taking turns: 1, 2, 3, 1, ...", () -> {
             List<ShotsHarness.Heard> steps = new ArrayList<>();
             for (int k = 1; k <= 3; k++) {

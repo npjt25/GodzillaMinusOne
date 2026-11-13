@@ -130,10 +130,12 @@ public class KingGhidorahEntity extends Monster implements GeoEntity {
     /** His walk animation's stride (animation.king_ghidorah.walk, 2.4 s at its own pace), in ticks. */
     public static final int WALK_TICKS = 48;
     /**
-     * When in his stride each hind foot comes down (tools/make_ghidorah.py walk(): his right foot a quarter of the way
-     * through, his left three quarters), a couple of ticks early: the pack's footsteps thud about 0.15 s in.
+     * When in his stride each hind foot comes down (measured on his walk animation: his left foot touches the ground 3
+     * ticks in, his right 27), a couple of ticks early: the pack's footsteps thud about 0.15 s in.
      */
-    public static final int[] WALK_FOOTFALLS = {10, 34};
+    public static final int[] WALK_FOOTFALLS = {1, 25};
+    /** How fast his walk animation carries him over the ground at its own pace (his planted feet, measured): blocks a tick. */
+    public static final double WALK_BLOCKS_PER_TICK = 0.35;
     /** How long his animations take to blend from one into the next (his main controller's transition). */
     private static final int MAIN_TRANSITION = 6;
     /** How long his flying sound (his wingbeats) lasts: it plays again as it ends while he's in the air. */
@@ -1420,14 +1422,14 @@ public class KingGhidorahEntity extends Monster implements GeoEntity {
     }
 
     /**
-     * How fast his walk goes: as fast as he's actually going over the ground, so his feet don't slide (0.6 blocks a tick,
-     * at its own pace). (Measured by how far he moves on this client, not his motion: the server sends that after the
+     * How fast his walk goes: as fast as he's actually going over the ground, so his feet keep pace with it
+     * (WALK_BLOCKS_PER_TICK at its own pace). (Measured by how far he moves on this client, not his motion: the server sends that after the
      * ground's friction, about half what he covers.)
      */
     private double strideSpeed() {
         double moved = Math.sqrt((getX() - this.xo) * (getX() - this.xo) + (getZ() - this.zo) * (getZ() - this.zo));
         this.groundSpeed += (moved - this.groundSpeed) * 0.35;
-        return Mth.clamp(this.groundSpeed / 0.6, 0.4, 1.6);
+        return Mth.clamp(this.groundSpeed / WALK_BLOCKS_PER_TICK, 0.25, 1.6);
     }
 
     /** How fast his walk is going on this client (1: its own pace), for the harness. */

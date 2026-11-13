@@ -1146,8 +1146,9 @@ WALK_LEN = 2.4
 
 
 def walk(t):
-    # (each hind foot comes down a quarter (right) and three quarters (left) of the way through his stride: his
-    # footsteps are sounded there, KingGhidorahEntity.WALK_FOOTFALLS, by a clock his walk is played by in the game)
+    # (each hind foot touches the ground as it swings back under him: his left 3 ticks into the stride, his right 27;
+    # his footsteps are sounded there, KingGhidorahEntity.WALK_FOOTFALLS, by a clock his walk is played by in the game,
+    # which runs at his speed over the ground / WALK_BLOCKS_PER_TICK, 0.35, how fast his planted feet go back)
     p = Pose()
     crouch(p)
     wing_pose(p, STANCE)
