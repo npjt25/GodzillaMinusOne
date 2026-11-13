@@ -234,9 +234,10 @@ public class KingGhidorahEntity extends Monster implements GeoEntity {
     private int serverSteps;
     /** Footsteps his walk has sounded on this client, for their turns. */
     private int walkSteps;
-    /** On each client: how far into his walk he is (animation ticks: it runs at strideSpeed), and for how long he's walked (-1: he isn't). */
+    /** On each client: how far into his walk he is (animation ticks: it runs at strideSpeed), how fast he's going, and for how long he's walked (-1: he isn't). */
     private double walkClock;
     private double walkClockSpeed;
+    private double groundSpeed;
     private int walkingFor = -1;
     /** Ticks till his flying sound plays again. */
     private int flyingSoundIn;
@@ -1338,13 +1339,15 @@ public class KingGhidorahEntity extends Monster implements GeoEntity {
             this.walkingFor = -1;
             this.walkClock = 0.0;
             this.walkClockSpeed = 0.0;
+            this.groundSpeed = 0.0;
             return;
         }
         if (++this.walkingFor < MAIN_TRANSITION) {
+            strideSpeed();
             return;         // (blending into his walk first: it starts once that's done)
         }
         double before = this.walkClock;
-        this.walkClockSpeed = strideSpeed(this);
+        this.walkClockSpeed = strideSpeed();
         this.walkClock += this.walkClockSpeed;
         for (int foot : WALK_FOOTFALLS) {
             if (Math.floor((before - foot) / WALK_TICKS) != Math.floor((this.walkClock - foot) / WALK_TICKS)) {
@@ -1416,13 +1419,20 @@ public class KingGhidorahEntity extends Monster implements GeoEntity {
         controllers.add(new ServerClockController(this, "action", 4, this::actionAnimation));
     }
 
-    /** His walk goes as fast as he's actually going, so his feet don't slide (about 0.6 blocks a tick, at its own pace). */
-    private static double strideSpeed(KingGhidorahEntity ghidorah) {
-        if (ghidorah.isFlying() || ghidorah.isDeadOrDying()) {
-            return 1.0;
-        }
-        double speed = ghidorah.getDeltaMovement().horizontalDistance();
-        return speed < 0.02 ? 1.0 : Mth.clamp(speed / 0.6, 0.4, 1.6);
+    /**
+     * How fast his walk goes: as fast as he's actually going over the ground, so his feet don't slide (0.6 blocks a tick,
+     * at its own pace). (Measured by how far he moves on this client, not his motion: the server sends that after the
+     * ground's friction, about half what he covers.)
+     */
+    private double strideSpeed() {
+        double moved = Math.sqrt((getX() - this.xo) * (getX() - this.xo) + (getZ() - this.zo) * (getZ() - this.zo));
+        this.groundSpeed += (moved - this.groundSpeed) * 0.35;
+        return Mth.clamp(this.groundSpeed / 0.6, 0.4, 1.6);
+    }
+
+    /** How fast his walk is going on this client (1: its own pace), for the harness. */
+    public double walkPace() {
+        return this.walkClockSpeed;
     }
 
     private PlayState mainAnimation(AnimationState<KingGhidorahEntity> state) {

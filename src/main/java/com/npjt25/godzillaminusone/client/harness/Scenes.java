@@ -967,6 +967,15 @@ final class Scenes {
         });
         camera("ghidorah: walking", new Vec3(925.0, -5.0, 40.0), new Vec3(850.5, -18.0, 30.0), 80);
         waitTicks(50);
+        check("ghidorah: his walk keeps pace with him (his feet don't slide)", () -> {
+            KingGhidorahEntity g = find(KingGhidorahEntity.class);
+            if (g == null) {
+                return "gone";
+            }
+            double moved = Math.sqrt((g.getX() - g.xo) * (g.getX() - g.xo) + (g.getZ() - g.zo) * (g.getZ() - g.zo));
+            log(String.format("ghidorah: walking %.2f blocks a tick on the client, his walk at %.2f its own pace", moved, g.walkPace()));
+            return Math.abs(g.walkPace() - Math.max(0.4, moved / 0.6)) < 0.25 ? null : "his walk at " + g.walkPace() + " for " + moved;
+        });
         shot("king_ghidorah_walk_1");
         waitTicks(12);
         shot("king_ghidorah_walk_2");
@@ -976,10 +985,11 @@ final class Scenes {
             if (g != null) {
                 walkedTo[0] = g.getZ();
             }
+            log(String.format("ghidorah: walked to z %.1f", g == null ? Double.NaN : g.getZ()));
             return g != null && g.getZ() > GHIDORAH_AT.z + 10.0 ? null : "he hasn't moved: " + (g == null ? "gone" : g.position());
         });
         // (on a little further, for a few more footfalls; then back where the shots after expect him)
-        waitTicks(36);
+        waitTicks(50);
         check("ghidorah: a footstep each time a foot came down, taking turns: 1, 2, 3, 1, ...", () -> {
             List<ShotsHarness.Heard> steps = new ArrayList<>();
             for (int k = 1; k <= 3; k++) {

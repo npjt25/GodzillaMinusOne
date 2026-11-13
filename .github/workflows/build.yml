@@ -33,6 +33,7 @@ jobs:
           name: godzillaminusone-jar
           path: build/libs/*.jar
           if-no-files-found: error
+          retention-days: 30     # (the repository's artifact storage is small: old builds make way for new ones)
         if: always()
 
   # The real game, on a virtual display (Xvfb, Mesa's software OpenGL, OpenAL's null output): the in-game checks and
@@ -130,6 +131,7 @@ jobs:
 
       - name: Upload screenshots
         if: always()
+        continue-on-error: true     # (they're in the log too, as GMO-IMG lines)
         uses: actions/upload-artifact@v4
         with:
           name: in-game-screenshots
@@ -138,6 +140,7 @@ jobs:
             run/gmo-checks.txt
             client.log
           if-no-files-found: warn
+          retention-days: 3
 
   # The same in-game checks in the real, released game: Minecraft 1.20.1 with Forge 47.3.0 installed by a launcher
   # (portablemc), this mod's built (reobfuscated) jar in its mods folder with GeckoLib, and the latest Forge 1.20.1
@@ -244,6 +247,7 @@ jobs:
 
       - name: Upload screenshots
         if: always()
+        continue-on-error: true     # (they're in the log too, as GMO-IMG lines)
         uses: actions/upload-artifact@v4
         with:
           name: in-game-screenshots-with-${{ matrix.with }}
@@ -252,3 +256,4 @@ jobs:
             mc/gmo-checks.txt
             client.log
           if-no-files-found: warn
+          retention-days: 3
