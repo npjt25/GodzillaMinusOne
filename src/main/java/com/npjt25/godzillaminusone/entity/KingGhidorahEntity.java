@@ -9,6 +9,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.protocol.game.ClientboundStopSoundPacket;
 import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.EntityDataSerializers;
 import net.minecraft.network.syncher.SynchedEntityData;
@@ -60,6 +61,7 @@ import software.bernie.geckolib.core.animation.AnimatableManager;
 import software.bernie.geckolib.core.animation.AnimationController;
 import software.bernie.geckolib.core.animation.AnimationState;
 import software.bernie.geckolib.core.animation.RawAnimation;
+import software.bernie.geckolib.core.keyframe.event.SoundKeyframeEvent;
 import software.bernie.geckolib.core.object.PlayState;
 import software.bernie.geckolib.util.GeckoLibUtil;
 
@@ -120,16 +122,18 @@ public class KingGhidorahEntity extends Monster implements GeoEntity {
     /** Ticks each animation lasts (animation.king_ghidorah.*). */
     public static final int ROAR_TICKS = 64;
     public static final int BITE_TICKS = 26;
-    public static final int BEAM_TICKS = 84;
+    public static final int BEAM_TICKS = 156;
     public static final int STOMP_TICKS = 32;
     public static final int WHIP_TICKS = 36;
     public static final int ENTRANCE_TICKS = 292;
     private static final int ROAR_SOUND_AT = 6;
     public static final int BITE_SNAP_AT = 12;
+    /** How long his flying sound (his wingbeats) lasts: it plays again as it ends while he's in the air. */
+    private static final int FLYING_SOUND_TICKS = 164;
     public static final int STOMP_HIT_AT = 17;
     public static final int WHIP_HIT_AT = 15;
-    /** The tick his beams stop (the animation's BEAM_END). */
-    public static final int BEAM_END_AT = 66;
+    /** The tick his beams stop (the animation's BEAM_END: as long as his gravity beam sound roars, before it fades). */
+    public static final int BEAM_END_AT = 136;
 
     public static final double BEAM_MIN_RANGE = 40.0;
     public static final double BEAM_RANGE = 160.0;
@@ -217,6 +221,12 @@ public class KingGhidorahEntity extends Monster implements GeoEntity {
     private int retreatCooldown;
     private int roarTimer;
     private int decisionDelay;
+    /** Footsteps the server has sounded (his stomps, landings, his heaves at his entrance), for their turns. */
+    private int serverSteps;
+    /** Footsteps his walk has sounded on this client, for their turns. */
+    private int walkSteps;
+    /** Ticks till his flying sound plays again. */
+    private int flyingSoundIn;
     @Nullable
     private LivingEntity lastTarget;
     @Nullable
@@ -484,6 +494,10 @@ public class KingGhidorahEntity extends Monster implements GeoEntity {
                 }
             }
             case ACTION_BITE, ACTION_BITE + 1, ACTION_BITE + 2 -> {
+                if (t == BITE_SNAP_AT - 5) {
+                    Vec3 jaws = locator(Head.values()[action - ACTION_BITE].biteMouth);
+                    sound(level, jaws, ModSounds.KING_GHIDORAH_BITE.get(), 10.0F, 1.0F);
+                }
                 if (t == BITE_SNAP_AT) {
                     bite(level, Head.values()[action - ACTION_BITE]);
                 }
@@ -492,6 +506,9 @@ public class KingGhidorahEntity extends Monster implements GeoEntity {
                 }
             }
             case ACTION_STOMP -> {
+                if (t == STOMP_HIT_AT - 3) {
+                    footstep(level, stompFoot(), 16.0F);      // (its thud lands as his foot does)
+                }
                 if (t == STOMP_HIT_AT) {
                     stomp(level);
                 }
@@ -587,13 +604,14 @@ public class KingGhidorahEntity extends Monster implements GeoEntity {
             sound(level, at, ModSounds.KING_GHIDORAH_EARTH_CRACK.get(), t >= 160 ? 14.0F : 9.0F, 0.75F + this.random.nextFloat() * 0.25F);
         }
         if (t == 174 || t == 193 || t == 212) {
-            sound(level, at, ModSounds.GODZILLA_STOMP.get(), 14.0F, 0.6F);
+            footstep(level, at, 16.0F);       // (each heave of him out of the ground)
         }
         if (t == 216) {
             sound(level, at.add(0.0, 40.0, 0.0), ModSounds.KING_GHIDORAH_WING_SPREAD.get(), 16.0F, 0.9F);
         }
         if (t == 250) {
-            roar(level);
+            level.playSound(null, getX(), getY() + REAL_HEIGHT * 0.8, getZ(), ModSounds.KING_GHIDORAH_ENTRANCE_ROAR.get(),
+                    SoundSource.HOSTILE, 25.0F, 1.0F);
         }
         if (t >= ENTRANCE_TICKS) {
             endAction();
@@ -607,6 +625,23 @@ public class KingGhidorahEntity extends Monster implements GeoEntity {
 
     private void sound(ServerLevel level, Vec3 at, SoundEvent sound, float volume, float pitch) {
         level.playSound(null, at.x, at.y, at.z, sound, SoundSource.HOSTILE, volume, pitch);
+    }
+
+    /** His three footstep sounds, in turn (1, 2, 3, 1, ...): never the same one twice running. */
+    public static SoundEvent footstepSound(int step) {
+        return switch (Math.floorMod(step, 3)) {
+            case 0 -> ModSounds.KING_GHIDORAH_FOOTSTEP_1.get();
+            case 1 -> ModSounds.KING_GHIDORAH_FOOTSTEP_2.get();
+            default -> ModSounds.KING_GHIDORAH_FOOTSTEP_3.get();
+        };
+    }
+
+    /**
+     * A footstep from the server (his stomp, his landing, his heaves out of the ground at his entrance), the next of his
+     * three in turn. (His walk's footsteps are his walk animation's: walkFootstep, on each client.)
+     */
+    private void footstep(ServerLevel level, Vec3 at, float volume) {
+        sound(level, at, footstepSound(this.serverSteps++), volume, 1.0F);
     }
 
     /**
@@ -630,9 +665,9 @@ public class KingGhidorahEntity extends Monster implements GeoEntity {
     // ------------------------------------------------------------------ the roar
 
     private void roar(ServerLevel level) {
-        // (loud enough to carry 400 blocks, from up where his heads are)
-        level.playSound(null, getX(), getY() + REAL_HEIGHT * 0.8, getZ(), ModSounds.KING_GHIDORAH_ROAR.get(),
-                SoundSource.HOSTILE, 25.0F, 0.95F + this.random.nextFloat() * 0.1F);
+        // (his wings spread wide as he roars; loud enough to carry 400 blocks, from up where his heads are)
+        level.playSound(null, getX(), getY() + REAL_HEIGHT * 0.8, getZ(), ModSounds.KING_GHIDORAH_WING_SPAN_ROAR.get(),
+                SoundSource.HOSTILE, 25.0F, 1.0F);
     }
 
     /** Roar now (a game test, or the harness). */
@@ -672,7 +707,6 @@ public class KingGhidorahEntity extends Monster implements GeoEntity {
 
     private void bite(ServerLevel level, Head head) {
         Vec3 jaws = locator(head.biteMouth);
-        level.playSound(null, jaws.x, jaws.y, jaws.z, ModSounds.GODZILLA_BITE.get(), SoundSource.HOSTILE, 10.0F, 1.15F);
         AABB zone = new AABB(jaws.x - BITE_RADIUS, getY() - 6.0, jaws.z - BITE_RADIUS, jaws.x + BITE_RADIUS, jaws.y + 10.0, jaws.z + BITE_RADIUS);
         for (LivingEntity e : victims(level, zone)) {
             if (inBiteReach(e, head)) {
@@ -697,7 +731,6 @@ public class KingGhidorahEntity extends Monster implements GeoEntity {
 
     private void stomp(ServerLevel level) {
         Vec3 foot = stompFoot();
-        level.playSound(null, foot.x, foot.y, foot.z, ModSounds.GODZILLA_STOMP.get(), SoundSource.HOSTILE, 14.0F, 0.75F);
         ModNetwork.shake(level, foot, 80.0, 1.6F, 1.2F);
         for (LivingEntity e : victims(level, new AABB(foot, foot).inflate(STOMP_RADIUS, 8.0, STOMP_RADIUS))) {
             Vec3 d = e.position().subtract(foot);
@@ -787,11 +820,14 @@ public class KingGhidorahEntity extends Monster implements GeoEntity {
             this.entityData.set(DATA_AIM, (action == ACTION_LIFT ? c : getAim().lerp(c, 0.15)).toVector3f());
         }
         Vec3 aim = getAim();
+        if (t == Head.MIDDLE.fireAt) {
+            // (the sound of all three firing: it roars as long as they do, and dies away as they stop)
+            Vec3 m = beamMouth(Head.MIDDLE);
+            sound(level, m, ModSounds.KING_GHIDORAH_GRAVITY_BEAM.get(), 25.0F, 1.0F);
+        }
         for (Head head : Head.values()) {
             if (t == head.fireAt) {
                 Vec3 m = beamMouth(head);
-                level.playSound(null, m.x, m.y, m.z, ModSounds.KING_GHIDORAH_BEAM.get(), SoundSource.HOSTILE, 20.0F,
-                        0.9F + head.ordinal() * 0.08F);
                 if (action == ACTION_BEAM && breaksBlocks(level)) {
                     this.vaporizing.add(new Vaporize(level, m, beamEnd(head, m, aim)));
                 }
@@ -801,7 +837,7 @@ public class KingGhidorahEntity extends Monster implements GeoEntity {
             }
             Vec3 from = beamMouth(head);
             Vec3 end = beamEnd(head, from, aim);
-            if (action == ACTION_BEAM && (t - head.fireAt) % 4 == 0) {
+            if (action == ACTION_BEAM && (t - head.fireAt) % 8 == 0) {      // (as hard over his long beam as Minus Zero's)
                 zap(level, from, end);
             }
         }
@@ -944,6 +980,7 @@ public class KingGhidorahEntity extends Monster implements GeoEntity {
         startAction(action);
         setFlying(true);
         level().playSound(null, getX(), getY() + 30.0, getZ(), ModSounds.KING_GHIDORAH_WING_SPREAD.get(), SoundSource.HOSTILE, 16.0F, 1.0F);
+        this.flyingSoundIn = 0;
     }
 
     private void setFlying(boolean flying) {
@@ -961,8 +998,10 @@ public class KingGhidorahEntity extends Monster implements GeoEntity {
 
     private void flightTick(ServerLevel level, int action, @Nullable LivingEntity target) {
         this.flightTicks++;
-        if (this.flightTicks % 24 == 1) {
-            level.playSound(null, getX(), getY() + 30.0, getZ(), ModSounds.KING_GHIDORAH_WING_FLAP.get(), SoundSource.HOSTILE, 12.0F, 0.9F);
+        if (--this.flyingSoundIn <= 0) {
+            // (his wingbeats, from takeoff, and again as each one ends, for as long as he's up)
+            this.flyingSoundIn = FLYING_SOUND_TICKS;
+            level.playSound(null, getX(), getY() + 30.0, getZ(), ModSounds.KING_GHIDORAH_FLYING.get(), SoundSource.HOSTILE, 16.0F, 1.0F);
         }
         int ground = groundBelow();
         Vec3 v = Vec3.ZERO;
@@ -988,7 +1027,7 @@ public class KingGhidorahEntity extends Monster implements GeoEntity {
                     p.stopRiding();
                     p.startRiding(this, true);
                     this.entityData.set(DATA_CARRYING, true);
-                    level.playSound(null, p.getX(), p.getY(), p.getZ(), ModSounds.GODZILLA_BITE.get(), SoundSource.HOSTILE, 10.0F, 0.7F);
+                    level.playSound(null, p.getX(), p.getY(), p.getZ(), ModSounds.KING_GHIDORAH_BITE.get(), SoundSource.HOSTILE, 10.0F, 0.85F);
                     next(Flight.ASCEND);
                 }
             }
@@ -1031,7 +1070,8 @@ public class KingGhidorahEntity extends Monster implements GeoEntity {
                     setDeltaMovement(Vec3.ZERO);
                     ejectPassengers();
                     this.prey = null;
-                    level.playSound(null, getX(), getY(), getZ(), ModSounds.GODZILLA_STOMP.get(), SoundSource.HOSTILE, 14.0F, 0.6F);
+                    footstep(level, position(), 16.0F);
+                    stopFlyingSound(level);
                     ModNetwork.shake(level, position(), 90.0, 1.2F, 1.0F);
                     endAction();
                     return;
@@ -1042,6 +1082,16 @@ public class KingGhidorahEntity extends Monster implements GeoEntity {
             }
         }
         setDeltaMovement(v);       // (the game moves him by it next tick: he flies through whatever's below, noPhysics)
+    }
+
+    /** Down: his wingbeats stop with him (the sound would otherwise run on for up to 8 s), for those in earshot. */
+    private void stopFlyingSound(ServerLevel level) {
+        ClientboundStopSoundPacket stop = new ClientboundStopSoundPacket(ModSounds.KING_GHIDORAH_FLYING.getId(), SoundSource.HOSTILE);
+        for (ServerPlayer player : level.players()) {
+            if (player.distanceToSqr(this) < 400.0 * 400.0) {
+                player.connection.send(stop);
+            }
+        }
     }
 
     private void next(Flight phase) {
@@ -1237,17 +1287,17 @@ public class KingGhidorahEntity extends Monster implements GeoEntity {
     @Nullable
     @Override
     protected SoundEvent getAmbientSound() {
-        return inEntrance() ? null : ModSounds.KING_GHIDORAH_AMBIENT.get();     // (not a peep from under the ground)
+        return inEntrance() ? null : ModSounds.KING_GHIDORAH_IDLE.get();     // (not a peep from under the ground)
     }
 
     @Override
     protected SoundEvent getHurtSound(DamageSource source) {
-        return ModSounds.KING_GHIDORAH_AMBIENT.get();
+        return ModSounds.KING_GHIDORAH_HURT.get();
     }
 
     @Override
     protected SoundEvent getDeathSound() {
-        return ModSounds.KING_GHIDORAH_ROAR.get();
+        return ModSounds.KING_GHIDORAH_DEATH.get();
     }
 
     @Override
@@ -1255,9 +1305,20 @@ public class KingGhidorahEntity extends Monster implements GeoEntity {
         return 12.0F;
     }
 
+    /** Not the game's: his footsteps come as his feet come down in his walk (walkFootstep). */
     @Override
     protected void playStepSound(BlockPos pos, BlockState state) {
-        playSound(ModSounds.GODZILLA_STEP.get(), 4.0F, 0.85F + this.random.nextFloat() * 0.1F);
+    }
+
+    /**
+     * Each footfall of his walk animation (its "king_ghidorah.footstep" sound keyframes, as each hind foot comes down),
+     * on each client watching: the next of his three footstep sounds in turn, so no two steps running sound the same.
+     */
+    private void walkFootstep(SoundKeyframeEvent<KingGhidorahEntity> event) {
+        if (!"king_ghidorah.footstep".equals(event.getKeyframeData().getSound()) || isFlying() || isDeadOrDying()) {
+            return;
+        }
+        level().playLocalSound(getX(), getY(), getZ(), footstepSound(this.walkSteps++), SoundSource.HOSTILE, 10.0F, 1.0F, false);
     }
 
     @Override
@@ -1311,7 +1372,8 @@ public class KingGhidorahEntity extends Monster implements GeoEntity {
     @Override
     public void registerControllers(AnimatableManager.ControllerRegistrar controllers) {
         controllers.add(new AnimationController<>(this, "main", 6, this::mainAnimation)
-                .setAnimationSpeedHandler(KingGhidorahEntity::strideSpeed));
+                .setAnimationSpeedHandler(KingGhidorahEntity::strideSpeed)
+                .setSoundKeyframeHandler(this::walkFootstep));
         controllers.add(new ServerClockController(this, "action", 4, this::actionAnimation));
     }
 

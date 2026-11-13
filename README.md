@@ -236,9 +236,10 @@ the blue one a player.*
   armoured leading edges, a hooked claw at each wrist, and dark brown-burgundy membranes, veined and scalloped. His
   hide is weathered gold, tarnished bronze, ochre and olive-brown; small amber eyes sunk under heavy brows, and every
   head with its own jaw, teeth, horns, crown and cheek spikes and a jagged beard.
-- **He stands crouched low on bent legs with his wings raised and half spread, never folded** (only while he digs
-  himself out of the ground are they tucked), heads looking every which way; he walks the same way, his raised wings
-  rocking with his stride. **Each head has a mind of its own**: it looks about at its own pace, out of step with the
+- **He stands crouched low on bent legs, leaning on his wings like front legs: the claws at his wrists planted on the
+  ground** and the wings half spread above them, **never folded** (only while he digs himself out of the ground are
+  they tucked), heads looking every which way, as in the first reference picture. He walks the same way, on all
+  fours: each wing claw lifts, swings forward and is planted again in step with the hind foot on the other side. **Each head has a mind of its own**: it looks about at its own pace, out of step with the
   others, turning towards what he's looking at but never quite all together.
 - **Minus Zero's health and durability, and his ways**: Minus Zero's `maxHealth` and `attackDamage`; only naval
   mines hurt him (a tenth of his health each, `mineDamagePercent`; `onlyHurtByNavalMines`), a nuclear blast does
@@ -279,11 +280,26 @@ the blue one a player.*
   view is on the config screen ("Ghidorah's Entrance Shake", 0 for none).
 - Everything he does runs on the server's clock: a player who comes in halfway through his entrance (or anything
   else) sees it from where it is, not from its beginning.
-- His sounds are synthesized by `tools/make_sounds.py`: his roar (three trilling voices, one a head), chitter, the
-  beams' crackle, the rumble, the cracking earth, his wings spreading and beating.
+- **His sounds** are his own sound pack's, each named for when it plays:
+
+  | Sound event | File | When it plays |
+  |---|---|---|
+  | `king_ghidorah.entrance_roar` | `king_ghidorah_entrance_roar.ogg` | His entrance: all three heads roar as he finishes rising (12.5 s in) |
+  | `king_ghidorah.wing_span_roar` | `king_ghidorah_wing_span_roar.ogg` | His roar, wings spread wide (on spotting a target, and every `roarIntervalSeconds`) |
+  | `king_ghidorah.idle` | `king_ghidorah_idle.ogg` | Now and then while he stands or walks (a growl; silent while he rises) |
+  | `king_ghidorah.hurt` | `king_ghidorah_hurt.ogg` | When something hurts him (a naval mine) |
+  | `king_ghidorah.death` | `king_ghidorah_death.ogg` | When he's brought down |
+  | `king_ghidorah.bite` | `king_ghidorah_bite.ogg` | Each bite, as the head's jaws snap shut; and as he seizes what he grabs in his talons |
+  | `king_ghidorah.gravity_beam` | `king_ghidorah_gravity_beam.ogg` | Once as his beams fire (his gravity beams and his lift): they blaze for as long as it roars, about 5.6 s, and stop as it fades |
+  | `king_ghidorah.flying` | `king_ghidorah_flying.ogg` | While he's in the air (his grab, his retreat): from takeoff, again every 8.2 s, until he lands |
+  | `king_ghidorah.footstep_1` / `_2` / `_3` | `king_ghidorah_footstep_1.ogg` ... `_3.ogg` | **Every step, in turn: 1, 2, 3, 1, ...** (never the same twice running): each hind foot coming down as he walks (the walk animation's own footfall keyframes, so they land with his feet), his stomp, his heaves out of the ground in his entrance, his landing |
+
+  The entrance's rumble, cracking earth and wing rush (`king_ghidorah.rumble`, `.earth_crack`, `.wing_spread`, also
+  on takeoff) aren't in the pack and are synthesized by `tools/make_sounds.py`; his tail whip uses Minus Zero's tail
+  swing.
 - His spawn egg is a vanilla-style egg in weathered gold with burgundy spots. He doesn't despawn.
 
-**His model** (`assets/godzillaminusone/geo/entity/king_ghidorah.geo.json`, GeckoLib 4, Forge 1.20.1): 92 bones in a
+**His model** (`assets/godzillaminusone/geo/entity/king_ghidorah.geo.json`, GeckoLib 4, Forge 1.20.1): 100 bones in a
 hierarchy, named for what they move: `root` > `pelvis` > `torso` > `chest` > `back_spikes`; `neck_c_1`..`neck_c_8` >
 `head_c` > `jaw_c` and `mouth_c` (and the same for `_r` and `_l`, his right and left heads); `wing_shoulder_r` >
 `wing_upper_r` (> `wing_web4_r`) > `wing_fore_r` > `wing_hand_r` > `wing_claw_r` and `wing_finger1_r`..`3_r` (each
@@ -296,8 +312,8 @@ spread, beat, raise or tuck and the membranes go with them. `mouth_c`, `_r`
 and `_l` are empty bones at the tips of his snouts: where his beams come from (the renderer draws them from where the
 animation has put those bones). **His animations** (`animation.king_ghidorah.*`): `idle` (breathing, each head looking
 about on its own, his tails swaying slowly), `walk` (heavy alternating strides, his hips dropping and rolling with
-each footfall, wings held close), `roar`, `bite_c` / `bite_r` / `bite_l` (one head lunges, the others stay busy) and
-`gravity_beam` (necks brace, heads aim, staggered anticipation and recoil), `gravity_lift`, `stomp`, `tail_whip`,
+each footfall, the planted wings stepping like front legs; a footstep sound keyframe at each hind footfall), `roar`, `bite_c` / `bite_r` / `bite_l` (one head lunges, the others stay busy) and
+`gravity_beam` (necks brace, heads aim, staggered anticipation and recoil, then 5.6 s of fire), `gravity_lift`, `stomp`, `tail_whip`,
 `fly` and `fly_carry` (after the third reference picture: his body pitched into the air, wings beating hard, the beat
 rippling out along each wing; legs drawn up, or reaching down with talons clenched round what he carries), `death`,
 and `entrance` (the root bone carries his body up from below the surface). His beams' mouths are `mouth_c`/`_r`/`_l`.
@@ -814,6 +830,10 @@ tail-fin sounds were supplied by the mod's owner too (their source and licence w
 King Ghidorah's model, texture and animations are the mod's own, generated by `tools/make_ghidorah.py`; his
 proportions and skeleton were studied from "King Ghidorah" by **I HATE YOU WINDOWS XP**
 (https://sketchfab.com/3d-models/king-ghidorah-6e52b076ab6249558702dcbe1c615aac, licensed CC-BY 4.0), whose
-model is not included and nothing of which is copied. His sounds are synthesized by `tools/make_sounds.py`.
+model is not included and nothing of which is copied. His sounds (his roars, growl, hurt and death cries, bite,
+gravity beam, flying and three footsteps) are from the King Ghidorah sound pack supplied by the mod's owner; its
+original source and licence weren't given with it. They're converted to mono (the two channels averaged, so they fade
+with distance in game) and evened out in loudness (the flying loop raised 8 dB), otherwise unchanged. The rumble,
+cracking earth and wing rush of his entrance are synthesized by `tools/make_sounds.py`.
 
 Godzilla and King Ghidorah are trademarks of Toho Co., Ltd.

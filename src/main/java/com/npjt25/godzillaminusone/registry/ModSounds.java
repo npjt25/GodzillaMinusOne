@@ -58,13 +58,22 @@ public final class ModSounds {
     public static final RegistryObject<SoundEvent> ODO_SPOTTED = register("odo.spotted");
     public static final RegistryObject<SoundEvent> ODO_SPAWN = register("odo.spawn");
     public static final RegistryObject<SoundEvent> ODO_NUKED = register("odo.nuked");
-    public static final RegistryObject<SoundEvent> KING_GHIDORAH_ROAR = register("king_ghidorah.roar");
-    public static final RegistryObject<SoundEvent> KING_GHIDORAH_AMBIENT = register("king_ghidorah.ambient");
-    public static final RegistryObject<SoundEvent> KING_GHIDORAH_BEAM = register("king_ghidorah.beam");
+    // King Ghidorah (his sound pack; named for when each plays)
+    public static final RegistryObject<SoundEvent> KING_GHIDORAH_WING_SPAN_ROAR = register("king_ghidorah.wing_span_roar");
+    public static final RegistryObject<SoundEvent> KING_GHIDORAH_ENTRANCE_ROAR = register("king_ghidorah.entrance_roar");
+    public static final RegistryObject<SoundEvent> KING_GHIDORAH_IDLE = register("king_ghidorah.idle");
+    public static final RegistryObject<SoundEvent> KING_GHIDORAH_HURT = register("king_ghidorah.hurt");
+    public static final RegistryObject<SoundEvent> KING_GHIDORAH_DEATH = register("king_ghidorah.death");
+    public static final RegistryObject<SoundEvent> KING_GHIDORAH_BITE = register("king_ghidorah.bite");
+    public static final RegistryObject<SoundEvent> KING_GHIDORAH_GRAVITY_BEAM = register("king_ghidorah.gravity_beam");
+    public static final RegistryObject<SoundEvent> KING_GHIDORAH_FLYING = register("king_ghidorah.flying");
+    public static final RegistryObject<SoundEvent> KING_GHIDORAH_FOOTSTEP_1 = register("king_ghidorah.footstep_1");
+    public static final RegistryObject<SoundEvent> KING_GHIDORAH_FOOTSTEP_2 = register("king_ghidorah.footstep_2");
+    public static final RegistryObject<SoundEvent> KING_GHIDORAH_FOOTSTEP_3 = register("king_ghidorah.footstep_3");
+    // (and the mod's own, for his entrance)
     public static final RegistryObject<SoundEvent> KING_GHIDORAH_RUMBLE = register("king_ghidorah.rumble");
     public static final RegistryObject<SoundEvent> KING_GHIDORAH_EARTH_CRACK = register("king_ghidorah.earth_crack");
     public static final RegistryObject<SoundEvent> KING_GHIDORAH_WING_SPREAD = register("king_ghidorah.wing_spread");
-    public static final RegistryObject<SoundEvent> KING_GHIDORAH_WING_FLAP = register("king_ghidorah.wing_flap");
     public static final RegistryObject<SoundEvent> SHINSEI_MARU_GUN = register("shinsei_maru.gun");
     public static final RegistryObject<SoundEvent> SHINSEI_MARU_MOTOR = register("shinsei_maru.motor");
 

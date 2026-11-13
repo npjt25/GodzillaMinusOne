@@ -344,31 +344,6 @@
    }
   ]
  },
- "king_ghidorah.roar": {
-  "subtitle": "subtitles.godzillaminusone.king_ghidorah.roar",
-  "sounds": [
-   {
-    "name": "godzillaminusone:king_ghidorah_roar",
-    "attenuation_distance": 400
-   }
-  ]
- },
- "king_ghidorah.ambient": {
-  "subtitle": "subtitles.godzillaminusone.king_ghidorah.ambient",
-  "sounds": [
-   {
-    "name": "godzillaminusone:king_ghidorah_ambient"
-   }
-  ]
- },
- "king_ghidorah.beam": {
-  "subtitle": "subtitles.godzillaminusone.king_ghidorah.beam",
-  "sounds": [
-   {
-    "name": "godzillaminusone:king_ghidorah_beam"
-   }
-  ]
- },
  "king_ghidorah.rumble": {
   "subtitle": "subtitles.godzillaminusone.king_ghidorah.rumble",
   "sounds": [
@@ -394,11 +369,93 @@
    }
   ]
  },
- "king_ghidorah.wing_flap": {
-  "subtitle": "subtitles.godzillaminusone.king_ghidorah.wing_flap",
+ "king_ghidorah.wing_span_roar": {
+  "subtitle": "subtitles.godzillaminusone.king_ghidorah.wing_span_roar",
   "sounds": [
    {
-    "name": "godzillaminusone:king_ghidorah_wing_flap"
+    "name": "godzillaminusone:king_ghidorah_wing_span_roar",
+    "attenuation_distance": 400
+   }
+  ]
+ },
+ "king_ghidorah.entrance_roar": {
+  "subtitle": "subtitles.godzillaminusone.king_ghidorah.entrance_roar",
+  "sounds": [
+   {
+    "name": "godzillaminusone:king_ghidorah_entrance_roar",
+    "attenuation_distance": 400
+   }
+  ]
+ },
+ "king_ghidorah.idle": {
+  "subtitle": "subtitles.godzillaminusone.king_ghidorah.idle",
+  "sounds": [
+   {
+    "name": "godzillaminusone:king_ghidorah_idle"
+   }
+  ]
+ },
+ "king_ghidorah.hurt": {
+  "subtitle": "subtitles.godzillaminusone.king_ghidorah.hurt",
+  "sounds": [
+   {
+    "name": "godzillaminusone:king_ghidorah_hurt"
+   }
+  ]
+ },
+ "king_ghidorah.death": {
+  "subtitle": "subtitles.godzillaminusone.king_ghidorah.death",
+  "sounds": [
+   {
+    "name": "godzillaminusone:king_ghidorah_death"
+   }
+  ]
+ },
+ "king_ghidorah.bite": {
+  "subtitle": "subtitles.godzillaminusone.king_ghidorah.bite",
+  "sounds": [
+   {
+    "name": "godzillaminusone:king_ghidorah_bite"
+   }
+  ]
+ },
+ "king_ghidorah.gravity_beam": {
+  "subtitle": "subtitles.godzillaminusone.king_ghidorah.gravity_beam",
+  "sounds": [
+   {
+    "name": "godzillaminusone:king_ghidorah_gravity_beam"
+   }
+  ]
+ },
+ "king_ghidorah.flying": {
+  "subtitle": "subtitles.godzillaminusone.king_ghidorah.flying",
+  "sounds": [
+   {
+    "name": "godzillaminusone:king_ghidorah_flying"
+   }
+  ]
+ },
+ "king_ghidorah.footstep_1": {
+  "subtitle": "subtitles.godzillaminusone.king_ghidorah.footstep",
+  "sounds": [
+   {
+    "name": "godzillaminusone:king_ghidorah_footstep_1"
+   }
+  ]
+ },
+ "king_ghidorah.footstep_2": {
+  "subtitle": "subtitles.godzillaminusone.king_ghidorah.footstep",
+  "sounds": [
+   {
+    "name": "godzillaminusone:king_ghidorah_footstep_2"
+   }
+  ]
+ },
+ "king_ghidorah.footstep_3": {
+  "subtitle": "subtitles.godzillaminusone.king_ghidorah.footstep",
+  "sounds": [
+   {
+    "name": "godzillaminusone:king_ghidorah_footstep_3"
    }
   ]
  }

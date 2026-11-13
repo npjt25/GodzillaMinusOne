@@ -2209,10 +2209,27 @@ public final class ModGameTests {
         }
         double entrance = animations.getAsJsonObject("animation.king_ghidorah.entrance").get("animation_length").getAsDouble();
         helper.assertTrue(Math.abs(entrance * 20.0 - KingGhidorahEntity.ENTRANCE_TICKS) < 1.0, "his entrance lasts " + entrance + " s");
+        double beam = animations.getAsJsonObject("animation.king_ghidorah.gravity_beam").get("animation_length").getAsDouble();
+        helper.assertTrue(Math.abs(beam * 20.0 - KingGhidorahEntity.BEAM_TICKS) < 1.0, "his beams last " + beam + " s");
+        // his walk sounds a footstep as each hind foot comes down: two a stride
+        com.google.gson.JsonObject walk = animations.getAsJsonObject("animation.king_ghidorah.walk");
+        helper.assertTrue(walk.has("sound_effects") && walk.getAsJsonObject("sound_effects").size() == 2, "his walk should have two footfalls");
+        for (java.util.Map.Entry<String, com.google.gson.JsonElement> e : walk.getAsJsonObject("sound_effects").entrySet()) {
+            helper.assertTrue("king_ghidorah.footstep".equals(e.getValue().getAsJsonObject().get("effect").getAsString()),
+                    "his walk's sound at " + e.getKey() + " should be a footstep");
+        }
+        // and his footsteps take turns: 1, 2, 3, 1, ..., never the same one twice running
+        for (int k = 0; k < 6; k++) {
+            helper.assertTrue(KingGhidorahEntity.footstepSound(k) == KingGhidorahEntity.footstepSound(k + 3)
+                    && KingGhidorahEntity.footstepSound(k) != KingGhidorahEntity.footstepSound(k + 1), "his footsteps should take turns");
+        }
+        helper.assertTrue(KingGhidorahEntity.footstepSound(0) == ModSounds.KING_GHIDORAH_FOOTSTEP_1.get(), "footstep 1 first");
         helper.assertTrue(resourceBytes("/assets/godzillaminusone/textures/entity/king_ghidorah.png").length > 1000, "his texture");
         com.google.gson.JsonObject sounds = resourceJson("/assets/godzillaminusone/sounds.json");
-        for (String sound : new String[] {"king_ghidorah.roar", "king_ghidorah.ambient", "king_ghidorah.beam", "king_ghidorah.rumble",
-                "king_ghidorah.earth_crack", "king_ghidorah.wing_spread", "king_ghidorah.wing_flap"}) {
+        for (String sound : new String[] {"king_ghidorah.wing_span_roar", "king_ghidorah.entrance_roar", "king_ghidorah.idle",
+                "king_ghidorah.hurt", "king_ghidorah.death", "king_ghidorah.bite", "king_ghidorah.gravity_beam", "king_ghidorah.flying",
+                "king_ghidorah.footstep_1", "king_ghidorah.footstep_2", "king_ghidorah.footstep_3", "king_ghidorah.rumble",
+                "king_ghidorah.earth_crack", "king_ghidorah.wing_spread"}) {
             helper.assertTrue(ModSounds.BY_NAME.containsKey(sound) && sounds.has(sound), sound + " isn't registered");
             String file = sounds.getAsJsonObject(sound).getAsJsonArray("sounds").get(0).getAsJsonObject().get("name").getAsString();
             byte[] ogg = resourceBytes("/assets/godzillaminusone/sounds/" + file.split(":")[1] + ".ogg");
@@ -2378,7 +2395,7 @@ public final class ModGameTests {
     }
 
     /** His lift: his beams seize a pig and haul it high into the air (it falls when they let go). */
-    @GameTest(template = FLOOR, batch = "gmo_ghidorah_lift", timeoutTicks = 120)
+    @GameTest(template = FLOOR, batch = "gmo_ghidorah_lift", timeoutTicks = 200)
     public static void kingGhidorahsLiftHaulsItsTargetUp(GameTestHelper helper) {
         KingGhidorahEntity ghidorah = spawnGhidorah(helper);
         ServerLevel level = helper.getLevel();

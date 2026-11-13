@@ -924,8 +924,11 @@ def window(t, a, b, c, d):
 # (STANCE, after the first reference picture), spreads them right out for a roar or a beam, and beats them flying.
 TUCK = {'wing_shoulder': (-8, 66, 4), 'wing_upper': (0, 0, -40), 'wing_fore': (0, 0, 128), 'wing_hand': (0, 0, -170),
         'wing_finger1': (0, 0, -4), 'wing_finger2': (0, 0, 27), 'wing_finger3': (0, 0, 55), 'wing_claw': (0, 0, 85)}
-STANCE = {'wing_shoulder': (-10, 14, 16), 'wing_upper': (0, 0, 10), 'wing_fore': (0, 0, 8), 'wing_hand': (0, 0, 10),
-          'wing_finger1': (0, 0, 6), 'wing_finger2': (0, 0, 0), 'wing_finger3': (0, 0, -6), 'wing_claw': (0, 0, -10)}
+# (STANCE: his wings planted like front legs, as in the first reference picture: each wrist claw on the ground out to
+# his side and ahead of his feet, the forearm rising from it to the elbow, the fingers swept up and back from the wrist
+# into a sail; found by a search over the wing's joints for the claw's tip on the ground)
+STANCE = {'wing_shoulder': (-61, -2, -33), 'wing_upper': (0, 0, -42), 'wing_fore': (0, 0, -43), 'wing_hand': (0, 0, -144),
+          'wing_finger1': (0, 0, 8), 'wing_finger2': (0, 0, 0), 'wing_finger3': (0, 0, -8), 'wing_claw': (0, 0, 66)}
 SPREAD = {'wing_shoulder': (0, 6, 10), 'wing_upper': (0, 0, 4), 'wing_fore': (0, 0, 2), 'wing_hand': (0, 0, 2),
           'wing_finger1': (0, 0, 4), 'wing_finger2': (0, 0, 0), 'wing_finger3': (0, 0, -4)}
 
@@ -1100,13 +1103,30 @@ def crouch(p, amount=1.0):
         neck_curl(p, h, [-10 * amount, -8 * amount, -5 * amount, -2 * amount, 0, 2 * amount, 3 * amount, 4 * amount])
 
 
+# How the planted wrist (and its claw) is moved by the wing's joints, from the stance: offsets (degrees) to the
+# shoulder's x, y, z and the upper arm's and forearm's z that move it 12 units back, or lift it 6 units (worked out
+# from how each joint moves it there: the smallest turns that do it)
+ARM_BACK = (7.9, 8.7, -2.7, 6.0, -9.3)
+ARM_LIFT = (0.4, 5.6, 7.9, 8.5, -28.9)
+
+
+def arm_step(p, side, back, lift):
+    """A planted wing-arm stepping: its wrist `back` units back (negative: forward), `lift` units up."""
+    k1, k2 = back / 12.0, lift / 6.0
+    d = [k1 * a + k2 * b for a, b in zip(ARM_BACK, ARM_LIFT)]
+    m = 1 if side == 'r' else -1
+    p.rot('wing_shoulder_' + side, d[0], m * d[1], m * d[2])
+    p.rot('wing_upper_' + side, 0, 0, m * d[3])
+    p.rot('wing_fore_' + side, 0, 0, m * d[4])
+
+
 def stance(p, t, length, wings=1.0, heads=1.0):
     crouch(p)
     wing_pose(p, STANCE, wings)
-    # (the raised wings breathe with him)
+    # (his sails breathe with him; his claws stay where they're planted)
     b = math.sin(TAU * 2 * t / length)
-    p.sym('wing_shoulder', 0, 1.5 * b, 2.0 * b)
-    p.sym('wing_fore', 0, 0, -1.5 * b)
+    p.sym('wing_finger1', 0, 0, 1.5 * b)
+    p.sym('wing_finger3', 0, 0, -1.5 * b)
     breathe(p, t, length, 2)
     for h in HEADS:
         wander(p, h, t, length, heads)
@@ -1145,12 +1165,11 @@ def walk(t):
     p.rot('pelvis', 0, 5 * math.sin(ph), 3.5 * math.cos(ph))
     p.rot('torso', 2 + 1.5 * math.cos(2 * ph), -3.5 * math.sin(ph), -2.5 * math.cos(ph))
     p.rot('chest', 1.0 * math.cos(2 * ph - 0.6), -2 * math.sin(ph), -1.5 * math.cos(ph))
-    # the raised wings rock with his stride, half a beat behind, and lift a little at each footfall
-    for s, off in (('r', 0.0), ('l', math.pi)):
-        sign = 1 if s == 'r' else -1
-        rock = math.sin(ph + off - 0.8)
-        p.rot('wing_shoulder_' + s, 2 * rock, sign * 4 * rock, sign * (5 * rock + 3 * abs(math.sin(ph))))
-        p.rot('wing_fore_' + s, 0, 0, sign * -4 * math.sin(ph + off - 1.4))
+    # his planted wings walk like front legs, each with the hind leg on the other side (a diagonal gait): planted and
+    # pushed back while that hind foot is down, lifted and swung forward while it swings
+    for s, off in (('r', math.pi), ('l', 0.0)):
+        a = ph + off
+        arm_step(p, s, -10.0 * math.sin(a), 1.8 + 6.0 * max(0.0, math.cos(a)))     # (1.8: over his hips' dip)
     for k, h in enumerate(HEADS):
         bob = math.sin(2 * ph - 1.2 - 0.4 * k)
         neck_curl(p, h, [1.2 * bob] * 4 + [-1.0 * bob] * 4, yaw=4 * math.sin(ph + k), roll=0)
@@ -1282,9 +1301,10 @@ def tail_whip(t):
     return p
 
 
-BEAM_LEN = 4.2
+# (his beams fire as long as his gravity beam sound roars, about 5.6 s, and stop as it fades)
+BEAM_LEN = 7.8
 BEAM_FIRE = {'c': 1.2, 'r': 1.35, 'l': 1.5}
-BEAM_END = 3.3
+BEAM_END = 6.8
 
 
 def gravity_beam(t, lift=False):
@@ -1462,6 +1482,11 @@ def entrance(t):
     return p
 
 
+# sound keyframes: his walk's footfalls, as each hind foot comes down (right at a quarter of the stride, left at three
+# quarters), a little early, as the pack's footsteps thud about 0.15 s in. The game plays the next of his three
+# footstep sounds at each (KingGhidorahEntity.walkFootstep), so they go 1, 2, 3, 1, ...
+SOUNDS = {'walk': [WALK_LEN * 0.25 - 0.1, WALK_LEN * 0.75 - 0.1]}
+
 CLIPS = {
     'idle': (idle, IDLE_LEN, True),
     'walk': (walk, WALK_LEN, True),
@@ -1510,8 +1535,13 @@ def bake(fn, length, loop, bones):
 
 
 def animations(bones):
-    return {'format_version': '1.8.0', 'animations': {
-        'animation.king_ghidorah.' + name: bake(fn, length, loop, bones) for name, (fn, length, loop) in CLIPS.items()}}
+    out = {}
+    for name, (fn, length, loop) in CLIPS.items():
+        clip = bake(fn, length, loop, bones)
+        if name in SOUNDS:
+            clip['sound_effects'] = {'%.2f' % t: {'effect': 'king_ghidorah.footstep'} for t in SOUNDS[name]}
+        out['animation.king_ghidorah.' + name] = clip
+    return {'format_version': '1.8.0', 'animations': out}
 
 
 def main():

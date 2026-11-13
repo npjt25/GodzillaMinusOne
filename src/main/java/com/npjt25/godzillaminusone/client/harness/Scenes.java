@@ -833,6 +833,12 @@ final class Scenes {
         }, 400);
     }
 
+    /** Which of his footsteps (1, 2 or 3) a sound heard was. */
+    private static int stepNumber(ShotsHarness.Heard h) {
+        String path = h.sound().getPath();
+        return path.charAt(path.length() - 1) - '0';
+    }
+
     private static void ghidorahIdle(String label) {
         until("ghidorah: " + label, () -> {
             KingGhidorahEntity g = find(KingGhidorahEntity.class);
@@ -913,7 +919,7 @@ final class Scenes {
             return heard(since[0], "king_ghidorah.rumble").isEmpty() ? "no rumble"
                     : heard(since[0], "king_ghidorah.earth_crack").isEmpty() ? "no cracking"
                     : heard(since[0], "king_ghidorah.wing_spread").isEmpty() ? "no wings"
-                    : heard(since[0], "king_ghidorah.roar").isEmpty() ? "no roar" : null;
+                    : heard(since[0], "king_ghidorah.entrance_roar").isEmpty() ? "no entrance roar" : null;
         });
         // (the weather's own flag: the rain and thunder themselves come on over a few seconds)
         untilServer("ghidorah: the storm", level -> level.getLevelData().isThundering(), 200);
@@ -953,6 +959,8 @@ final class Scenes {
         shot("king_ghidorah_heads");
 
         // walking (south, with nothing to hunt)
+        int[] walkSince = {0};
+        once("ghidorah: mark the walk", () -> walkSince[0] = now());
         onGhidorah("walk south", g -> {
             g.setNoAi(false);
             g.walkTo(new Vec3(GHIDORAH_AT.x, GHIDORAH_AT.y, 60.5));
@@ -962,19 +970,49 @@ final class Scenes {
         shot("king_ghidorah_walk_1");
         waitTicks(12);
         shot("king_ghidorah_walk_2");
+        double[] walkedTo = {GHIDORAH_AT.z};
         checkServer("ghidorah: he walked", level -> {
             KingGhidorahEntity g = serverGhidorah(level);
+            if (g != null) {
+                walkedTo[0] = g.getZ();
+            }
             return g != null && g.getZ() > GHIDORAH_AT.z + 10.0 ? null : "he hasn't moved: " + (g == null ? "gone" : g.position());
+        });
+        // (on a little further, for a few more footfalls; then back where the shots after expect him)
+        waitTicks(36);
+        check("ghidorah: a footstep each time a foot came down, taking turns: 1, 2, 3, 1, ...", () -> {
+            List<ShotsHarness.Heard> steps = new ArrayList<>();
+            for (int k = 1; k <= 3; k++) {
+                steps.addAll(heard(walkSince[0], "king_ghidorah.footstep_" + k));
+            }
+            steps.sort(java.util.Comparator.comparingInt(ShotsHarness.Heard::tick));
+            StringBuilder order = new StringBuilder();
+            for (ShotsHarness.Heard h : steps) {
+                order.append(order.length() == 0 ? "" : ", ").append(stepNumber(h)).append(" @").append(h.tick() - walkSince[0]);
+            }
+            log("ghidorah: footsteps as he walked: " + order);
+            if (steps.size() < 3) {
+                return "only " + steps.size() + " footsteps: " + order;
+            }
+            for (int i = 1; i < steps.size(); i++) {
+                if (stepNumber(steps.get(i)) != stepNumber(steps.get(i - 1)) % 3 + 1) {
+                    return "out of turn: " + order;
+                }
+            }
+            return null;
         });
         onGhidorah("stop", g -> {
             g.walkTo(null);
             g.setNoAi(true);
             g.setDeltaMovement(Vec3.ZERO);
+            g.moveTo(g.getX(), g.getY(), walkedTo[0], g.getYRot(), g.getXRot());
         });
         waitTicks(30);
 
         // a bite (his right head's), a stomp, his tails' whip
         camera("ghidorah: close", new Vec3(915.0, 10.0, 110.0), new Vec3(850.5, -15.0, 40.0), 75);
+        int[] attackSince = {0};
+        once("ghidorah: mark the attacks", () -> attackSince[0] = now());
         onGhidorah("bite", g -> g.startBite(KingGhidorahEntity.Head.RIGHT));
         ghidorahAt("his jaws snapping shut", KingGhidorahEntity.ACTION_BITE + KingGhidorahEntity.Head.RIGHT.ordinal(), KingGhidorahEntity.BITE_SNAP_AT - 2);
         shot("king_ghidorah_bite");
@@ -990,6 +1028,12 @@ final class Scenes {
         ghidorahAt("his tails swinging", KingGhidorahEntity.ACTION_WHIP, KingGhidorahEntity.WHIP_HIT_AT);
         shot("king_ghidorah_tail_whip");
         ghidorahIdle("whip over");
+        check("ghidorah: his bite and his stomp heard (the bite, a footstep)", () -> {
+            log("ghidorah: sounds of his attacks: " + heardSince(attackSince[0]));
+            return heard(attackSince[0], "king_ghidorah.bite").isEmpty() ? "no bite"
+                    : heard(attackSince[0], "king_ghidorah.footstep_1").size() + heard(attackSince[0], "king_ghidorah.footstep_2").size()
+                    + heard(attackSince[0], "king_ghidorah.footstep_3").size() == 0 ? "no stomp" : null;
+        });
 
         // his gravity beams, at a building ahead of him: they bore through it and vaporize everything 12 round
         Vec3[] target = {null};
@@ -1055,7 +1099,10 @@ final class Scenes {
             log("ghidorah: stone bricks left within 6 of where his beams struck: " + left);
             return left == 0 ? null : left + " left";
         });
-        check("ghidorah: his beams heard", () -> heard(beamSince[0], "king_ghidorah.beam").isEmpty() ? "no king_ghidorah.beam" : null);
+        check("ghidorah: his beams heard (once, for all three)", () -> {
+            int n = heard(beamSince[0], "king_ghidorah.gravity_beam").size();
+            return n == 1 ? null : "king_ghidorah.gravity_beam heard " + n + " times";
+        });
         camera("ghidorah: the crater", new Vec3(900.0, 10.0, 120.0), new Vec3(850.5, -55.0, 70.0), 70);
         waitTicks(20);
         shot("king_ghidorah_beam_after");
@@ -1116,6 +1163,7 @@ final class Scenes {
             return g != null && g.hasSlammed() && !g.isFlying();
         }, 400);
         shot("king_ghidorah_after_slam");
+        check("ghidorah: his wings heard in flight", () -> heard(attackSince[0], "king_ghidorah.flying").isEmpty() ? "no king_ghidorah.flying" : null);
         onGhidorah("no AI again", g -> g.setNoAi(true));
 
         // his retreat: his health low, he flies off
