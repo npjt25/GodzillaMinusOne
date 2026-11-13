@@ -243,6 +243,10 @@ public class KingGhidorahEntity extends Monster implements GeoEntity {
     private int walkingFor = -1;
     /** Ticks till his flying sound plays again. */
     private int flyingSoundIn;
+    /** How far into his action his last tick got (-1: not yet), and this tick's stretch of it (reached). */
+    private int actionTickedTo = -1;
+    private int actionFrom = -1;
+    private int actionTo = -1;
     @Nullable
     private LivingEntity lastTarget;
     @Nullable
@@ -501,9 +505,12 @@ public class KingGhidorahEntity extends Monster implements GeoEntity {
     }
 
     private void tickAction(ServerLevel level, int action, int t, @Nullable LivingEntity target) {
+        this.actionFrom = this.actionTickedTo;
+        this.actionTo = t;
+        this.actionTickedTo = t;
         switch (action) {
             case ACTION_ROAR -> {
-                if (t == ROAR_SOUND_AT) {
+                if (reached(ROAR_SOUND_AT)) {
                     roar(level);
                 }
                 if (t >= ROAR_TICKS) {
@@ -511,11 +518,11 @@ public class KingGhidorahEntity extends Monster implements GeoEntity {
                 }
             }
             case ACTION_BITE, ACTION_BITE + 1, ACTION_BITE + 2 -> {
-                if (t == BITE_SNAP_AT - 5) {
+                if (reached(BITE_SNAP_AT - 5)) {
                     Vec3 jaws = locator(Head.values()[action - ACTION_BITE].biteMouth);
                     sound(level, jaws, ModSounds.KING_GHIDORAH_BITE.get(), 10.0F, 1.0F);
                 }
-                if (t == BITE_SNAP_AT) {
+                if (reached(BITE_SNAP_AT)) {
                     bite(level, Head.values()[action - ACTION_BITE]);
                 }
                 if (t >= BITE_TICKS) {
@@ -523,10 +530,10 @@ public class KingGhidorahEntity extends Monster implements GeoEntity {
                 }
             }
             case ACTION_STOMP -> {
-                if (t == STOMP_HIT_AT - 3) {
+                if (reached(STOMP_HIT_AT - 3)) {
                     footstep(level, stompFoot(), 16.0F);      // (its thud lands as his foot does)
                 }
-                if (t == STOMP_HIT_AT) {
+                if (reached(STOMP_HIT_AT)) {
                     stomp(level);
                 }
                 if (t >= STOMP_TICKS) {
@@ -534,10 +541,10 @@ public class KingGhidorahEntity extends Monster implements GeoEntity {
                 }
             }
             case ACTION_WHIP -> {
-                if (t == WHIP_HIT_AT - 6) {
+                if (reached(WHIP_HIT_AT - 6)) {
                     level.playSound(null, getX(), getY() + 10.0, getZ(), ModSounds.MINUS_ZERO_TAIL_SWING.get(), SoundSource.HOSTILE, 12.0F, 0.8F);
                 }
-                if (t == WHIP_HIT_AT) {
+                if (reached(WHIP_HIT_AT)) {
                     whip(level);
                 }
                 if (t >= WHIP_TICKS) {
@@ -557,7 +564,25 @@ public class KingGhidorahEntity extends Monster implements GeoEntity {
         }
     }
 
+    /**
+     * Whether his action has got to tick {@code at} this tick: each of its moments (a bite's snap, a footfall, a head
+     * firing) happens once, when it's reached, even if he missed that very tick (his chunk loading, the server behind).
+     */
+    private boolean reached(int at) {
+        return this.actionFrom < at && at <= this.actionTo;
+    }
+
+    private boolean reachedAny(int[] ticks) {
+        for (int at : ticks) {
+            if (reached(at)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private void startAction(int action) {
+        this.actionTickedTo = -1;
         this.entityData.set(DATA_ACTION_START, (int) level().getGameTime());
         this.entityData.set(DATA_ACTION, action);
         if (action == ACTION_ROAR) {
@@ -611,22 +636,26 @@ public class KingGhidorahEntity extends Monster implements GeoEntity {
         }
     }
 
+    /** His entrance's ticks: the earth cracking open (client.GhidorahEffects' bursts with them), his heaves out of it. */
+    private static final int[] ENTRANCE_CRACKS = {18, 36, 52, 62, 112, 124, 160, 179, 197};
+    private static final int[] ENTRANCE_HEAVES = {174, 193, 212};
+
     /** The sounds of his entrance, from the server so everyone in earshot hears them (the effects are the client's). */
     private void entranceTick(ServerLevel level, int t) {
         Vec3 at = position();
-        if (t == 0 || t == 110) {
+        if (reached(0) || reached(110)) {
             sound(level, at, ModSounds.KING_GHIDORAH_RUMBLE.get(), 14.0F, 0.85F);
         }
-        if (t == 18 || t == 36 || t == 52 || t == 62 || t == 112 || t == 124 || t == 160 || t == 179 || t == 197) {
+        if (reachedAny(ENTRANCE_CRACKS)) {
             sound(level, at, ModSounds.KING_GHIDORAH_EARTH_CRACK.get(), t >= 160 ? 14.0F : 9.0F, 0.75F + this.random.nextFloat() * 0.25F);
         }
-        if (t == 174 || t == 193 || t == 212) {
+        if (reachedAny(ENTRANCE_HEAVES)) {
             footstep(level, at, 16.0F);       // (each heave of him out of the ground)
         }
-        if (t == 216) {
+        if (reached(216)) {
             sound(level, at.add(0.0, 40.0, 0.0), ModSounds.KING_GHIDORAH_WING_SPREAD.get(), 16.0F, 0.9F);
         }
-        if (t == 250) {
+        if (reached(250)) {
             level.playSound(null, getX(), getY() + REAL_HEIGHT * 0.8, getZ(), ModSounds.KING_GHIDORAH_ENTRANCE_ROAR.get(),
                     SoundSource.HOSTILE, 25.0F, 1.0F);
         }
@@ -837,13 +866,13 @@ public class KingGhidorahEntity extends Monster implements GeoEntity {
             this.entityData.set(DATA_AIM, (action == ACTION_LIFT ? c : getAim().lerp(c, 0.15)).toVector3f());
         }
         Vec3 aim = getAim();
-        if (t == Head.MIDDLE.fireAt) {
+        if (reached(Head.MIDDLE.fireAt)) {
             // (the sound of all three firing: it roars as long as they do, and dies away as they stop)
             Vec3 m = beamMouth(Head.MIDDLE);
             sound(level, m, ModSounds.KING_GHIDORAH_GRAVITY_BEAM.get(), 25.0F, 1.0F);
         }
         for (Head head : Head.values()) {
-            if (t == head.fireAt) {
+            if (reached(head.fireAt)) {
                 Vec3 m = beamMouth(head);
                 if (action == ACTION_BEAM && breaksBlocks(level)) {
                     this.vaporizing.add(new Vaporize(level, m, beamEnd(head, m, aim)));
@@ -902,7 +931,7 @@ public class KingGhidorahEntity extends Monster implements GeoEntity {
         if ((t - first) % 20 == 0) {
             e.hurt(damageSources().indirectMagic(this, this), 2.0F);     // (it's the fall that does the harm)
         }
-        if (t == BEAM_END_AT - 1) {
+        if (reached(BEAM_END_AT - 1)) {
             e.setDeltaMovement(e.getDeltaMovement().multiply(1.0, 0.0, 1.0).add(0.0, -0.4, 0.0));
             e.hurtMarked = true;
         }
@@ -1401,6 +1430,7 @@ public class KingGhidorahEntity extends Monster implements GeoEntity {
         if (tag.contains("EntranceTicks")) {
             this.entranceYaw = getYRot();
             this.entityData.set(DATA_ACTION_START, (int) level().getGameTime() - tag.getInt("EntranceTicks"));
+            this.actionTickedTo = tag.getInt("EntranceTicks");     // (what of it was had before isn't had again)
             this.entityData.set(DATA_ACTION, ACTION_ENTRANCE);
         }
         this.stormAt = tag.contains("StormAt") ? tag.getLong("StormAt") : -1L;

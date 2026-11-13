@@ -966,13 +966,19 @@ final class Scenes {
             g.walkTo(new Vec3(GHIDORAH_AT.x, GHIDORAH_AT.y, 60.5));
         });
         camera("ghidorah: walking", new Vec3(925.0, -5.0, 40.0), new Vec3(850.5, -18.0, 30.0), 80);
-        waitTicks(50);
+        waitTicks(40);
+        Vec3[] paceFrom = {null};
+        once("ghidorah: where he is (on the client)", () -> {
+            KingGhidorahEntity g = find(KingGhidorahEntity.class);
+            paceFrom[0] = g == null ? null : g.position();
+        });
+        waitTicks(10);
         check("ghidorah: his walk keeps pace with him (his feet don't slide)", () -> {
             KingGhidorahEntity g = find(KingGhidorahEntity.class);
-            if (g == null) {
+            if (g == null || paceFrom[0] == null) {
                 return "gone";
             }
-            double moved = Math.sqrt((g.getX() - g.xo) * (g.getX() - g.xo) + (g.getZ() - g.zo) * (g.getZ() - g.zo));
+            double moved = g.position().subtract(paceFrom[0]).horizontalDistance() / 10.0;
             log(String.format("ghidorah: walking %.2f blocks a tick on the client, his walk at %.2f its own pace", moved, g.walkPace()));
             return Math.abs(g.walkPace() - Math.max(0.25, moved / KingGhidorahEntity.WALK_BLOCKS_PER_TICK)) < 0.25 ? null
                     : "his walk at " + g.walkPace() + " for " + moved;
