@@ -177,7 +177,7 @@ public class KingGhidorahEntity extends Monster implements GeoEntity {
 
         public final String bone;
         final Vec3 beamMouth;
-        final Vec3 biteMouth;
+        public final Vec3 biteMouth;
         /** The tick its beam fires. */
         public final int fireAt;
 

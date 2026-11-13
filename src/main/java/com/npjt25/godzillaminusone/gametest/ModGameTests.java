@@ -2315,8 +2315,20 @@ public final class ModGameTests {
         Pig pig = cellPigAt(helper, ghidorah.locator(new Vec3(0.0, 0.0, 55.0)), release);
         float health = pig.getHealth();
         ghidorah.startBite(KingGhidorahEntity.Head.MIDDLE);
+        String[] atSnap = {"no tick at the snap"};
+        helper.onEachTick(() -> {
+            if (ghidorah.getActionTicks() == KingGhidorahEntity.BITE_SNAP_AT) {
+                Vec3 jaws = ghidorah.locator(KingGhidorahEntity.Head.MIDDLE.biteMouth);
+                atSnap[0] = String.format("at the snap: action %d tick %d, him at %s facing %.1f (body %.1f), jaws at %s, pig at %s"
+                                + " (%.1f from below the jaws), %s", ghidorah.getAction(), ghidorah.getActionTicks(), ghidorah.position(),
+                        ghidorah.getYRot(), ghidorah.yBodyRot, jaws, pig.position(), pig.position().subtract(jaws).horizontalDistance(),
+                        helper.getLevel().getEntitiesOfClass(Pig.class, pig.getBoundingBox().inflate(1.0)).contains(pig)
+                                ? "the pig findable" : "the pig NOT findable");
+            }
+        });
         helper.runAtTickTime(KingGhidorahEntity.BITE_SNAP_AT + 4, () -> {
-            helper.assertTrue(!pig.isAlive() || pig.getHealth() < health, "the pig in front of him should have been bitten");
+            GodzillaMinusOne.LOGGER.info("bite test: {}", atSnap[0]);
+            helper.assertTrue(!pig.isAlive() || pig.getHealth() < health, "the pig in front of him should have been bitten; " + atSnap[0]);
             remove(ghidorah, pig);
             release.forEach(Runnable::run);
             helper.succeed();
