@@ -33,6 +33,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.level.ChunkPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.world.InteractionHand;
@@ -2331,7 +2332,7 @@ public final class ModGameTests {
     }
 
     /** A bite from his middle head hurts what's in front of him, down on the ground below where its jaws snap shut. */
-    @GameTest(template = FLOOR, batch = "gmo_ghidorah_bite", timeoutTicks = 120)
+    @GameTest(template = FLOOR, batch = "gmo_ghidorah_bite", timeoutTicks = 400)
     public static void kingGhidorahsBiteHurtsWhatsInFrontOfHim(GameTestHelper helper) {
         KingGhidorahEntity ghidorah = spawnGhidorah(helper);
         List<Runnable> release = new ArrayList<>();
@@ -2344,9 +2345,20 @@ public final class ModGameTests {
             // (he bites once the pig, in its chunk only just loaded, can be found: until then nothing could bite it)
             if (from[0] < 0) {
                 if (!findable(helper, ghidorah, pig)) {
+                    // (its chunk kept loaded meanwhile, whatever else has let go of it; and why it can't be found, now and then)
+                    ServerLevel level = helper.getLevel();
+                    ChunkPos chunk = pig.chunkPosition();
+                    level.setChunkForced(chunk.x, chunk.z, true);
+                    if (helper.getTick() % 20 == 0) {
+                        GodzillaMinusOne.LOGGER.info("bite test tick {}: the pig can't be found yet: removed {}, its chunk {} forced {},"
+                                        + " loaded {}, entities ticking there {}; King Ghidorah findable {}", helper.getTick(), pig.isRemoved(),
+                                chunk, level.getForcedChunks().contains(chunk.toLong()), level.hasChunk(chunk.x, chunk.z),
+                                level.isPositionEntityTicking(pig.blockPosition()), findable(helper, ghidorah));
+                    }
                     return;
                 }
                 from[0] = helper.getTick();
+                GodzillaMinusOne.LOGGER.info("bite test: the pig can be found from tick {}", from[0]);
                 ghidorah.startBite(KingGhidorahEntity.Head.MIDDLE);
             }
             if (ghidorah.getAction() == KingGhidorahEntity.ACTION_BITE && ghidorah.getActionTicks() == KingGhidorahEntity.BITE_SNAP_AT) {
