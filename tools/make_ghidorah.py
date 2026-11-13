@@ -1146,6 +1146,8 @@ WALK_LEN = 2.4
 
 
 def walk(t):
+    # (each hind foot comes down a quarter (right) and three quarters (left) of the way through his stride: his
+    # footsteps are sounded there, KingGhidorahEntity.WALK_FOOTFALLS, by a clock his walk is played by in the game)
     p = Pose()
     crouch(p)
     wing_pose(p, STANCE)
@@ -1482,11 +1484,6 @@ def entrance(t):
     return p
 
 
-# sound keyframes: his walk's footfalls, as each hind foot comes down (right at a quarter of the stride, left at three
-# quarters), a little early, as the pack's footsteps thud about 0.15 s in. The game plays the next of his three
-# footstep sounds at each (KingGhidorahEntity.walkFootstep), so they go 1, 2, 3, 1, ...
-SOUNDS = {'walk': [WALK_LEN * 0.25 - 0.1, WALK_LEN * 0.75 - 0.1]}
-
 CLIPS = {
     'idle': (idle, IDLE_LEN, True),
     'walk': (walk, WALK_LEN, True),
@@ -1535,13 +1532,8 @@ def bake(fn, length, loop, bones):
 
 
 def animations(bones):
-    out = {}
-    for name, (fn, length, loop) in CLIPS.items():
-        clip = bake(fn, length, loop, bones)
-        if name in SOUNDS:
-            clip['sound_effects'] = {'%.2f' % t: {'effect': 'king_ghidorah.footstep'} for t in SOUNDS[name]}
-        out['animation.king_ghidorah.' + name] = clip
-    return {'format_version': '1.8.0', 'animations': out}
+    return {'format_version': '1.8.0', 'animations': {
+        'animation.king_ghidorah.' + name: bake(fn, length, loop, bones) for name, (fn, length, loop) in CLIPS.items()}}
 
 
 def main():

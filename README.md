@@ -292,7 +292,7 @@ the blue one a player.*
   | `king_ghidorah.bite` | `king_ghidorah_bite.ogg` | Each bite, as the head's jaws snap shut; and as he seizes what he grabs in his talons |
   | `king_ghidorah.gravity_beam` | `king_ghidorah_gravity_beam.ogg` | Once as his beams fire (his gravity beams and his lift): they blaze for as long as it roars, about 5.6 s, and stop as it fades |
   | `king_ghidorah.flying` | `king_ghidorah_flying.ogg` | While he's in the air (his grab, his retreat): from takeoff, again every 8.2 s, until he lands |
-  | `king_ghidorah.footstep_1` / `_2` / `_3` | `king_ghidorah_footstep_1.ogg` ... `_3.ogg` | **Every step, in turn: 1, 2, 3, 1, ...** (never the same twice running): each hind foot coming down as he walks (the walk animation's own footfall keyframes, so they land with his feet), his stomp, his heaves out of the ground in his entrance, his landing |
+  | `king_ghidorah.footstep_1` / `_2` / `_3` | `king_ghidorah_footstep_1.ogg` ... `_3.ogg` | **Every step, in turn: 1, 2, 3, 1, ...** (never the same twice running): each hind foot coming down as he walks (his walk animation and its footsteps go by the same clock, so they land with his feet, and you hear him walking even when he's out of view), his stomp, his heaves out of the ground in his entrance, his landing |
 
   The entrance's rumble, cracking earth and wing rush (`king_ghidorah.rumble`, `.earth_crack`, `.wing_spread`, also
   on takeoff) aren't in the pack and are synthesized by `tools/make_sounds.py`; his tail whip uses Minus Zero's tail
@@ -312,7 +312,7 @@ spread, beat, raise or tuck and the membranes go with them. `mouth_c`, `_r`
 and `_l` are empty bones at the tips of his snouts: where his beams come from (the renderer draws them from where the
 animation has put those bones). **His animations** (`animation.king_ghidorah.*`): `idle` (breathing, each head looking
 about on its own, his tails swaying slowly), `walk` (heavy alternating strides, his hips dropping and rolling with
-each footfall, the planted wings stepping like front legs; a footstep sound keyframe at each hind footfall), `roar`, `bite_c` / `bite_r` / `bite_l` (one head lunges, the others stay busy) and
+each footfall, the planted wings stepping like front legs), `roar`, `bite_c` / `bite_r` / `bite_l` (one head lunges, the others stay busy) and
 `gravity_beam` (necks brace, heads aim, staggered anticipation and recoil, then 5.6 s of fire), `gravity_lift`, `stomp`, `tail_whip`,
 `fly` and `fly_carry` (after the third reference picture: his body pitched into the air, wings beating hard, the beat
 rippling out along each wing; legs drawn up, or reaching down with talons clenched round what he carries), `death`,

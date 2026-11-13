@@ -2211,13 +2211,12 @@ public final class ModGameTests {
         helper.assertTrue(Math.abs(entrance * 20.0 - KingGhidorahEntity.ENTRANCE_TICKS) < 1.0, "his entrance lasts " + entrance + " s");
         double beam = animations.getAsJsonObject("animation.king_ghidorah.gravity_beam").get("animation_length").getAsDouble();
         helper.assertTrue(Math.abs(beam * 20.0 - KingGhidorahEntity.BEAM_TICKS) < 1.0, "his beams last " + beam + " s");
-        // his walk sounds a footstep as each hind foot comes down: two a stride
-        com.google.gson.JsonObject walk = animations.getAsJsonObject("animation.king_ghidorah.walk");
-        helper.assertTrue(walk.has("sound_effects") && walk.getAsJsonObject("sound_effects").size() == 2, "his walk should have two footfalls");
-        for (java.util.Map.Entry<String, com.google.gson.JsonElement> e : walk.getAsJsonObject("sound_effects").entrySet()) {
-            helper.assertTrue("king_ghidorah.footstep".equals(e.getValue().getAsJsonObject().get("effect").getAsString()),
-                    "his walk's sound at " + e.getKey() + " should be a footstep");
-        }
+        // his walk sounds a footstep as each hind foot comes down: two a stride, half a stride apart
+        double walk = animations.getAsJsonObject("animation.king_ghidorah.walk").get("animation_length").getAsDouble();
+        helper.assertTrue(Math.abs(walk * 20.0 - KingGhidorahEntity.WALK_TICKS) < 1.0, "his stride lasts " + walk + " s");
+        int[] feet = KingGhidorahEntity.WALK_FOOTFALLS;
+        helper.assertTrue(feet.length == 2 && feet[1] - feet[0] == KingGhidorahEntity.WALK_TICKS / 2 && feet[0] >= 0
+                && feet[1] < KingGhidorahEntity.WALK_TICKS, "his footfalls should be half a stride apart");
         // and his footsteps take turns: 1, 2, 3, 1, ..., never the same one twice running
         for (int k = 0; k < 6; k++) {
             helper.assertTrue(KingGhidorahEntity.footstepSound(k) == KingGhidorahEntity.footstepSound(k + 3)

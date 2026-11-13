@@ -61,7 +61,6 @@ import software.bernie.geckolib.core.animation.AnimatableManager;
 import software.bernie.geckolib.core.animation.AnimationController;
 import software.bernie.geckolib.core.animation.AnimationState;
 import software.bernie.geckolib.core.animation.RawAnimation;
-import software.bernie.geckolib.core.keyframe.event.SoundKeyframeEvent;
 import software.bernie.geckolib.core.object.PlayState;
 import software.bernie.geckolib.util.GeckoLibUtil;
 
@@ -128,6 +127,15 @@ public class KingGhidorahEntity extends Monster implements GeoEntity {
     public static final int ENTRANCE_TICKS = 292;
     private static final int ROAR_SOUND_AT = 6;
     public static final int BITE_SNAP_AT = 12;
+    /** His walk animation's stride (animation.king_ghidorah.walk, 2.4 s at its own pace), in ticks. */
+    public static final int WALK_TICKS = 48;
+    /**
+     * When in his stride each hind foot comes down (tools/make_ghidorah.py walk(): his right foot a quarter of the way
+     * through, his left three quarters), a couple of ticks early: the pack's footsteps thud about 0.15 s in.
+     */
+    public static final int[] WALK_FOOTFALLS = {10, 34};
+    /** How long his animations take to blend from one into the next (his main controller's transition). */
+    private static final int MAIN_TRANSITION = 6;
     /** How long his flying sound (his wingbeats) lasts: it plays again as it ends while he's in the air. */
     private static final int FLYING_SOUND_TICKS = 164;
     public static final int STOMP_HIT_AT = 17;
@@ -195,7 +203,8 @@ public class KingGhidorahEntity extends Monster implements GeoEntity {
     }
 
     private static final RawAnimation IDLE = RawAnimation.begin().thenLoop("animation.king_ghidorah.idle");
-    private static final RawAnimation WALK = RawAnimation.begin().thenLoop("animation.king_ghidorah.walk");
+    private static final String WALK_NAME = "animation.king_ghidorah.walk";
+    private static final RawAnimation WALK = RawAnimation.begin().thenLoop(WALK_NAME);
     private static final RawAnimation FLY = RawAnimation.begin().thenLoop("animation.king_ghidorah.fly");
     private static final RawAnimation FLY_CARRY = RawAnimation.begin().thenLoop("animation.king_ghidorah.fly_carry");
     private static final RawAnimation DEATH = RawAnimation.begin().thenPlayAndHold("animation.king_ghidorah.death");
@@ -225,6 +234,10 @@ public class KingGhidorahEntity extends Monster implements GeoEntity {
     private int serverSteps;
     /** Footsteps his walk has sounded on this client, for their turns. */
     private int walkSteps;
+    /** On each client: how far into his walk he is (animation ticks: it runs at strideSpeed), and for how long he's walked (-1: he isn't). */
+    private double walkClock;
+    private double walkClockSpeed;
+    private int walkingFor = -1;
     /** Ticks till his flying sound plays again. */
     private int flyingSoundIn;
     @Nullable
@@ -415,6 +428,7 @@ public class KingGhidorahEntity extends Monster implements GeoEntity {
         }
         super.tick();
         if (level().isClientSide) {
+            walkClockTick();
             EffectHooks.ghidorah.tick(this);
             return;
         }
@@ -1311,14 +1325,41 @@ public class KingGhidorahEntity extends Monster implements GeoEntity {
     }
 
     /**
-     * Each footfall of his walk animation (its "king_ghidorah.footstep" sound keyframes, as each hind foot comes down),
-     * on each client watching: the next of his three footstep sounds in turn, so no two steps running sound the same.
+     * On each client, every tick: his walk's own clock, which his walk animation (WalkClockController) and its footsteps
+     * both go by, so each footstep comes as a hind foot comes down (WALK_FOOTFALLS), the next of his three in turn so no
+     * two running sound the same. It runs whether he's being drawn or not (GeckoLib only animates what's drawn), so he's
+     * heard walking behind you too. Walking is what GeckoLib's own test takes it to be (moving, not doing anything else).
      */
-    private void walkFootstep(SoundKeyframeEvent<KingGhidorahEntity> event) {
-        if (!"king_ghidorah.footstep".equals(event.getKeyframeData().getSound()) || isFlying() || isDeadOrDying()) {
+    private void walkClockTick() {
+        Vec3 v = getDeltaMovement();
+        boolean walking = !isFlying() && !isDeadOrDying() && !isBusy() && this.walkAnimation.speed() != 0.0F
+                && (Math.abs(v.x) + Math.abs(v.z)) / 2.0 >= 0.015;
+        if (!walking) {
+            this.walkingFor = -1;
+            this.walkClock = 0.0;
+            this.walkClockSpeed = 0.0;
             return;
         }
-        level().playLocalSound(getX(), getY(), getZ(), footstepSound(this.walkSteps++), SoundSource.HOSTILE, 10.0F, 1.0F, false);
+        if (++this.walkingFor < MAIN_TRANSITION) {
+            return;         // (blending into his walk first: it starts once that's done)
+        }
+        double before = this.walkClock;
+        this.walkClockSpeed = strideSpeed(this);
+        this.walkClock += this.walkClockSpeed;
+        for (int foot : WALK_FOOTFALLS) {
+            if (Math.floor((before - foot) / WALK_TICKS) != Math.floor((this.walkClock - foot) / WALK_TICKS)) {
+                level().playLocalSound(getX(), getY(), getZ(), footstepSound(this.walkSteps++), SoundSource.HOSTILE, 10.0F, 1.0F, false);
+            }
+        }
+    }
+
+    /** Where in his stride he is on this client, {@code partialTick} on from the last tick (animation ticks, 0 to WALK_TICKS). */
+    double walkClock(double partialTick) {
+        if (this.walkingFor < MAIN_TRANSITION) {
+            return 0.0;
+        }
+        double t = (this.walkClock + partialTick * this.walkClockSpeed) % WALK_TICKS;
+        return t < 0.0 ? t + WALK_TICKS : t;
     }
 
     @Override
@@ -1371,13 +1412,11 @@ public class KingGhidorahEntity extends Monster implements GeoEntity {
 
     @Override
     public void registerControllers(AnimatableManager.ControllerRegistrar controllers) {
-        controllers.add(new AnimationController<>(this, "main", 6, this::mainAnimation)
-                .setAnimationSpeedHandler(KingGhidorahEntity::strideSpeed)
-                .setSoundKeyframeHandler(this::walkFootstep));
+        controllers.add(new WalkClockController(this, "main", MAIN_TRANSITION, this::mainAnimation));
         controllers.add(new ServerClockController(this, "action", 4, this::actionAnimation));
     }
 
-    /** Plays his walk as fast as he's actually going, so his feet don't slide (about 0.6 blocks a tick, at its own pace). */
+    /** His walk goes as fast as he's actually going, so his feet don't slide (about 0.6 blocks a tick, at its own pace). */
     private static double strideSpeed(KingGhidorahEntity ghidorah) {
         if (ghidorah.isFlying() || ghidorah.isDeadOrDying()) {
             return 1.0;
@@ -1426,6 +1465,24 @@ public class KingGhidorahEntity extends Monster implements GeoEntity {
     @Override
     public AnimatableInstanceCache getAnimatableInstanceCache() {
         return this.cache;
+    }
+
+    /** Plays his walk where his walk's clock is (walkClock: the same clock his footsteps go by), the rest as GeckoLib does. */
+    static final class WalkClockController extends AnimationController<KingGhidorahEntity> {
+        WalkClockController(KingGhidorahEntity animatable, String name, int transition,
+                            AnimationStateHandler<KingGhidorahEntity> handler) {
+            super(animatable, name, transition, handler);
+        }
+
+        @Override
+        protected double adjustTick(double tick) {
+            double t = super.adjustTick(tick);
+            if (getAnimationState() == State.RUNNING && this.currentAnimation != null
+                    && WALK_NAME.equals(this.currentAnimation.animation().name())) {
+                return this.animatable.walkClock(tick - Math.floor(tick));
+            }
+            return t;
+        }
     }
 
     /**
