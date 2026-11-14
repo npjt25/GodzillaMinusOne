@@ -21,6 +21,20 @@ jobs:
       - name: Build
         run: ./gradlew build --no-daemon --stacktrace
 
+      # The jar in this job's log too, as base64 lines ("GMO-JAR name i/n data", the screenshots' way), with its SHA-256:
+      # it comes back from here even when the account's artifact storage is full and the upload below is refused.
+      - name: Jar in the log
+        shell: bash
+        run: |
+          for f in build/libs/*.jar; do
+            name=$(basename "$f")
+            echo "GMO-JAR-SHA256 $name $(sha256sum "$f" | cut -d' ' -f1) $(stat -c %s "$f")"
+            base64 -w 3000 "$f" > jar.b64
+            n=$(wc -l < jar.b64)
+            awk -v name="$name" -v n="$n" '{ print "GMO-JAR " name " " NR "/" n " " $0 }' jar.b64
+            rm jar.b64
+          done
+
       - name: Game tests
         shell: bash
         run: |
@@ -29,6 +43,7 @@ jobs:
 
       - name: Upload jar
         uses: actions/upload-artifact@v4
+        continue-on-error: true     # (when artifact storage is full the jar still comes back, in the log: "Jar in the log")
         with:
           name: godzillaminusone-jar
           path: build/libs/*.jar
