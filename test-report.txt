@@ -1,0 +1,22 @@
+GodzillaMinusOne test report
+============================
+Commit tested: 853fec4 (claude/admiring-euler-xygs92) "Minus Zero and King Ghidorah rivals; Minus Zero's two rows of fins; Ghidorah's stomp sounds like Godzilla's"
+JDK: OpenJDK 17 (openjdk-17-jdk-headless)
+
+Build (./gradlew build --no-daemon --stacktrace): SUCCEEDED
+  BUILD SUCCESSFUL in 2m 43s; no compiler errors.
+
+Game tests (./gradlew runGameTestServer --no-daemon): NOT RUN
+  The task failed before the server started:
+    Execution failed for task ':downloadAssets'.
+    > Failed to get asset: icons/icon_128x128.png (and the rest of the asset index)
+    java.io.IOException: Unable to tunnel through proxy. Proxy returns "HTTP/1.1 403 Forbidden"
+  Refused host: resources.download.minecraft.net (the network proxy answered 403 to CONNECT).
+  BUILD FAILED in 1m 22s
+
+Game-test summary line: none (server never launched)
+"failed!" lines: none (tests not run)
+"bite test" lines: none (tests not run)
+com.npjt25 stack trace lines: none
+
+Result: jar not sent, because the game tests could not run.
