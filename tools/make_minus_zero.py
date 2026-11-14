@@ -3,11 +3,13 @@ and its textures), as an evolved Minus One of this mod's own design: everything 
 animation plays on him as on Minus One), plus
 
   - a second, staggered row of smaller plates along his lower back and tail, either side of the first and tilted out,
-    on the same plate bones (so they light up with them in his charge),
+    on bones of their own beside the plate bones (T12_side, T15_side ... T22_side: the same parent, pivot and tilt as
+    the plate's, so they sit as they would on it, but rise and light on their own: his middle row in his first charge,
+    these in his second),
   - overlapping armour bands round his upper arms and forearms, and layered caps on his shoulders,
   - a row of spines along either side of his tail,
-  - every plate (his own and the new ones) drawn out into a sharp point, and the plate at the end of his tail into
-    the longest and sharpest of all his tail's,
+  - every plate (his own and the new ones) drawn out into a point (a short, broad one: a third of the plate's height
+    again), and the plate at the end of his tail into the longest of all his tail's,
   - thicker thighs and shins,
   - a darker, heavier skin (the scorched skin he collapses in too),
   - and burns from his own breath down his throat and over his chest as well as round his mouth.
@@ -42,6 +44,10 @@ PX = 2  # texture pixels per texture unit (512 x 512 for a 256 x 256 sheet)
 
 # plates of his tail and lower back that get a smaller plate either side
 FLANKED = ["T12", "T15", "T16", "T17", "T18", "T19", "T20", "T21", "T22"]
+SIDE = "_side"   # (the bone a plate's flanking plates are on: T12_side ...)
+# how far a plate's point is drawn out of it (of its height) and how deep it is (of the plate's depth); the end of his tail
+TIP_LENGTH, TIP_DEPTH = 0.35, 0.65
+TAIL_END_LENGTH, TAIL_END_NEEDLE = 0.75, 0.4
 TAIL = ["bone13", "bone14", "bone16", "bone17", "bone18"]
 THICKER = {"Leg": 1.0, "Leg2": 1.0, "Leg_bone": 0.7, "Leg_bone2": 0.7}   # (inflate, texture units all round)
 CHEST_BURN_BONES = ("Neck", "Chest", "Metalbody")
@@ -82,6 +88,7 @@ def flank_plates(bone):
         px, py, pz = b.get("pivot", [ox + 0.5, oy, oz + d / 2])
         rx = b.get("rotation", [0, 0, 0])[0]
         right = cube([ox - 2.5, oy, oz + 1.5], [1, h, d], pivot=[px - 2.0, oy, pz + 1.5], rotation=[rx, 0, 25], kind="plate")
+        right["side"] = True
         out += [right, mirrored(right)]
     return out
 
@@ -141,6 +148,8 @@ def tip(blade, length, depth, kind="tip"):
     ox, oy, oz = blade["origin"]
     sx, sy, sz = blade["size"]
     t = cube([ox, oy + sy - 0.2, oz + (sz - depth) / 2.0], [sx, length, depth], kind=kind)
+    if blade.get("side"):
+        t["side"] = True   # (a flanking plate's point goes on its bone)
     if "pivot" in blade:
         t["pivot"] = list(blade["pivot"])
     if "rotation" in blade:
@@ -149,8 +158,8 @@ def tip(blade, length, depth, kind="tip"):
 
 
 def sharpen(bones, adds):
-    """Every plate drawn out into a point (half its height again, half as deep); the end of his tail (T22) into the
-    longest and finest: as long as the plate, and a needle beyond that."""
+    """Every plate drawn out into a point (TIP_LENGTH of its height again, TIP_DEPTH as deep: short and broad, not
+    needle-sharp); the end of his tail (T22) into the longest: TAIL_END_LENGTH of the plate, and a short point beyond."""
     out = {}
     for name, bone in bones.items():
         if not is_plate_bone(name):
@@ -158,11 +167,12 @@ def sharpen(bones, adds):
         for b in [c for c in bone["cubes"] if is_blade(c)] + [c for c in adds.get(name, []) if c["kind"] == "plate"]:
             sy, sz = b["size"][1], b["size"][2]
             if name == "T22":
-                first = tip(b, max(4, int(round(sy * 1.0))), 1)
-                needle = tip(first, max(3, int(round(sy * 0.6))), 0.5)
+                first = tip(b, max(3, int(round(sy * TAIL_END_LENGTH))), 1)
+                needle = tip(first, max(2, int(round(sy * TAIL_END_NEEDLE))), 0.75)
                 out.setdefault(name, []).extend([first, needle])
             else:
-                out.setdefault(name, []).append(tip(b, max(2, int(round(sy * 0.5))), max(0.5, round(sz / 2.0, 1))))
+                out.setdefault(name, []).append(tip(b, max(1, int(round(sy * TIP_LENGTH))),
+                                                    max(0.5, round(sz * TIP_DEPTH, 1))))
     return out
 
 
@@ -448,9 +458,23 @@ def main():
     out = copy.deepcopy(data)
     ogeo = out["minecraft:geometry"][0]
     ogeo["description"]["identifier"] = "geometry.godzilla_minus_zero"
+    bones_out = []
     for b in ogeo["bones"]:
+        bones_out.append(b)
+        side = None
         for c in adds.get(b["name"], []):
-            b["cubes"].append({k: v for k, v in c.items() if k != "kind"})
+            cleaned = {k: v for k, v in c.items() if k not in ("kind", "side")}
+            if c.get("side"):
+                if side is None:
+                    side = {"name": b["name"] + SIDE, "parent": b["parent"], "pivot": list(b["pivot"]), "cubes": []}
+                    if "rotation" in b:
+                        side["rotation"] = list(b["rotation"])
+                side["cubes"].append(cleaned)
+            else:
+                b["cubes"].append(cleaned)
+        if side is not None:
+            bones_out.append(side)
+    ogeo["bones"] = bones_out
     thicken_legs({b["name"]: b for b in ogeo["bones"]})
     with open(GEO_OUT, "w") as f:
         json.dump(out, f, indent=1)

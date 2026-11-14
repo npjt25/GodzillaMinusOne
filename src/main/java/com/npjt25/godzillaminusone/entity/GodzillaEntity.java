@@ -238,6 +238,13 @@ public class GodzillaEntity extends Monster implements GeoEntity {
     private int roaringTicks;
     private int attackCooldown;
     private int stunTicks;
+    /** When (game time) his charge began, and how many attacks he's made: which attack a blow of his is (Rivals). */
+    private long chargeStartTime = -1L;
+    private int attackSerial;
+    /** The rival he's seen and roared at (Minus Zero: King Ghidorah), and whether his breath follows that roar. */
+    @Nullable
+    private UUID rivalSeen;
+    private boolean breathAfterRoar;
     private int walkTicks;
     private int stillTicks;
     private int pendingHitTicks = -1;
@@ -435,7 +442,12 @@ public class GodzillaEntity extends Monster implements GeoEntity {
 
     /** For the in-game checks: he starts charging his atomic breath now, from the beginning (at nothing in particular). */
     public void startCharging() {
+        beginCharge();
+    }
+
+    private void beginCharge() {
         this.chargeTicks = 0;
+        this.chargeStartTime = level().getGameTime();
         setChargeState(CHARGE_GLOWING);
     }
 
@@ -644,13 +656,16 @@ public class GodzillaEntity extends Monster implements GeoEntity {
     }
 
     private void activeTick(ServerLevel level) {
-        if (this.tickCount % 10 == 0 && !huntBoats(level)) {
+        if (this.tickCount % 5 == 0 && !preferRival(level) && this.tickCount % 10 == 0 && !huntBoats(level)) {
             preferPlanes(level);
         }
         LivingEntity target = getTarget();
         if (target != null && (!target.isAlive() || !isValidTarget(target))) {
             setTarget(null);
             target = null;
+        }
+        if (target != null && Rivals.rivals(this, target) && !isNoAi()) {
+            seeRival(target);
         }
 
         if (this.tickCount % AURA_INTERVAL == 0) {
@@ -692,10 +707,13 @@ public class GodzillaEntity extends Monster implements GeoEntity {
             tickCharge(level, target);
         } else {
             updateAim(null);
-            if (target != null && this.angryTicks >= ANGER_DELAY && this.breathCooldown <= 0 && this.firstBreathDelay <= 0 && this.stunTicks <= 0
-                    && this.pendingHitTicks < 0 && this.roaringTicks <= 0 && !isSwimmingAtSurface() && farEnoughToBreathe(target)) {
-                this.chargeTicks = 0;
-                setChargeState(CHARGE_GLOWING);
+            // (Minus Zero's breath at King Ghidorah the moment his roar at seeing him is over: no waiting, near or far)
+            boolean atRival = this.breathAfterRoar && target != null && Rivals.rivals(this, target);
+            if (target != null && this.stunTicks <= 0 && this.pendingHitTicks < 0 && this.roaringTicks <= 0 && !isSwimmingAtSurface()
+                    && (atRival || this.angryTicks >= ANGER_DELAY && this.breathCooldown <= 0 && this.firstBreathDelay <= 0
+                    && farEnoughToBreathe(target))) {
+                this.breathAfterRoar = false;
+                beginCharge();
             }
         }
 
@@ -738,6 +756,65 @@ public class GodzillaEntity extends Monster implements GeoEntity {
         if ((moving || this.horizontalCollision) && this.tickCount % 5 == 0) {
             smashBlocks(level);
         }
+    }
+
+    /**
+     * Minus Zero: King Ghidorah within Rivals.RANGE of him comes before anything else (mobs, players, boats, planes): he's
+     * his target. Returns whether he's after him.
+     */
+    private boolean preferRival(ServerLevel level) {
+        LivingEntity rival = isNoAi() ? null : Rivals.nearest(level, this);     // (with no AI, he goes for nothing)
+        if (rival == null) {
+            if (!(getTarget() != null && Rivals.rivals(this, getTarget()))) {
+                this.rivalSeen = null;      // (gone: the next time he comes, he's seen anew; his breath at him not owed)
+                this.breathAfterRoar = false;
+            }
+            return false;
+        }
+        if (getTarget() != rival) {
+            setTarget(rival);
+        }
+        return true;
+    }
+
+    /**
+     * Minus Zero, his rival seen (within Rivals.RANGE: at their size, over whatever's between them) for the first time:
+     * he roars (the roar animation), and his breath follows the moment it's over (breathAfterRoar: charged and fired at
+     * him, however near or far, whatever the cooldown).
+     */
+    private void seeRival(LivingEntity rival) {
+        if (rival.getUUID().equals(this.rivalSeen) || isCharging() || this.pendingHitTicks >= 0 || this.stunTicks > 0
+                || isSwimmingAtSurface()) {
+            return;
+        }
+        this.rivalSeen = rival.getUUID();
+        this.roaringTicks = ROAR_TICKS;
+        this.roarTimer = Math.max(Config.ROAR_INTERVAL.get() * 20, 1);
+        getNavigation().stop();
+        roar();
+        this.breathAfterRoar = true;
+    }
+
+    /** For the in-game checks and tests: whether his breath is to follow his roar at his rival. */
+    public boolean breathesAfterRoar() {
+        return this.breathAfterRoar;
+    }
+
+    /**
+     * Which attack of his a blow is (Rivals: an attack lands once): his breath's first beam and blast, or its second
+     * (Minus Zero's), by when he began charging; else the attack he made.
+     */
+    public long rivalAttackId(DamageSource source) {
+        if (source.is(ModDamageTypes.ATOMIC_BREATH)) {
+            boolean second = surges() && this.chargeTicks >= SURGE_TICK;
+            return (1L << 40) + this.chargeStartTime * 2 + (second ? 1 : 0);
+        }
+        return this.attackSerial;
+    }
+
+    /** Whether a blow of his is a heavy one (Rivals.HEAVY): his atomic breath (its beams, their blasts). */
+    public boolean heavyRivalAttack(DamageSource source) {
+        return source.is(ModDamageTypes.ATOMIC_BREATH);
     }
 
     /**
@@ -1590,6 +1667,7 @@ public class GodzillaEntity extends Monster implements GeoEntity {
     }
 
     private void performAttack(ServerLevel level, Attack attack, @Nullable LivingEntity target) {
+        this.attackSerial++;
         switch (attack) {
             case BITE -> {
                 if (target != null && target.isAlive() && canReach(target, 4.0 * bodyScale())) {
@@ -1814,6 +1892,15 @@ public class GodzillaEntity extends Monster implements GeoEntity {
         }
         if (!isActive()) {
             return false;
+        }
+        // Minus Zero: King Ghidorah's attacks take a share of his health (Rivals), once an attack
+        Float rival = Rivals.blow(this, source);
+        if (rival != null) {
+            if (rival <= 0.0F) {
+                return false;
+            }
+            this.invulnerableTime = 0;
+            return super.hurt(Rivals.damage(this, source), rival);
         }
         if (!source.is(ModDamageTypes.NAVAL_MINE) && Config.GODZILLA_ONLY_HURT_BY_EXPLOSIVES.get()) {
             return false;

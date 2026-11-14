@@ -165,6 +165,9 @@ public final class Blasts {
     /** Caught in a nuclear blast (or Godzilla's beam). */
     public static void nuclearHit(LivingEntity entity, DamageSource source, boolean burnsOdo) {
         if (entity instanceof GodzillaEntity || entity instanceof KingGhidorahEntity) {
+            if (Rivals.rivals(entity, source.getEntity())) {
+                entity.hurt(source, 1.0F);      // (Minus Zero's breath on King Ghidorah: a heavy blow, Rivals)
+            }
             return;
         }
         if (burnsOdo && entity instanceof OdoIslandMonsterEntity odo) {

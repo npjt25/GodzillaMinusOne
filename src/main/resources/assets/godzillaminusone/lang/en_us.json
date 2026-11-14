@@ -176,5 +176,7 @@
   "message.godzillaminusone.shinsei_maru.no_mines": "No naval mines aboard: sneak and right-click the Shinsei Maru to load some",
   "subtitles.godzillaminusone.shinsei_maru.gun": "Machine gun fires",
   "death.attack.godzillaminusone.machine_gun": "%1$s was gunned down",
-  "death.attack.godzillaminusone.machine_gun.player": "%1$s was gunned down by %2$s"
+  "death.attack.godzillaminusone.machine_gun.player": "%1$s was gunned down by %2$s",
+  "death.attack.godzillaminusone.kaiju": "%1$s was brought down by %2$s",
+  "death.attack.godzillaminusone.kaiju.player": "%1$s was brought down by %2$s"
 }

@@ -8,11 +8,14 @@ Writes animations/entity/godzilla_minus_zero.animation.json: every one of Minus 
 Minus One does), plus two that are his alone:
 
 animation.gojira.charge_zero -- his atomic breath with a second blast in it. Minus One's charge up to the end of his
-    beam, where it holds for 6 s more (the beam goes on flickering as it does), and in those 6 s his plates (T, T2-T22)
-    punch back up as their glow comes back (the renderer: dimmed 2 s after the first explosion, lit 2 s after that) and
-    slam down as he fires his second laser (GodzillaEntity.SURGE_TICK), with the jolt of his first; his sounds: charged
-    again as they light up, then his second beam firing. All that came after
-    the beam in Minus One's (the beam dying out, the roar) comes 6 s later.
+    beam, where it holds for 6 s more (the beam goes on flickering as it does). His first charge is his middle row of
+    plates' (T, T2-T22: they punch up and light as Minus One's do, and slam down as he fires); the second is the row
+    either side of it (T12_side, T15_side ... T22_side, tools/make_minus_zero.py): in those 6 s, as their glow comes up
+    (the renderer: the middle row's dimmed out 2 s after the first explosion; these lit over the 2 s after that), they
+    punch up one after another from the end of his tail forward (SIDE_ORDER, SIDE_STEP apart) and slam down as he fires
+    his second laser (GodzillaEntity.SURGE_TICK), with the jolt of his first, while the middle row stays down. His
+    sounds: charged again as they light up, then his second beam firing. All that came after the beam in Minus One's
+    (the beam dying out, the roar) comes 6 s later.
 
 animation.gojira.tail_strike -- the tail strike: the tip of his tail's plate (T22) punches up and glows (the renderer's
     tail-tip glow, GodzillaEntity's DATA_TAIL_GLOW) for 1 s, then spin_whip as Minus One does it, 1 s later; the plate
@@ -39,6 +42,11 @@ FIRE = 14.9167              # his first laser (and the plates' first slam: 14.91
 SURGE = FIRE + EXTRA        # his second (SURGE_TICK 424: 120 ticks after the first)
 DIMMED = 18.92              # renderer DIMMED: his plates' glow at its lowest, coming back from here
 PLATE_UP = [0.0, 3.0, 4.0]  # the plates up, as in Minus One's charge
+# his second charge's plates, the row either side of the middle one, in the order they punch up (GodzillaRenderer's
+# SIDE_ORDER and SIDE_STEP, for their glow, have to agree)
+SIDE_ORDER = ['T22', 'T21', 'T20', 'T19', 'T18', 'T17', 'T16', 'T15', 'T12']
+SIDE_STEP = 0.1             # seconds between one and the next
+SIDE_RISE = 0.25            # seconds each takes to punch up
 FLICKER = 0.041667          # the beam's flicker (its bone B alternates every 1/24 s)
 
 # his own sounds (registry.ModSounds; the mod author's): charged again as his plates light up the second time, ending
@@ -128,15 +136,8 @@ def charge_zero(charge):
                     out[t(HOLD_AT)] = held
                 out[t(HOLD_AT + EXTRA)] = held
             if name in PLATES and kind == 'position':
+                # (the middle row stays down through his second charge: it's the rows either side of it that rise)
                 assert held == [0.0, 0.0, 0.0] or held == [0, 0, 0], (name, held)
-                # up again as their glow comes back, then down with his second laser (as with his first)
-                for k in [k for k in out if HOLD_AT + 1e-4 < float(k) < HOLD_AT + EXTRA - 1e-4]:
-                    del out[k]
-                out[t(DIMMED + 0.05)] = [0.0, 0.0, 0.0]
-                out[t(DIMMED + 0.3)] = list(PLATE_UP)
-                out[t(SURGE)] = list(PLATE_UP)
-                out[t(SURGE + 0.0833)] = [0.0, -0.45, -0.6]
-                out[t(SURGE + 0.2083)] = [0.0, 0.0, 0.0]
             if name == 'Body' and kind == 'rotation':
                 # the jolt of his second laser
                 body = vec(out[t(HOLD_AT + EXTRA)])
@@ -144,6 +145,19 @@ def charge_zero(charge):
                 out[t(SURGE + 0.0833)] = [body[0] + 5.0, body[1], body[2]]
                 out[t(SURGE + 0.375)] = body
             bone[kind] = sort_channel(out)
+    # the rows either side punching up as their glow comes back, one after another from the end of his tail, then down
+    # with his second laser (as the middle row with his first)
+    for i, plate in enumerate(SIDE_ORDER):
+        up = DIMMED + 0.05 + i * SIDE_STEP
+        anim['bones'][plate + '_side'] = {'position': sort_channel({
+            t(0.0): [0.0, 0.0, 0.0],
+            t(up): [0.0, 0.0, 0.0],
+            t(up + SIDE_RISE * 0.6): [0.0, round(PLATE_UP[1] * 1.15, 3), round(PLATE_UP[2] * 1.15, 3)],   # (overshooting)
+            t(up + SIDE_RISE): list(PLATE_UP),
+            t(SURGE): list(PLATE_UP),
+            t(SURGE + 0.0833): [0.0, -0.45, -0.6],
+            t(SURGE + 0.2083): [0.0, 0.0, 0.0],
+        })}
     for kind in ('sound_effects', 'particle_effects'):
         if kind in anim:
             anim[kind] = shift(anim[kind], HOLD_AT, EXTRA)

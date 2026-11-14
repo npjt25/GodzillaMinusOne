@@ -232,7 +232,7 @@ public class KingGhidorahEntity extends Monster implements GeoEntity {
     private int retreatCooldown;
     private int roarTimer;
     private int decisionDelay;
-    /** Footsteps the server has sounded (his stomps, landings, his heaves at his entrance), for their turns. */
+    /** Footsteps the server has sounded (his landings, his heaves at his entrance), for their turns. */
     private int serverSteps;
     /** Footsteps his walk has sounded on this client, for their turns. */
     private int walkSteps;
@@ -475,6 +475,13 @@ public class KingGhidorahEntity extends Monster implements GeoEntity {
         if (this.retreatCooldown > 0) {
             this.retreatCooldown--;
         }
+        if (this.tickCount % 5 == 0 && !isFlying() && !isNoAi()) {
+            // Godzilla Minus Zero near him: he comes before anything else (Rivals; with no AI, he goes for nothing)
+            LivingEntity rival = Rivals.nearest(level, this);
+            if (rival != null && getTarget() != rival) {
+                setTarget(rival);
+            }
+        }
         LivingEntity target = getTarget();
         if (target != null && (!target.isAlive() || !isValidTarget(target))) {
             setTarget(null);
@@ -486,7 +493,9 @@ public class KingGhidorahEntity extends Monster implements GeoEntity {
         if (target != null && target != this.lastTarget && !isBusy()) {
             startAction(ACTION_ROAR);       // (he lets what he's found to hunt know it)
         }
-        this.lastTarget = target;
+        if (target != null) {
+            this.lastTarget = target;       // (lost from sight a moment and found again, it isn't new to him: no roar)
+        }
         int action = getAction();
         if (action != ACTION_NONE) {
             tickAction(level, action, getActionTicks(), target);
@@ -535,9 +544,6 @@ public class KingGhidorahEntity extends Monster implements GeoEntity {
                 }
             }
             case ACTION_STOMP -> {
-                if (reached(STOMP_HIT_AT - 3)) {
-                    footstep(level, stompFoot(), 16.0F);      // (its thud lands as his foot does)
-                }
                 if (reached(STOMP_HIT_AT)) {
                     stomp(level);
                 }
@@ -688,8 +694,8 @@ public class KingGhidorahEntity extends Monster implements GeoEntity {
     }
 
     /**
-     * A footstep from the server (his stomp, his landing, his heaves out of the ground at his entrance), the next of his
-     * three in turn. (His walk's footsteps are his walk animation's: walkFootstep, on each client.)
+     * A footstep from the server (his landing, his heaves out of the ground at his entrance), the next of his three in
+     * turn. (His walk's footsteps are on each client: walkClockTick. His stomp sounds as Godzilla's does.)
      */
     private void footstep(ServerLevel level, Vec3 at, float volume) {
         sound(level, at, footstepSound(this.serverSteps++), volume, 1.0F);
@@ -782,6 +788,10 @@ public class KingGhidorahEntity extends Monster implements GeoEntity {
 
     private void stomp(ServerLevel level) {
         Vec3 foot = stompFoot();
+        // Godzilla's stomp, as Godzilla's sounds when his foot comes down (GodzillaEntity's sound keyframes: twelve times
+        // his size; he's Minus Zero's)
+        level.playSound(null, foot.x, foot.y + 6.0 * GodzillaMinusZeroEntity.SCALE, foot.z, ModSounds.GODZILLA_STOMP.get(),
+                SoundSource.HOSTILE, 12.0F * (float) GodzillaMinusZeroEntity.SCALE, 0.95F + this.random.nextFloat() * 0.1F);
         ModNetwork.shake(level, foot, 80.0, 1.6F, 1.2F);
         for (LivingEntity e : victims(level, new AABB(foot, foot).inflate(STOMP_RADIUS, 8.0, STOMP_RADIUS))) {
             Vec3 d = e.position().subtract(foot);
@@ -1266,10 +1276,30 @@ public class KingGhidorahEntity extends Monster implements GeoEntity {
         if (inEntrance() || source.getEntity() instanceof KingGhidorahEntity) {
             return false;
         }
+        // Godzilla Minus Zero's attacks take a share of his health (Rivals), once an attack
+        Float rival = Rivals.blow(this, source);
+        if (rival != null) {
+            if (rival <= 0.0F) {
+                return false;
+            }
+            this.invulnerableTime = 0;
+            return super.hurt(Rivals.damage(this, source), rival);
+        }
         if (!source.is(ModDamageTypes.NAVAL_MINE) && Config.GODZILLA_ONLY_HURT_BY_EXPLOSIVES.get()) {
             return false;
         }
         return super.hurt(source, amount);
+    }
+
+    /** Which attack of his a blow is from (Rivals: an attack lands once): what he's doing, and when he began it. */
+    public long rivalAttackId() {
+        return ((long) getActionStart() << 4) | getAction();
+    }
+
+    /** Whether what he's doing is one of his heavy attacks (Rivals.HEAVY): his gravity beams, his lift, his grab's slam. */
+    public boolean heavyRivalAttack() {
+        int action = getAction();
+        return action == ACTION_BEAM || action == ACTION_LIFT || action == ACTION_GRAB;
     }
 
     /** Called by {@link Blasts#navalMine}: as for Minus Zero, a flat share of his max health (mineDamagePercent). */
@@ -1567,6 +1597,9 @@ public class KingGhidorahEntity extends Monster implements GeoEntity {
         }
         if (entity instanceof Player player && (player.isCreative() || player.isSpectator())) {
             return false;
+        }
+        if (entity instanceof GodzillaEntity godzilla && !godzilla.isActive()) {
+            return false;       // (down, collapsing or lying dead: nothing more to fight)
         }
         return Config.GODZILLA_TARGETS_ALL_MOBS.get() || entity instanceof Player || entity instanceof ShindenEntity
                 || entity instanceof Enemy || entity instanceof IronGolem || entity instanceof GodzillaEntity;

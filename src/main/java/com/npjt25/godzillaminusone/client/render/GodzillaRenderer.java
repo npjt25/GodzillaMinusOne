@@ -74,7 +74,7 @@ public class GodzillaRenderer extends GeoEntityRenderer<GodzillaEntity> {
             Map.entry("T10", 8.54F), Map.entry("T11", 8.54F));
 
     private enum Pass {
-        MODEL, EYES, BURNS, PLATES, MOUTH, BEAM, TAIL_TIP
+        MODEL, EYES, BURNS, PLATES, SIDES, MOUTH, BEAM, TAIL_TIP
     }
 
     private Pass pass = Pass.MODEL;
@@ -115,6 +115,15 @@ public class GodzillaRenderer extends GeoEntityRenderer<GodzillaEntity> {
                 Float time = PLATE_TIMES.get(name);
                 if (time != null) {
                     float glow = plateGlow(time);
+                    if (glow > 0.01F) {
+                        super.renderCubesOfBone(poseStack, bone, buffer, packedLight, packedOverlay, glow * red, glow * green, glow * blue, 1.0F);
+                    }
+                }
+            }
+            case SIDES -> {
+                Float time = sidePlateTimes().get(name);
+                if (time != null) {
+                    float glow = sideGlow(time);
                     if (glow > 0.01F) {
                         super.renderCubesOfBone(poseStack, bone, buffer, packedLight, packedOverlay, glow * red, glow * green, glow * blue, 1.0F);
                     }
@@ -169,6 +178,23 @@ public class GodzillaRenderer extends GeoEntityRenderer<GodzillaEntity> {
         }
         float x = Mth.clamp((this.chargeSeconds - time) / 0.4F, 0.0F, 1.0F);
         return x * x * (3.0F - 2.0F * x) * (0.85F + 0.15F * Mth.sin(this.chargeSeconds * 7.0F)) * firedGlow(this.chargeSeconds);
+    }
+
+    /**
+     * Minus Zero's second row of plates (either side of the middle one: T12_side ...), lit for his second blast, and
+     * the charge animation seconds each punches up (Minus One has none).
+     */
+    protected Map<String, Float> sidePlateTimes() {
+        return Map.of();
+    }
+
+    /** How brightly a plate of the second row glows: lit over 0.4 s once punched up, pulsing; out as he cools down. */
+    private float sideGlow(float time) {
+        if (this.coolingFade >= 0.0F) {
+            return this.coolingFade;
+        }
+        float x = Mth.clamp((this.chargeSeconds - time) / 0.4F, 0.0F, 1.0F);
+        return x * x * (3.0F - 2.0F * x) * (0.85F + 0.15F * Mth.sin(this.chargeSeconds * 7.0F));
     }
 
     /**
@@ -280,10 +306,15 @@ public class GodzillaRenderer extends GeoEntityRenderer<GodzillaEntity> {
                     ? Mth.clamp(1.0F - entity.getCoolingSeconds(partialTick) / 1.5F, 0.0F, 1.0F) : -1.0F;
             this.godzilla.renderPass(Pass.PLATES, poseStack, entity, model, buffers, RenderType.eyes(this.godzilla.plateGlow()), partialTick,
                     1.0F, 1.0F, 1.0F);
+            if (!this.godzilla.sidePlateTimes().isEmpty()) {
+                // Minus Zero's second row, lit for his second blast
+                this.godzilla.renderPass(Pass.SIDES, poseStack, entity, model, buffers, RenderType.eyes(this.godzilla.plateGlow()), partialTick,
+                        1.0F, 1.0F, 1.0F);
+            }
             float sharp = this.godzilla.sharpGlow(this.godzilla.chargeSeconds) * (this.godzilla.coolingFade >= 0.0F ? this.godzilla.coolingFade : 1.0F);
             if (sharp > 0.01F) {
-                // Minus Zero's glow back, a sharper blue: a second layer over it, cold and bright
-                this.godzilla.renderPass(Pass.PLATES, poseStack, entity, model, buffers, RenderType.eyes(this.godzilla.plateGlow()), partialTick,
+                // Minus Zero's second row as it lights, a sharper blue: a second layer over it, cold and bright
+                this.godzilla.renderPass(Pass.SIDES, poseStack, entity, model, buffers, RenderType.eyes(this.godzilla.plateGlow()), partialTick,
                         0.35F * sharp, 0.75F * sharp, 1.0F * sharp);
             }
             float mouth = this.godzilla.mouthGlow();

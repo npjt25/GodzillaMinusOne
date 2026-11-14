@@ -197,18 +197,21 @@ the blue one a player.*
 - `evolvesIntoMinusZero` (`godzilla` section, on): turn it off for Minus One to regenerate (or die, with
   `regenerates = false`) as before.
 - **His look**: Minus One evolved, this mod's own design (`tools/make_minus_zero.py`): Minus One's model with a
-  **second, staggered row of plates** along his lower back and tail, smaller than the first and tilted out (they light
-  up with the rest in his charge), **overlapping armour bands** round his upper arms and forearms and **layered caps**
-  on his shoulders, a **row of spines along either side of his tail**, **every plate drawn out into a sharp point**
-  (the plate at the end of his tail into the longest, finest point on his tail), **thicker thighs and shins**, and a
+  **second, staggered row of plates** along his lower back and tail, smaller than the first and tilted out (the
+  **side rows**: they rise and light for his second blast, his middle row for his first), **overlapping armour bands**
+  round his upper arms and forearms and **layered caps** on his shoulders, a **row of spines along either side of his
+  tail**, **every plate drawn out into a short, broad point** (a third of the plate's height again; the plate at the
+  end of his tail into the longest on his tail), **thicker thighs and shins**, and a
   **darker, heavier skin** (his scorched skin when he's down too).
 - **His beam stops at whatever is in its way** (Minus One's and Minus Zero's): a building, a hillside, any block. It's
   drawn only as far as that block, its impact blazing there (a blue-white flash, blue fire spraying off it, debris and
   smoke), its blast goes off there, and nothing beyond it is hit.
-- **His atomic breath has a second blast**: the charge is Minus One's; his beam fires and, 2 seconds later, the
+- **His atomic breath has a second blast**: the charge is Minus One's, but only his **middle row of dorsal plates**
+  lights up and punches up for it (the side rows stay down and dark); his beam fires and, 2 seconds later, the
   first nuclear explosion goes up where it lands. His beam stays on (his first breath lasts longer than Minus One's)
-  while the blue glow on his plates **dims out over 2 seconds**, then **lights up again over 2 seconds** in a sharper,
-  brighter blue as his plates **punch back up**; then they **punch back down** and he **fires a second blast**: the
+  while the blue glow on his middle row **dims out over 2 seconds**; then **the side rows light up** in a sharper,
+  brighter blue and **punch up**, one after another from the end of his tail forward, over the next 2 seconds (the
+  middle row stays down); then they **punch back down** and he **fires a second blast**: the
   beam grows about a third wider and twice as bright, hits a wider band round it, twice as often, and 2 seconds after
   it lands **a second nuclear explosion** goes up. **His own sounds**: as his plates finish lighting up again, he
   **charges again** (finishing as he fires), and his **second beam fires** with its own sound. Each explosion is **twice the size of Minus One's**: twice every
@@ -292,11 +295,19 @@ the blue one a player.*
   | `king_ghidorah.bite` | `king_ghidorah_bite.ogg` | Each bite, as the head's jaws snap shut; and as he seizes what he grabs in his talons |
   | `king_ghidorah.gravity_beam` | `king_ghidorah_gravity_beam.ogg` | Once as his beams fire (his gravity beams and his lift): they blaze for as long as it roars, about 5.6 s, and stop as it fades |
   | `king_ghidorah.flying` | `king_ghidorah_flying.ogg` | While he's in the air (his grab, his retreat): from takeoff, again every 8.2 s, until he lands |
-  | `king_ghidorah.footstep_1` / `_2` / `_3` | `king_ghidorah_footstep_1.ogg` ... `_3.ogg` | **Every step, in turn: 1, 2, 3, 1, ...** (never the same twice running): each hind foot coming down as he walks (his walk animation and its footsteps go by the same clock, so they land with his feet, and you hear him walking even when he's out of view), his stomp, his heaves out of the ground in his entrance, his landing |
+  | `king_ghidorah.footstep_1` / `_2` / `_3` | `king_ghidorah_footstep_1.ogg` ... `_3.ogg` | **Every step, in turn: 1, 2, 3, 1, ...** (never the same twice running): each hind foot coming down as he walks (his walk animation and its footsteps go by the same clock, so they land with his feet, and you hear him walking even when he's out of view), his heaves out of the ground in his entrance, his landing |
 
-  The entrance's rumble, cracking earth and wing rush (`king_ghidorah.rumble`, `.earth_crack`, `.wing_spread`, also
-  on takeoff) aren't in the pack and are synthesized by `tools/make_sounds.py`; his tail whip uses Minus Zero's tail
-  swing.
+  His **stomp** sounds as **Godzilla's stomp** does (`godzilla.stomp`, at Minus Zero's size). The entrance's rumble,
+  cracking earth and wing rush (`king_ghidorah.rumble`, `.earth_crack`, `.wing_spread`, also on takeoff) aren't in the
+  pack and are synthesized by `tools/make_sounds.py`; his tail whip uses Minus Zero's tail swing.
+- **King Ghidorah and Godzilla Minus Zero are rivals.** Within 160 blocks of each other, **each makes the other his
+  target before anything else**, mobs and players alike. **Minus Zero, seeing King Ghidorah, roars** and the moment
+  the roar is over **charges his atomic breath** at him, however near or far, whatever his breath's cooldown. Between
+  them, **every attack takes 1/20 of the other's health** (neither is hurt by anything else but naval mines), and the
+  heavy ones **four times that (1/5)**: Minus Zero's **atomic breath** (each of his two beams, with its blast), and King
+  Ghidorah's **gravity beams**, his **lift** and his **flying slam**. An attack lands once, however long it burns on
+  him: a beam sweeping over him for seconds is one blow. (A kaiju with its AI off, standing for a picture, goes for
+  nobody.) Minus One isn't part of it: he and King Ghidorah fight as before.
 - His spawn egg is a vanilla-style egg in weathered gold with burgundy spots. He doesn't despawn.
 
 **His model** (`assets/godzillaminusone/geo/entity/king_ghidorah.geo.json`, GeckoLib 4, Forge 1.20.1): 100 bones in a

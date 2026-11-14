@@ -737,7 +737,7 @@ final class Scenes {
 
         // his whole breath (each shot logged with how far into his charge he was: the client's and the server's): his
         // charge and his beam; his first blast (in the air, 420 blocks off, where his beam ends: twice Minus One's
-        // cloud); his plates' glow dimmed, then lit again with his plates punched up; his second laser, and the second
+        // cloud); his middle row of plates' glow dimmed, then the rows either side of it lit and punched up; his second laser, and the second
         // blast; then the burns it leaves on his mouth, throat and chest. (Godzillas aren't hurt by the blasts.)
         int[] chargeAt = {0};
         once("minus zero: mark his charge", () -> chargeAt[0] = now());
@@ -1063,11 +1063,10 @@ final class Scenes {
         ghidorahAt("his tails swinging", KingGhidorahEntity.ACTION_WHIP, KingGhidorahEntity.WHIP_HIT_AT);
         shot("king_ghidorah_tail_whip");
         ghidorahIdle("whip over");
-        check("ghidorah: his bite and his stomp heard (the bite, a footstep)", () -> {
+        check("ghidorah: his bite and his stomp heard (the bite, and Godzilla's stomp)", () -> {
             log("ghidorah: sounds of his attacks: " + heardSince(attackSince[0]));
             return heard(attackSince[0], "king_ghidorah.bite").isEmpty() ? "no bite"
-                    : heard(attackSince[0], "king_ghidorah.footstep_1").size() + heard(attackSince[0], "king_ghidorah.footstep_2").size()
-                    + heard(attackSince[0], "king_ghidorah.footstep_3").size() == 0 ? "no stomp" : null;
+                    : heard(attackSince[0], "godzilla.stomp").isEmpty() ? "no stomp (godzilla.stomp)" : null;
         });
 
         // his gravity beams, at a building ahead of him: they bore through it and vaporize everything 12 round

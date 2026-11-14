@@ -7,6 +7,8 @@ import net.minecraft.client.renderer.entity.EntityRendererProvider;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.Mth;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -52,23 +54,42 @@ public class GodzillaMinusZeroRenderer extends GodzillaRenderer {
     }
 
     /**
-     * His glow, once he's fired: on through his first beam, until its explosion; dimming out over 2 s; lighting up
-     * again over 2 s; on through his second beam.
+     * His middle row's glow (his first charge's), once he's fired: on through his first beam, until its explosion, then
+     * dimming out over 2 s, and dark from then on: his second charge is the rows either side of it (sidePlateTimes).
      */
     @Override
     protected float firedGlow(float seconds) {
         if (seconds < FIRST_BLAST) {
             return 1.0F;
         }
-        if (seconds < DIMMED) {
-            float x = (seconds - FIRST_BLAST) / (DIMMED - FIRST_BLAST);
-            return 1.0F - x * x * (3.0F - 2.0F * x);
-        }
-        float x = Mth.clamp((seconds - DIMMED) / (SURGE - DIMMED), 0.0F, 1.0F);
-        return x * x * (3.0F - 2.0F * x);
+        float x = Mth.clamp((seconds - FIRST_BLAST) / (DIMMED - FIRST_BLAST), 0.0F, 1.0F);
+        return 1.0F - x * x * (3.0F - 2.0F * x);
     }
 
-    /** As they light up again, a sharper blue over them, full by his second beam and on through it. */
+    /**
+     * His second charge: the rows of plates either side of his middle one (tools/make_minus_zero.py's T12_side ...),
+     * punching up one after another from the end of his tail as his middle row goes dark (tools/make_minus_zero_
+     * animations.py's SIDE_ORDER, SIDE_STEP apart from DIMMED + 0.05 s), each lighting as it rises, and on through his
+     * second beam.
+     */
+    private static final String[] SIDE_ORDER = {"T22", "T21", "T20", "T19", "T18", "T17", "T16", "T15", "T12"};
+    private static final float SIDE_STEP = 0.1F;
+    private static final Map<String, Float> SIDE_TIMES = sideTimes();
+
+    private static Map<String, Float> sideTimes() {
+        Map<String, Float> times = new HashMap<>();
+        for (int i = 0; i < SIDE_ORDER.length; i++) {
+            times.put(SIDE_ORDER[i] + "_side", DIMMED + 0.05F + i * SIDE_STEP);
+        }
+        return Map.copyOf(times);
+    }
+
+    @Override
+    protected Map<String, Float> sidePlateTimes() {
+        return SIDE_TIMES;
+    }
+
+    /** As his second row lights up, a sharper blue over it, full by his second beam and on through it. */
     @Override
     protected float sharpGlow(float seconds) {
         float x = Mth.clamp((seconds - DIMMED) / (SURGE - DIMMED), 0.0F, 1.0F);

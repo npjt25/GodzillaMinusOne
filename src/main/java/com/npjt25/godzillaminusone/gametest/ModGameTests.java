@@ -30,6 +30,7 @@ import com.npjt25.godzillaminusone.registry.ModItems;
 import com.npjt25.godzillaminusone.registry.ModSounds;
 import net.minecraft.commands.arguments.EntityAnchorArgument;
 import net.minecraft.core.BlockPos;
+import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
@@ -2532,6 +2533,170 @@ public final class ModGameTests {
             remove(ghidorah, pig);
             release.forEach(Runnable::run);
         });
+    }
+
+    /**
+     * Godzilla Minus Zero and King Ghidorah's blows on each other (Rivals): an attack takes a twentieth of the other's
+     * health, and lands once however often it touches him; the heavy ones (Minus Zero's atomic breath, a beam at a time;
+     * King Ghidorah's gravity beams, lift and slam) four times that; the heat round Minus Zero as he charges, nothing.
+     */
+    @GameTest(template = FLOOR, batch = "gmo_rivals_blows", timeoutTicks = 40)
+    public static void minusZeroAndKingGhidorahTakeShares(GameTestHelper helper) {
+        removeLeftoverGodzillas(helper);
+        KingGhidorahEntity ghidorah = spawnGhidorah(helper);
+        GodzillaMinusZeroEntity zero = helper.spawn(ModEntities.GODZILLA_MINUS_ZERO.get(), 4, floorY(helper) + 1, 4);
+        zero.skipIntro();
+        zero.setNoAi(true);
+        zero.setWalkFloorY(Integer.MIN_VALUE);
+        ServerLevel level = helper.getLevel();
+        float share = ghidorah.getMaxHealth() / 20.0F;
+        float zeroShare = zero.getMaxHealth() / 20.0F;
+        helper.assertTrue(Math.abs(ghidorah.getMaxHealth() - zero.getMaxHealth()) < 1.0F, "they should have the same health");
+
+        // a blow of Minus Zero's: a twentieth; the same attack touching him again: nothing more
+        float before = ghidorah.getHealth();
+        ghidorah.hurt(level.damageSources().mobAttack(zero), 5.0F);
+        helper.assertTrue(Math.abs(before - ghidorah.getHealth() - share) < 1.0F, "his blow should take a twentieth, took " + (before - ghidorah.getHealth()));
+        before = ghidorah.getHealth();
+        ghidorah.hurt(level.damageSources().mobAttack(zero), 5.0F);
+        helper.assertTrue(ghidorah.getHealth() == before, "the same attack shouldn't land twice");
+        // the heat round him as he charges: nothing
+        zero.startCharging();
+        ghidorah.hurt(ModDamageTypes.source(level, ModDamageTypes.RADIATION, zero), 50.0F);
+        helper.assertTrue(ghidorah.getHealth() == before, "the heat of his charge shouldn't hurt King Ghidorah");
+        // his atomic breath (its beam, as it burns on him, and its blast): four times a twentieth, once
+        DamageSource breath = ModDamageTypes.source(level, ModDamageTypes.ATOMIC_BREATH, zero);
+        Blasts.nuclearHit(ghidorah, breath, false);
+        helper.assertTrue(Math.abs(before - ghidorah.getHealth() - 4.0F * share) < 1.0F, "his breath should take a fifth, took " + (before - ghidorah.getHealth()));
+        before = ghidorah.getHealth();
+        Blasts.nuclearHit(ghidorah, breath, false);
+        helper.assertTrue(ghidorah.getHealth() == before, "his beam burning on should take nothing more");
+
+        // King Ghidorah's bite: a twentieth of Minus Zero's
+        float zBefore = zero.getHealth();
+        ghidorah.startBite(KingGhidorahEntity.Head.MIDDLE);
+        zero.hurt(level.damageSources().mobAttack(ghidorah), 5.0F);
+        helper.assertTrue(Math.abs(zBefore - zero.getHealth() - zeroShare) < 1.0F, "his bite should take a twentieth, took " + (zBefore - zero.getHealth()));
+        // his gravity beam: a fifth, once however many times it zaps him
+        zBefore = zero.getHealth();
+        ghidorah.startBeam(zero.position());
+        zero.hurt(level.damageSources().indirectMagic(ghidorah, ghidorah), 2000.0F);
+        helper.assertTrue(Math.abs(zBefore - zero.getHealth() - 4.0F * zeroShare) < 1.0F, "his beam should take a fifth, took " + (zBefore - zero.getHealth()));
+        zBefore = zero.getHealth();
+        zero.hurt(level.damageSources().indirectMagic(ghidorah, ghidorah), 2000.0F);
+        helper.assertTrue(zero.getHealth() == zBefore, "his beam zapping again shouldn't land again");
+        // a new attack of his lands anew: his stomp, a twentieth
+        ghidorah.startStomp();
+        zero.hurt(level.damageSources().mobAttack(ghidorah), 5.0F);
+        helper.assertTrue(Math.abs(zBefore - zero.getHealth() - zeroShare) < 1.0F, "his stomp should take a twentieth, took " + (zBefore - zero.getHealth()));
+        remove(ghidorah, zero);
+        helper.succeed();
+    }
+
+    /**
+     * Near each other, Godzilla Minus Zero and King Ghidorah go for each other before anything else (a zombie right at
+     * Minus Zero's feet included); Minus Zero, seeing him, roars, and charges his breath the moment the roar is over.
+     */
+    @GameTest(template = FLOOR, batch = "gmo_rivals_target", timeoutTicks = 400)
+    public static void minusZeroAndKingGhidorahGoForEachOther(GameTestHelper helper) {
+        removeLeftoverGodzillas(helper);
+        ServerLevel level = helper.getLevel();
+        GodzillaMinusZeroEntity zero = helper.spawn(ModEntities.GODZILLA_MINUS_ZERO.get(), 4, floorY(helper) + 1, 4);
+        zero.skipIntro();
+        zero.setNoAi(true);
+        zero.setWalkFloorY(Integer.MIN_VALUE);
+        Zombie zombie = helper.spawn(EntityType.ZOMBIE, 4, floorY(helper) + 1, 6);
+        zombie.setNoAi(true);
+        zombie.setInvulnerable(true);
+        KingGhidorahEntity ghidorah = spawnGhidorah(helper);
+        Vec3 off = zero.position().add(0.0, 0.0, 45.0);
+        BlockPos at = BlockPos.containing(off);
+        level.setChunkForced(at.getX() >> 4, at.getZ() >> 4, true);
+        ghidorah.moveTo(off.x, zero.getY(), off.z, 180.0F, 0.0F);
+        ghidorah.setWalkFloorY(Integer.MIN_VALUE);
+        boolean[] started = {false};
+        int[] roarEnded = {-1};
+        int[] charged = {-1};
+        boolean[] roared = {false};
+        helper.onEachTick(() -> {
+            if (!started[0]) {
+                // (once both can be found where they stand: Ghidorah's chunk only just loaded)
+                if (!findable(helper, zero, ghidorah, zombie)) {
+                    return;
+                }
+                started[0] = true;
+                zero.setNoAi(false);
+                ghidorah.setNoAi(false);
+            }
+            boolean roaring = zero.isRoaring();
+            roared[0] |= roaring;
+            if (roared[0] && !roaring && roarEnded[0] < 0) {
+                roarEnded[0] = (int) helper.getTick();
+            }
+            if (charged[0] < 0 && zero.getChargeTicks() >= 0) {
+                charged[0] = (int) helper.getTick();
+            }
+        });
+        helper.succeedWhen(() -> {
+            helper.assertTrue(started[0], "waiting for them to be found");
+            helper.assertTrue(zero.getTarget() == ghidorah, "Minus Zero should be after King Ghidorah, not " + zero.getTarget());
+            helper.assertTrue(ghidorah.getTarget() == zero, "King Ghidorah should be after Minus Zero, not " + ghidorah.getTarget());
+            helper.assertTrue(roared[0], "Minus Zero should have roared at the sight of him");
+            helper.assertTrue(charged[0] >= 0, "Minus Zero should be charging his breath after his roar");
+            helper.assertTrue(charged[0] - roarEnded[0] <= 3, "his charge should follow his roar at once: " + (charged[0] - roarEnded[0]) + " ticks after");
+            level.setChunkForced(at.getX() >> 4, at.getZ() >> 4, false);
+            remove(ghidorah, zero, zombie);
+        });
+    }
+
+    /**
+     * Godzilla Minus Zero's dorsal plates: the rows either side of his middle one are on bones of their own (T12_side
+     * ...), at the plates' places, and his charge has his middle row up (and lit) for his first beam and those rows for
+     * his second (his middle row down then).
+     */
+    @GameTest(template = FLOOR, batch = "gmo_minus_zero_plates", timeoutTicks = 20)
+    public static void minusZerosSecondChargeIsHisSideRows(GameTestHelper helper) {
+        com.google.gson.JsonObject geo = resourceJson("/assets/godzillaminusone/geo/entity/godzilla_minus_zero.geo.json");
+        java.util.Map<String, com.google.gson.JsonObject> bones = new java.util.HashMap<>();
+        for (com.google.gson.JsonElement b : geo.getAsJsonArray("minecraft:geometry").get(0).getAsJsonObject().getAsJsonArray("bones")) {
+            bones.put(b.getAsJsonObject().get("name").getAsString(), b.getAsJsonObject());
+        }
+        String[] flanked = {"T12", "T15", "T16", "T17", "T18", "T19", "T20", "T21", "T22"};
+        for (String plate : flanked) {
+            com.google.gson.JsonObject side = bones.get(plate + "_side");
+            helper.assertTrue(side != null && side.getAsJsonArray("cubes").size() >= 4, plate + "_side should hold the plates either side of " + plate);
+            helper.assertTrue(side.get("parent").equals(bones.get(plate).get("parent")) && side.get("pivot").equals(bones.get(plate).get("pivot")),
+                    plate + "_side should sit where " + plate + " does");
+        }
+        com.google.gson.JsonObject charge = resourceJson("/assets/godzillaminusone/animations/entity/godzilla_minus_zero.animation.json")
+                .getAsJsonObject("animations").getAsJsonObject("animation.gojira.charge_zero").getAsJsonObject("bones");
+        double first = GodzillaEntity.BEAM_START_TICK / 20.0 - 0.3;           // (his first beam about to fire)
+        double second = 14.9167 + (GodzillaEntity.SURGE_TICK - GodzillaEntity.BEAM_START_TICK) / 20.0 - 0.1;   // (his second)
+        for (String plate : flanked) {
+            double sideFirst = positionY(charge.getAsJsonObject(plate + "_side"), first);
+            double sideSecond = positionY(charge.getAsJsonObject(plate + "_side"), second);
+            double middleSecond = positionY(charge.getAsJsonObject(plate), second);
+            helper.assertTrue(sideFirst == 0.0 && sideSecond > 2.0 && middleSecond == 0.0,
+                    plate + ": the side rows should be down for his first beam (" + sideFirst + ") and up for his second (" + sideSecond
+                            + "), his middle row down then (" + middleSecond + ")");
+        }
+        helper.succeed();
+    }
+
+    /** A bone's position channel's y at a time (the last keyframe at or before it). */
+    private static double positionY(com.google.gson.JsonObject bone, double time) {
+        double y = 0.0;
+        double at = -1.0;
+        for (java.util.Map.Entry<String, com.google.gson.JsonElement> e : bone.getAsJsonObject("position").entrySet()) {
+            double t = Double.parseDouble(e.getKey());
+            if (t <= time && t > at) {
+                at = t;
+                com.google.gson.JsonElement v = e.getValue();
+                com.google.gson.JsonArray a = v.isJsonArray() ? v.getAsJsonArray() : v.getAsJsonObject().getAsJsonArray("post");
+                y = a.get(1).getAsDouble();
+            }
+        }
+        return y;
     }
 
     /** His health low, he flies off away from what he's fighting (retreats on), or fights on (retreats off). */
