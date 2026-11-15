@@ -928,6 +928,8 @@ final class Scenes {
                     : heard(since[0], "king_ghidorah.entrance_roar").isEmpty() ? "no entrance roar" : null;
         });
         // his weather: no rain, the sky overcast (coming on over 5 s), lightning twice as often as a thunderstorm's
+        // (him still meanwhile: left to himself through all this he turns about, and the shots after expect him as he rose)
+        onGhidorah("no AI while his weather comes", g -> g.setNoAi(true));
         int[] strikesBefore = {0};
         untilServer("ghidorah: his weather", level -> {
             strikesBefore[0] = com.npjt25.godzillaminusone.entity.GhidorahWeather.strikes();
@@ -956,7 +958,12 @@ final class Scenes {
         server("ghidorah: his weather over (for the shots after)", com.npjt25.godzillaminusone.entity.GhidorahWeather::stop);
         until("ghidorah: the sky clear again", () -> com.npjt25.godzillaminusone.client.GhidorahSky.factor(1.0F) <= 0.0F, 160);
         commands("weather clear");
-        onGhidorah("no AI for the shots", g -> g.setNoAi(true));
+        onGhidorah("no AI for the shots, facing as he rose", g -> {
+            g.setNoAi(true);
+            g.setYRot(0.0F);
+            g.setYBodyRot(0.0F);
+            g.setYHeadRot(0.0F);
+        });
         camera("ghidorah", new Vec3(805.5, -12.0, 88.0), new Vec3(805.5, -16.0, 0.5), 80);
         waitTicks(40);
         check("ghidorah: Minus Zero's hitbox, on the client", () -> {
