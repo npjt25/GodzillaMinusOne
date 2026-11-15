@@ -1285,14 +1285,15 @@ final class Scenes {
             if (g != null) {
                 prints[0] = g.walkPrints();
                 g.setNoAi(false);
-                g.walkTo(new Vec3(DIG_AT.x, -60.0, DIG_AT.z + 80.0));
+                g.walkTo(new Vec3(DIG_AT.x, -60.0, DIG_AT.z + 110.0));
             }
         });
-        camera("ghidorah ground: footprints", new Vec3(DIG_AT.x + 55.0, -22.0, DIG_AT.z + 90.0), new Vec3(DIG_AT.x, -60.0, DIG_AT.z + 50.0), 75);
+        // (from behind him and above: his trail of footprints between his hole and him, him past it)
+        camera("ghidorah ground: footprints", new Vec3(DIG_AT.x + 30.0, -22.0, DIG_AT.z + 10.0), new Vec3(DIG_AT.x, -61.0, DIG_AT.z + 62.0), 75);
         untilServer("ghidorah ground: out of his hole", level -> {
             KingGhidorahEntity g = digGhidorah(level);
-            return g == null || g.getZ() > DIG_AT.z + 75.0;
-        }, 500);
+            return g == null || g.getZ() > DIG_AT.z + 105.0;
+        }, 700);
         waitTicks(20);
         checkServer("ghidorah ground: his footprints", level -> {
             KingGhidorahEntity g = digGhidorah(level);
@@ -1301,16 +1302,16 @@ final class Scenes {
             }
             int walked = g.walkPrints() - prints[0];
             // (beyond his hole and its rim, where he walked: a footprint's ground sunk where each foot came down)
-            int gone = grassGone(level, DIG_AT.x - 16.0, DIG_AT.z + 40.0, DIG_AT.x + 16.0, DIG_AT.z + 70.0);
+            int gone = grassGone(level, DIG_AT.x - 16.0, DIG_AT.z + 40.0, DIG_AT.x + 16.0, DIG_AT.z + 95.0);
             log(String.format(java.util.Locale.ROOT, "ghidorah ground: %d footprints pressed walking %.1f blocks, %d of the ground beyond his hole sunk",
                     walked, g.getZ() - DIG_AT.z, gone));
-            return walked >= 4 && gone > 40 ? null : walked + " footprints, " + gone + " blocks sunk";
+            return walked >= 6 && gone > 80 ? null : walked + " footprints, " + gone + " blocks sunk";
         });
         shot("king_ghidorah_footprints");
 
         // his landing: up after a pig, and down again with it, into a ditch
         Pig[] grabbed = {null};
-        Vec3 pigAt = new Vec3(DIG_AT.x, -60.0, DIG_AT.z + 115.0);
+        Vec3 pigAt = new Vec3(DIG_AT.x, -60.0, DIG_AT.z + 145.0);
         server("ghidorah ground: a pig to grab", level -> {
             KingGhidorahEntity g = digGhidorah(level);
             if (g == null) {
@@ -1323,7 +1324,7 @@ final class Scenes {
             grabbed[0] = pig;
             g.startGrab(pig);
         });
-        camera("ghidorah ground: his ditch", new Vec3(DIG_AT.x + 65.0, -15.0, DIG_AT.z + 165.0), new Vec3(DIG_AT.x, -60.0, DIG_AT.z + 115.0), 80);
+        camera("ghidorah ground: his ditch", new Vec3(DIG_AT.x + 65.0, -15.0, DIG_AT.z + 195.0), new Vec3(DIG_AT.x, -60.0, DIG_AT.z + 145.0), 80);
         double[] landed = {0.0, 0.0};
         untilServer("ghidorah ground: landed", level -> {
             KingGhidorahEntity g = digGhidorah(level);
