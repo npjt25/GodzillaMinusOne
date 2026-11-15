@@ -10,7 +10,7 @@ import net.minecraftforge.network.PacketDistributor;
 import net.minecraftforge.network.simple.SimpleChannel;
 
 public final class ModNetwork {
-    private static final String VERSION = "5";
+    private static final String VERSION = "6";
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             GodzillaMinusOne.id("main"), () -> VERSION, VERSION::equals, VERSION::equals);
 
@@ -40,6 +40,9 @@ public final class ModNetwork {
         CHANNEL.messageBuilder(GodzillaStridePacket.class, id++, NetworkDirection.PLAY_TO_SERVER)
                 .encoder(GodzillaStridePacket::encode).decoder(GodzillaStridePacket::decode)
                 .consumerMainThread(GodzillaStridePacket::handle).add();
+        CHANNEL.messageBuilder(GhidorahWeatherPacket.class, id++, NetworkDirection.PLAY_TO_CLIENT)
+                .encoder(GhidorahWeatherPacket::encode).decoder(GhidorahWeatherPacket::decode)
+                .consumerMainThread(GhidorahWeatherPacket::handle).add();
     }
 
     public static void send(ServerPlayer player, Object message) {

@@ -927,16 +927,34 @@ final class Scenes {
                     : heard(since[0], "king_ghidorah.wing_spread").isEmpty() ? "no wings"
                     : heard(since[0], "king_ghidorah.entrance_roar").isEmpty() ? "no entrance roar" : null;
         });
-        // (the weather's own flag: the rain and thunder themselves come on over a few seconds)
-        untilServer("ghidorah: the storm", level -> level.getLevelData().isThundering(), 200);
-        checkServer("ghidorah: the storm three seconds after his entrance", level -> {
+        // his weather: no rain, the sky overcast (coming on over 5 s), lightning twice as often as a thunderstorm's
+        int[] strikesBefore = {0};
+        untilServer("ghidorah: his weather", level -> {
+            strikesBefore[0] = com.npjt25.godzillaminusone.entity.GhidorahWeather.strikes();
+            return com.npjt25.godzillaminusone.entity.GhidorahWeather.active(level);
+        }, 200);
+        checkServer("ghidorah: his weather three seconds after his entrance", level -> {
             long after = level.getGameTime() - ended[0];
-            log("ghidorah: thunder " + after + " ticks after his entrance ended");
+            log("ghidorah: his weather " + after + " ticks after his entrance ended");
             return after >= Config.GHIDORAH_STORM_DELAY_TICKS.get() - 1 && after <= Config.GHIDORAH_STORM_DELAY_TICKS.get() + 6
-                    ? null : "the storm came " + after + " ticks after";
+                    ? null : "his weather came " + after + " ticks after";
         });
-        waitTicks(30);
+        camera("ghidorah: his weather", new Vec3(920.0, 10.0, 120.0), new Vec3(850.5, 30.0, 0.5), 85);
+        until("ghidorah: the sky overcast", () -> com.npjt25.godzillaminusone.client.GhidorahSky.factor(1.0F) >= 0.99F, 160);
+        untilServer("ghidorah: lightning from it", level -> com.npjt25.godzillaminusone.entity.GhidorahWeather.strikes() > strikesBefore[0], 600);
+        checkServer("ghidorah: overcast, no rain", level -> {
+            net.minecraft.client.multiplayer.ClientLevel client = net.minecraft.client.Minecraft.getInstance().level;
+            float rain = client == null ? -1.0F : client.getRainLevel(1.0F);
+            float dark = client == null ? -1.0F : client.getSkyDarken(1.0F);
+            log(String.format(java.util.Locale.ROOT, "ghidorah: his weather: raining %b (client rain %.2f), sky darkened to %.2f, %d strikes, until %d",
+                    level.isRaining(), rain, dark, com.npjt25.godzillaminusone.entity.GhidorahWeather.strikes() - strikesBefore[0],
+                    com.npjt25.godzillaminusone.entity.GhidorahWeather.until(level)));
+            return !level.isRaining() && rain == 0.0F && com.npjt25.godzillaminusone.client.GhidorahSky.active() ? null
+                    : "raining " + level.isRaining() + ", client rain " + rain;
+        });
         shot("king_ghidorah_storm");
+        server("ghidorah: his weather over (for the shots after)", com.npjt25.godzillaminusone.entity.GhidorahWeather::stop);
+        until("ghidorah: the sky clear again", () -> com.npjt25.godzillaminusone.client.GhidorahSky.factor(1.0F) <= 0.0F, 160);
         commands("weather clear");
         onGhidorah("no AI for the shots", g -> g.setNoAi(true));
         camera("ghidorah", new Vec3(805.5, -12.0, 88.0), new Vec3(805.5, -16.0, 0.5), 80);
@@ -1245,7 +1263,7 @@ final class Scenes {
      */
     private static void kingGhidorahGround() {
         commands("gamerule mobGriefing true", "weather clear", "kill @e[type=godzillaminusone:king_ghidorah]", "kill @e[type=minecraft:pig]");
-        camera("ghidorah ground: his hole", new Vec3(DIG_AT.x + 62.0, -18.0, DIG_AT.z + 62.0), new Vec3(DIG_AT.x, -58.0, DIG_AT.z), 75);
+        camera("ghidorah ground: his hole", new Vec3(DIG_AT.x + 72.0, -8.0, DIG_AT.z + 72.0), new Vec3(DIG_AT.x, -58.0, DIG_AT.z), 80);
         waitTicks(20);
         commands(String.format(java.util.Locale.ROOT, "summon godzillaminusone:king_ghidorah %.1f -60 %.1f", DIG_AT.x, DIG_AT.z));
         untilServer("ghidorah ground: rising", level -> {
@@ -1268,14 +1286,15 @@ final class Scenes {
             double r = KingGhidorahEntity.ENTRANCE_HOLE_FLOOR - 2.0;
             int gone = grassGone(level, DIG_AT.x - r, DIG_AT.z - r, DIG_AT.x + r, DIG_AT.z + r);
             int all = (int) Math.pow(Math.floor(DIG_AT.x + r) - Math.floor(DIG_AT.x - r) + 1, 2);
-            int beyond = grassGone(level, DIG_AT.x + 45.0, DIG_AT.z - 5.0, DIG_AT.x + 50.0, DIG_AT.z + 5.0);
+            int beyond = grassGone(level, DIG_AT.x + 62.0, DIG_AT.z - 5.0, DIG_AT.x + 67.0, DIG_AT.z + 5.0);
             log(String.format(java.util.Locale.ROOT, "ghidorah ground: his hole: %d of %d of the ground in its middle dug out, %d beyond it; he stands at y %.1f, %d ditches",
                     gone, all, beyond, g.getY(), g.ditches()));
             return gone > all * 0.9 && beyond == 0 && g.ditches() == 1 && g.getY() < -61.5 ? null
                     : "no hole: " + gone + " of " + all + ", " + beyond + " beyond, y " + g.getY() + ", " + g.ditches() + " ditches";
         });
         shot("king_ghidorah_entrance_hole");
-        untilServer("ghidorah ground: the storm", level -> level.getLevelData().isThundering(), 200);
+        untilServer("ghidorah ground: his weather", com.npjt25.godzillaminusone.entity.GhidorahWeather::active, 200);
+        server("ghidorah ground: his weather over", com.npjt25.godzillaminusone.entity.GhidorahWeather::stop);
         commands("weather clear");
 
         // walking out of it: a footprint where each foot comes down
@@ -1285,15 +1304,15 @@ final class Scenes {
             if (g != null) {
                 prints[0] = g.walkPrints();
                 g.setNoAi(false);
-                g.walkTo(new Vec3(DIG_AT.x, -60.0, DIG_AT.z + 110.0));
+                g.walkTo(new Vec3(DIG_AT.x, -60.0, DIG_AT.z + 135.0));
             }
         });
         // (from behind him and above: his trail of footprints between his hole and him, him past it)
-        camera("ghidorah ground: footprints", new Vec3(DIG_AT.x + 30.0, -22.0, DIG_AT.z + 10.0), new Vec3(DIG_AT.x, -61.0, DIG_AT.z + 62.0), 75);
+        camera("ghidorah ground: footprints", new Vec3(DIG_AT.x + 30.0, -22.0, DIG_AT.z + 35.0), new Vec3(DIG_AT.x, -61.0, DIG_AT.z + 87.0), 75);
         untilServer("ghidorah ground: out of his hole", level -> {
             KingGhidorahEntity g = digGhidorah(level);
-            return g == null || g.getZ() > DIG_AT.z + 105.0;
-        }, 700);
+            return g == null || g.getZ() > DIG_AT.z + 130.0;
+        }, 800);
         waitTicks(20);
         checkServer("ghidorah ground: his footprints", level -> {
             KingGhidorahEntity g = digGhidorah(level);
@@ -1302,7 +1321,7 @@ final class Scenes {
             }
             int walked = g.walkPrints() - prints[0];
             // (beyond his hole and its rim, where he walked: a footprint's ground sunk where each foot came down)
-            int gone = grassGone(level, DIG_AT.x - 16.0, DIG_AT.z + 40.0, DIG_AT.x + 16.0, DIG_AT.z + 95.0);
+            int gone = grassGone(level, DIG_AT.x - 16.0, DIG_AT.z + 62.0, DIG_AT.x + 16.0, DIG_AT.z + 120.0);
             log(String.format(java.util.Locale.ROOT, "ghidorah ground: %d footprints pressed walking %.1f blocks, %d of the ground beyond his hole sunk",
                     walked, g.getZ() - DIG_AT.z, gone));
             return walked >= 6 && gone > 80 ? null : walked + " footprints, " + gone + " blocks sunk";
@@ -1311,7 +1330,7 @@ final class Scenes {
 
         // his landing: up after a pig, and down again with it, into a ditch
         Pig[] grabbed = {null};
-        Vec3 pigAt = new Vec3(DIG_AT.x, -60.0, DIG_AT.z + 145.0);
+        Vec3 pigAt = new Vec3(DIG_AT.x, -60.0, DIG_AT.z + 170.0);
         server("ghidorah ground: a pig to grab", level -> {
             KingGhidorahEntity g = digGhidorah(level);
             if (g == null) {
@@ -1324,7 +1343,7 @@ final class Scenes {
             grabbed[0] = pig;
             g.startGrab(pig);
         });
-        camera("ghidorah ground: his ditch", new Vec3(DIG_AT.x + 65.0, -15.0, DIG_AT.z + 195.0), new Vec3(DIG_AT.x, -60.0, DIG_AT.z + 145.0), 80);
+        camera("ghidorah ground: his ditch", new Vec3(DIG_AT.x + 65.0, -15.0, DIG_AT.z + 220.0), new Vec3(DIG_AT.x, -60.0, DIG_AT.z + 170.0), 80);
         double[] landed = {0.0, 0.0};
         untilServer("ghidorah ground: landed", level -> {
             KingGhidorahEntity g = digGhidorah(level);

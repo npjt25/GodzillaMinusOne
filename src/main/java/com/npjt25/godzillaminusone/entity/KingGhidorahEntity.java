@@ -46,6 +46,7 @@ import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.ServerLevelAccessor;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.LightBlock;
 import net.minecraft.world.level.block.LiquidBlock;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.levelgen.Heightmap;
@@ -67,6 +68,8 @@ import software.bernie.geckolib.util.GeckoLibUtil;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.EnumSet;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.List;
 
 /**
@@ -117,6 +120,8 @@ public class KingGhidorahEntity extends Monster implements GeoEntity {
     public static final int ACTION_ENTRANCE = 9;
     public static final int ACTION_GRAB = 10;
     public static final int ACTION_RETREAT = 11;
+    /** After a Shinden in the air: he flies after it and bites it out of the sky (Flight.CHASE). */
+    public static final int ACTION_PURSUE = 12;
 
     /** Ticks each animation lasts (animation.king_ghidorah.*). */
     public static final int ROAR_TICKS = 64;
@@ -152,9 +157,9 @@ public class KingGhidorahEntity extends Monster implements GeoEntity {
     public static final double LANDING_DITCH_FLOOR = 15.0;
     public static final double LANDING_DITCH_RADIUS = 26.0;
     public static final int LANDING_DITCH_DEPTH = 5;
-    public static final double ENTRANCE_HOLE_FLOOR = 15.0;
-    public static final double ENTRANCE_HOLE_RADIUS = 32.0;
-    public static final int ENTRANCE_HOLE_DEPTH = 8;
+    public static final double ENTRANCE_HOLE_FLOOR = 24.0;
+    public static final double ENTRANCE_HOLE_RADIUS = 50.0;
+    public static final int ENTRANCE_HOLE_DEPTH = 13;
     public static final int ENTRANCE_HOLE_AT = 160;
     /** How fast his walk animation carries him over the ground at its own pace (his planted feet, measured): blocks a tick. */
     public static final double WALK_BLOCKS_PER_TICK = 0.35;
@@ -223,7 +228,7 @@ public class KingGhidorahEntity extends Monster implements GeoEntity {
 
     /** Where a flight is: up off the ground, after its prey, carrying it up, diving, landing; or fleeing. */
     private enum Flight {
-        TAKEOFF, APPROACH, ASCEND, DIVE, FLEE, LAND
+        TAKEOFF, APPROACH, ASCEND, DIVE, FLEE, CHASE, LAND
     }
 
     private static final RawAnimation IDLE = RawAnimation.begin().thenLoop("animation.king_ghidorah.idle");
@@ -292,6 +297,10 @@ public class KingGhidorahEntity extends Monster implements GeoEntity {
     private LivingEntity prey;
     @Nullable
     private Vec3 fleeFrom;
+    /** The Shinden he's flying after (ACTION_PURSUE). */
+    @Nullable
+    private ShindenEntity chased;
+    private int pursueCooldown;
     private boolean slammed;
     // what his lift holds, and where it was taken from
     @Nullable
@@ -415,6 +424,93 @@ public class KingGhidorahEntity extends Monster implements GeoEntity {
         return getAction() != ACTION_NONE;
     }
 
+    /** Whether any of his heads is firing. */
+    public boolean isFiringAny() {
+        for (Head head : Head.values()) {
+            if (isFiring(head)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // ------------------------------------------------------------------ the light of his beams
+
+    /** How far apart the lights along his beams are (blocks). */
+    private static final double BEAM_LIGHT_STEP = 7.0;
+    /** The light blocks along his beams now (the server's), and where they'll be. */
+    private final Set<BlockPos> beamLights = new HashSet<>();
+
+    /**
+     * While his beams blaze, the world about them is lit up as by any light (the game's block light, warm and yellow):
+     * light blocks (Blocks.LIGHT, level 15) in the air along each beam and just short of where it strikes, moved as
+     * the beams sweep and taken away as they stop (and when he's gone). Only in the air: nothing is replaced.
+     */
+    private void lightBeams(ServerLevel level) {
+        Set<BlockPos> wanted = new HashSet<>();
+        if (!isDeadOrDying() && !isRemoved()) {
+            Vec3 aim = getAim();
+            for (Head head : Head.values()) {
+                if (!isFiring(head)) {
+                    continue;
+                }
+                Vec3 mouth = beamMouth(head);
+                Vec3 end = beamEnd(head, mouth, aim);
+                double length = mouth.distanceTo(end);
+                if (length < 1.0) {
+                    continue;
+                }
+                for (double s = 3.0; s < length - 2.0; s += BEAM_LIGHT_STEP) {
+                    beamLight(level, wanted, mouth.lerp(end, s / length));
+                }
+                beamLight(level, wanted, end.add(mouth.subtract(end).scale(1.5 / length)));
+            }
+        }
+        for (java.util.Iterator<BlockPos> it = this.beamLights.iterator(); it.hasNext(); ) {
+            BlockPos pos = it.next();
+            if (!wanted.contains(pos)) {
+                if (level.hasChunkAt(pos) && level.getBlockState(pos).is(Blocks.LIGHT)) {
+                    level.setBlock(pos, Blocks.AIR.defaultBlockState(), 3);
+                }
+                it.remove();
+            }
+        }
+        for (BlockPos pos : wanted) {
+            if (!this.beamLights.contains(pos) && level.getBlockState(pos).isAir()) {
+                level.setBlock(pos, Blocks.LIGHT.defaultBlockState().setValue(LightBlock.LEVEL, 15), 3);
+                this.beamLights.add(pos);
+            }
+        }
+    }
+
+    private static void beamLight(ServerLevel level, Set<BlockPos> wanted, Vec3 at) {
+        BlockPos pos = BlockPos.containing(at);
+        if (level.isLoaded(pos)) {
+            BlockState state = level.getBlockState(pos);
+            if (state.isAir() || state.is(Blocks.LIGHT)) {
+                wanted.add(pos);
+            }
+        }
+    }
+
+    /** How many light blocks his beams have lit now (game tests, harness). */
+    public int beamLightCount() {
+        return this.beamLights.size();
+    }
+
+    @Override
+    public void remove(RemovalReason reason) {
+        if (level() instanceof ServerLevel level && !this.beamLights.isEmpty()) {
+            for (BlockPos pos : this.beamLights) {
+                if (level.hasChunkAt(pos) && level.getBlockState(pos).is(Blocks.LIGHT)) {
+                    level.setBlock(pos, Blocks.AIR.defaultBlockState(), 3);
+                }
+            }
+            this.beamLights.clear();
+        }
+        super.remove(reason);
+    }
+
     public boolean inEntrance() {
         return getAction() == ACTION_ENTRANCE;
     }
@@ -479,6 +575,9 @@ public class KingGhidorahEntity extends Monster implements GeoEntity {
             storm(level);
         }
         tickVaporizing(level);
+        if (this.tickCount % 2 == 0 || !this.beamLights.isEmpty() && !isFiringAny()) {
+            lightBeams(level);
+        }
         if (isDeadOrDying()) {
             return;
         }
@@ -499,6 +598,9 @@ public class KingGhidorahEntity extends Monster implements GeoEntity {
         }
         if (this.whipCooldown > 0) {
             this.whipCooldown--;
+        }
+        if (this.pursueCooldown > 0) {
+            this.pursueCooldown--;
         }
         if (this.retreatCooldown > 0) {
             this.retreatCooldown--;
@@ -599,7 +701,7 @@ public class KingGhidorahEntity extends Monster implements GeoEntity {
                 }
             }
             case ACTION_ENTRANCE -> entranceTick(level, t);
-            case ACTION_GRAB, ACTION_RETREAT -> flightTick(level, action, target);
+            case ACTION_GRAB, ACTION_RETREAT, ACTION_PURSUE -> flightTick(level, action, target);
             default -> endAction();
         }
     }
@@ -736,16 +838,12 @@ public class KingGhidorahEntity extends Monster implements GeoEntity {
     }
 
     /**
-     * The thunderstorm after his entrance: rain and thunder over the whole dimension (through the game's own weather,
-     * so every player in it gets it, and lightning strikes as it does in any storm) for entranceStormDurationTicks.
-     * Only where there is weather: a dimension with a sky and no ceiling, with weather of its own (the Overworld).
+     * His weather after his entrance (GhidorahWeather): over the whole dimension for entranceStormDurationTicks, no
+     * rain, the sky overcast, and lightning twice as often as in a thunderstorm. Only where there's a sky (a dimension
+     * with sky light and no ceiling: the Overworld).
      */
     private void storm(ServerLevel level) {
-        int duration = Config.GHIDORAH_STORM_DURATION_TICKS.get();
-        if (duration <= 0 || !level.dimensionType().hasSkyLight() || level.dimensionType().hasCeiling()) {
-            return;
-        }
-        level.setWeatherParameters(0, duration, true, true);
+        GhidorahWeather.start(level, Config.GHIDORAH_STORM_DURATION_TICKS.get());
     }
 
     /** When his storm is due (game time), or -1. */
@@ -1061,6 +1159,64 @@ public class KingGhidorahEntity extends Monster implements GeoEntity {
         beginFlight(ACTION_GRAB);
     }
 
+    /** How long he chases a plane before he gives up and lands (ticks), and how soon after that he'll fly after one again. */
+    public static final int PURSUE_TICKS = 600;
+    private static final int PURSUE_COOLDOWN = 100;
+    /** How fast he flies after a plane (a Shinden's top speed is shindenMaxSpeed, 1.6: he's faster). */
+    public static final double CHASE_SPEED = 2.2;
+    /** How far below the plane his body flies (his heads up level with it), and how close it has to come to be bitten. */
+    private static final double CHASE_BELOW = 40.0;
+    private static final double CHASE_REACH = 22.0;
+
+    /** Fly after the Shinden {@code plane}, up in the air, and bite it out of the sky. */
+    public void startPursuit(ShindenEntity plane) {
+        this.chased = plane;
+        this.pursueCooldown = PURSUE_TICKS + PURSUE_COOLDOWN;
+        beginFlight(ACTION_PURSUE);
+    }
+
+    /** The Shinden he's after, if it's up in the air: {@code target} itself, or what it's flying. Else null. */
+    @Nullable
+    public static ShindenEntity airbornePlane(@Nullable LivingEntity target) {
+        ShindenEntity plane = target instanceof ShindenEntity s ? s : target != null && target.getVehicle() instanceof ShindenEntity s ? s : null;
+        return plane != null && plane.isAlive() && plane.isVehicle() && airborne(plane) ? plane : null;
+    }
+
+    /** Up in the air: off the ground, with nothing solid (or water) in the 7 blocks under it. */
+    private static boolean airborne(ShindenEntity plane) {
+        if (plane.onGround() || plane.isInWater()) {
+            return false;
+        }
+        Level level = plane.level();
+        BlockPos.MutableBlockPos p = BlockPos.containing(plane.getX(), plane.getY() - 0.01, plane.getZ()).mutable();
+        for (int k = 0; k < 7; k++) {
+            if (!level.getBlockState(p).getCollisionShape(level, p).isEmpty() || !level.getFluidState(p).isEmpty()) {
+                return false;
+            }
+            p.move(0, -1, 0);
+        }
+        return true;
+    }
+
+    /** Whether he's flying after a plane. */
+    public boolean isPursuing() {
+        return getAction() == ACTION_PURSUE;
+    }
+
+    /** The plane caught: one of his heads seizes it in its jaws, and it blows up there (its pilot bails out). */
+    private void bitePlane(ServerLevel level, ShindenEntity plane) {
+        level.playSound(null, plane.getX(), plane.getY(), plane.getZ(), ModSounds.KING_GHIDORAH_BITE.get(), SoundSource.HOSTILE, 12.0F, 0.9F);
+        plane.hurt(damageSources().mobAttack(this), 100.0F);
+        this.planesBitten++;
+    }
+
+    private int planesBitten;
+
+    /** How many planes he's bitten out of the sky (game tests, harness). */
+    public int planesBitten() {
+        return this.planesBitten;
+    }
+
     /** Fly off away from {@code from} (his health low: retreatHealthPercent). */
     public void startRetreat(@Nullable Vec3 from) {
         this.fleeFrom = from != null ? from : position().add(Vec3.directionFromRotation(0.0F, getYRot()).scale(10.0));
@@ -1094,23 +1250,19 @@ public class KingGhidorahEntity extends Monster implements GeoEntity {
             return;
         }
         Vec3 at = position();
-        if (Destruction.ditch(level, this, at, floorRadius, radius, depth) > 0) {
-            // down he goes into it, onto its floor (sinkTick: with his AI off too, which the game's gravity passes by)
-            BlockPos.MutableBlockPos p = BlockPos.containing(at).mutable();
-            for (int k = 0; k <= depth + 2 && level.getBlockState(p.below()).getCollisionShape(level, p.below()).isEmpty(); k++) {
-                p.move(0, -1, 0);
-            }
-            if (p.getY() < getY() - 1.0E-3) {
-                this.sinkTo = p.getY();
-                this.sinkSpeed = drop;
-            }
-            for (int i = 0; i < 8; i++) {
-                double a = i * Mth.TWO_PI / 8.0;
-                level.sendParticles(ParticleTypes.EXPLOSION_EMITTER, at.x + Math.cos(a) * radius * 0.7, at.y + 1.0,
-                        at.z + Math.sin(a) * radius * 0.7, 1, 2.0, 0.5, 2.0, 0.0);
-            }
-            this.ditches++;
+        // (dug over the next few ticks, from the middle out: the ground giving way under him first)
+        Destruction.digDitch(level, this, at, floorRadius, radius, depth);
+        // down he goes into it as it opens under him, onto its floor (sinkTick: with his AI off too, which the game's
+        // gravity passes by)
+        this.sinkTo = Mth.floor(at.y + 0.01) - depth;
+        this.sinkSpeed = drop;
+        this.sinkWaited = 0;
+        for (int i = 0; i < 8; i++) {
+            double a = i * Mth.TWO_PI / 8.0;
+            level.sendParticles(ParticleTypes.EXPLOSION_EMITTER, at.x + Math.cos(a) * radius * 0.7, at.y + 1.0,
+                    at.z + Math.sin(a) * radius * 0.7, 1, 2.0, 0.5, 2.0, 0.0);
         }
+        this.ditches++;
     }
 
     /** How many ditches he's dug (for the harness). */
@@ -1118,8 +1270,12 @@ public class KingGhidorahEntity extends Monster implements GeoEntity {
     /** Where he's sinking to (the floor of the ditch he's just dug: NaN, he isn't), and how fast (blocks a tick). */
     private double sinkTo = Double.NaN;
     private double sinkSpeed;
+    private int sinkWaited;
 
-    /** Each server tick: down into his new ditch, till he's on its floor (the game's collisions stop him there too). */
+    /**
+     * Each server tick: down into his new ditch as it's dug out under him, till he's on its floor (whatever's left
+     * solid under him: bedrock, what can't be broken); still solid for half a second, that's as far as he goes.
+     */
     private void sinkTick() {
         if (Double.isNaN(this.sinkTo)) {
             return;
@@ -1128,7 +1284,23 @@ public class KingGhidorahEntity extends Monster implements GeoEntity {
             this.sinkTo = Double.NaN;
             return;
         }
-        setPos(getX(), Math.max(this.sinkTo, getY() - this.sinkSpeed), getZ());
+        BlockPos.MutableBlockPos p = BlockPos.containing(getX(), getY() - 0.01, getZ()).mutable();
+        double floor = this.sinkTo;
+        for (int k = 0; k <= Mth.ceil(this.sinkSpeed) + 1; k++) {
+            if (!level().getBlockState(p).getCollisionShape(level(), p).isEmpty()) {
+                floor = Math.max(floor, p.getY() + 1.0);
+                break;
+            }
+            p.move(0, -1, 0);
+        }
+        if (floor >= getY() - 1.0E-3) {
+            if (++this.sinkWaited > 10) {
+                this.sinkTo = Double.NaN;
+            }
+            return;
+        }
+        this.sinkWaited = 0;
+        setPos(getX(), Math.max(floor, getY() - this.sinkSpeed), getZ());
         setDeltaMovement(getDeltaMovement().x, 0.0, getDeltaMovement().z);
     }
 
@@ -1162,7 +1334,7 @@ public class KingGhidorahEntity extends Monster implements GeoEntity {
             case TAKEOFF -> {
                 v = new Vec3(0.0, 1.1, 0.0);
                 if (this.flightTicks >= 18) {
-                    next(action == ACTION_GRAB ? Flight.APPROACH : Flight.FLEE);
+                    next(action == ACTION_GRAB ? Flight.APPROACH : action == ACTION_PURSUE ? Flight.CHASE : Flight.FLEE);
                 }
             }
             case APPROACH -> {
@@ -1218,6 +1390,31 @@ public class KingGhidorahEntity extends Monster implements GeoEntity {
                     next(Flight.LAND);
                 }
             }
+            case CHASE -> {
+                ShindenEntity plane = this.chased;
+                if (this.flightTicks % 5 == 0 && !isNoAi()) {
+                    // Godzilla Minus Zero near: he leaves the plane and comes down for him (Rivals)
+                    LivingEntity rival = Rivals.nearest(level, this);
+                    if (rival != null) {
+                        setTarget(rival);
+                        next(Flight.LAND);
+                        break;
+                    }
+                }
+                if (plane == null || !plane.isAlive() || !airborne(plane) || this.flightTicks > PURSUE_TICKS) {
+                    next(Flight.LAND);
+                    break;
+                }
+                // after it, flying for a little ahead of where it's going, his body below it so his heads reach it
+                Vec3 lead = plane.position().add(plane.getFlightMotion().scale(6.0));
+                Vec3 d = lead.subtract(0.0, CHASE_BELOW, 0.0).subtract(position());
+                faceTowards(lead);
+                v = d.length() > CHASE_SPEED ? d.normalize().scale(CHASE_SPEED) : d;
+                if (plane.position().distanceTo(position().add(0.0, CHASE_BELOW, 0.0)) < CHASE_REACH) {
+                    bitePlane(level, plane);
+                    next(Flight.LAND);
+                }
+            }
             case LAND -> {
                 v = new Vec3(0.0, getY() - ground > 6.0 ? -1.4 : -0.5, 0.0);
                 if (getY() + v.y <= ground) {
@@ -1226,6 +1423,7 @@ public class KingGhidorahEntity extends Monster implements GeoEntity {
                     setDeltaMovement(Vec3.ZERO);
                     ejectPassengers();
                     this.prey = null;
+                    this.chased = null;
                     footstep(level, position(), 16.0F);
                     stopFlyingSound(level);
                     ModNetwork.shake(level, position(), 90.0, 1.2F, 1.0F);
@@ -1604,6 +1802,8 @@ public class KingGhidorahEntity extends Monster implements GeoEntity {
         }
         tag.putLong("StormAt", this.stormAt);
         tag.putInt("RetreatCooldown", this.retreatCooldown);
+        // (the light blocks his beams lit, if he's saved as they blaze: taken away again when he's loaded)
+        tag.putLongArray("BeamLights", this.beamLights.stream().mapToLong(BlockPos::asLong).toArray());
     }
 
     @Override
@@ -1620,6 +1820,9 @@ public class KingGhidorahEntity extends Monster implements GeoEntity {
         }
         this.stormAt = tag.contains("StormAt") ? tag.getLong("StormAt") : -1L;
         this.retreatCooldown = tag.getInt("RetreatCooldown");
+        for (long pos : tag.getLongArray("BeamLights")) {
+            this.beamLights.add(BlockPos.of(pos));
+        }
         // (a flight isn't saved: loaded mid-air, he comes down and carries on from the ground)
         setNoGravity(false);
         this.noPhysics = false;
@@ -1672,7 +1875,7 @@ public class KingGhidorahEntity extends Monster implements GeoEntity {
             RawAnimation.begin().thenPlay("animation.king_ghidorah.stomp"),
             RawAnimation.begin().thenPlay("animation.king_ghidorah.tail_whip"),
             RawAnimation.begin().thenPlayAndHold("animation.king_ghidorah.entrance"),
-            null, null};
+            null, null, null};
 
     private int playing = ACTION_NONE;
 
@@ -1816,6 +2019,12 @@ public class KingGhidorahEntity extends Monster implements GeoEntity {
             g.getLookControl().setLookAt(target, 10.0F, 10.0F);
             if (g.shouldRetreat()) {
                 g.startRetreat(target.position());
+                return;
+            }
+            ShindenEntity plane = airbornePlane(target);
+            if (plane != null && g.pursueCooldown <= 0 && !g.isNoAi()) {
+                // a Shinden up in the air: he takes off after it
+                g.startPursuit(plane);
                 return;
             }
             if (target instanceof GodzillaEntity godzilla && godzilla.isBreathCharging()) {

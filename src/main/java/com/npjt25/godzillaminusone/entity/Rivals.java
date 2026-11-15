@@ -39,6 +39,15 @@ public final class Rivals {
     private Rivals() {
     }
 
+    /**
+     * Whether {@code a} and {@code b} hurt each other as rivals do ({@link #blow}): King Ghidorah and a Godzilla, Minus
+     * Zero or Minus One. (Minus One brought down by King Ghidorah gets up once, after a minute; the next time it's for
+     * good: GodzillaEntity.die.)
+     */
+    public static boolean foes(@Nullable Entity a, @Nullable Entity b) {
+        return a instanceof GodzillaEntity && b instanceof KingGhidorahEntity || a instanceof KingGhidorahEntity && b instanceof GodzillaEntity;
+    }
+
     /** Whether {@code a} and {@code b} are rivals: one Godzilla Minus Zero, the other King Ghidorah. */
     public static boolean rivals(@Nullable Entity a, @Nullable Entity b) {
         return a instanceof GodzillaMinusZeroEntity && b instanceof KingGhidorahEntity
@@ -84,7 +93,7 @@ public final class Rivals {
     @Nullable
     public static Float blow(LivingEntity victim, DamageSource source) {
         Entity attacker = source.getEntity();
-        if (victim.level().isClientSide || !rivals(victim, attacker) || source.is(ModDamageTypes.RADIATION)
+        if (victim.level().isClientSide || !foes(victim, attacker) || source.is(ModDamageTypes.RADIATION)
                 || source.is(ModDamageTypes.STOMP) || source.is(ModDamageTypes.KAIJU)) {
             return null;
         }
@@ -94,7 +103,7 @@ public final class Rivals {
             attack = ghidorah.rivalAttackId();
             heavy = ghidorah.heavyRivalAttack();
         } else {
-            GodzillaEntity zero = (GodzillaEntity) attacker;
+            GodzillaEntity zero = (GodzillaEntity) attacker;      // (Minus Zero, or Minus One)
             attack = zero.rivalAttackId(source);
             heavy = zero.heavyRivalAttack(source);
         }

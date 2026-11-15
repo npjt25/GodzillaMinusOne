@@ -287,8 +287,14 @@ public class GodzillaEntity extends Monster implements GeoEntity {
      * </ul>
      */
     public enum Defeat {
-        NONE, EVOLVE, REGENERATE, FALL
+        /** RECOVER: Minus One brought down by King Ghidorah the first time; he gets up again after GHIDORAH_DOWNED_TICKS. */
+        NONE, EVOLVE, REGENERATE, FALL, RECOVER
     }
+
+    /** How long Minus One lies there, brought down by King Ghidorah, before he gets up again (the once he does): a minute. */
+    public static final int GHIDORAH_DOWNED_TICKS = 1200;
+    /** How many times King Ghidorah has brought him down (Minus One: the second time, he doesn't get up). */
+    private int ghidorahDowns;
 
     // Client side: when the charge state last changed (for the plate glow), and the smoothed head aim.
     private int chargeChangedTick;
@@ -477,6 +483,15 @@ public class GodzillaEntity extends Monster implements GeoEntity {
             p.move(0, -1, 0);
         }
         return true;
+    }
+
+    /**
+     * Whether he won't use his breath on {@code target}: Minus Zero never fires it at a Shinden (or at its pilot), he
+     * chases it (King Ghidorah coming near, he goes for him instead: preferRival).
+     */
+    protected boolean holdsBreathAt(@Nullable LivingEntity target) {
+        return this instanceof GodzillaMinusZeroEntity && target != null
+                && (target instanceof ShindenEntity || target.getVehicle() instanceof ShindenEntity);
     }
 
     /** Whether he's charging his breath and hasn't fired yet (King Ghidorah waits for it: the beam's not out). */
@@ -677,7 +692,7 @@ public class GodzillaEntity extends Monster implements GeoEntity {
                     if (this.phaseTicks >= FALLEN_TICKS) {
                         fallForGood();
                     }
-                } else if (this.phaseTicks >= downedTicks()) {
+                } else if (this.phaseTicks >= (this.defeat == Defeat.RECOVER ? recoverTicks() : downedTicks())) {
                     if (this.defeat == Defeat.EVOLVE) {
                         evolve(level);
                     } else {
@@ -750,7 +765,7 @@ public class GodzillaEntity extends Monster implements GeoEntity {
             boolean atRival = this.breathAfterRoar && target != null && Rivals.rivals(this, target);
             // (only with his feet on the ground: not carried, not hauled up or falling, so it's from his mouth, where he stands)
             if (target != null && this.stunTicks <= 0 && this.pendingHitTicks < 0 && this.roaringTicks <= 0 && !isSwimmingAtSurface()
-                    && !isPassenger() && onGround()
+                    && !isPassenger() && onGround() && !holdsBreathAt(target)
                     && (atRival || this.angryTicks >= ANGER_DELAY && this.breathCooldown <= 0 && this.firstBreathDelay <= 0
                     && farEnoughToBreathe(target))) {
                 this.breathAfterRoar = false;
@@ -1080,9 +1095,9 @@ public class GodzillaEntity extends Monster implements GeoEntity {
     }
 
     private void tickCharge(ServerLevel level, @Nullable LivingEntity target) {
-        if (isPassenger() || offTheGround()) {
+        if (isPassenger() || offTheGround() || this.chargeTicks < BEAM_START_TICK && holdsBreathAt(target)) {
             // (carried off in King Ghidorah's talons or by anything, hauled up by his lift, falling: his breath is over;
-            // it never fires from the air)
+            // it never fires from the air. Nor at a Shinden: Minus Zero, his target turned to one, chases it instead)
             cancelBreath();
             return;
         }
@@ -1987,7 +2002,9 @@ public class GodzillaEntity extends Monster implements GeoEntity {
         if (!level().isClientSide && source.getEntity() instanceof Player player && creditsDefeat()) {
             Shapes.creditDefeat(player, this); // (ReMorphed: bringing him down unlocks his shape)
         }
-        Defeat outcome = kill || level().isClientSide ? Defeat.NONE : defeatOutcome();
+        Defeat outcome = kill || level().isClientSide ? Defeat.NONE
+                : source.getEntity() instanceof KingGhidorahEntity && !(this instanceof GodzillaMinusZeroEntity) ? downedByGhidorah()
+                : defeatOutcome();
         if (outcome != Defeat.NONE) {
             // gojira -> gojira_dead: collapse, lie dead, then whatever comes next (see tick())
             LivingEntity was = getTarget();
@@ -2000,6 +2017,24 @@ public class GodzillaEntity extends Monster implements GeoEntity {
             return;
         }
         super.die(source);
+    }
+
+    /**
+     * Minus One brought down by King Ghidorah: the first time he gets up again after a minute (GHIDORAH_DOWNED_TICKS),
+     * whatever evolvesIntoMinusZero and regenerates say; the next time, he's dead.
+     */
+    private Defeat downedByGhidorah() {
+        return this.ghidorahDowns++ == 0 ? Defeat.RECOVER : Defeat.FALL;
+    }
+
+    /** How many times King Ghidorah has brought him down. */
+    public int ghidorahDowns() {
+        return this.ghidorahDowns;
+    }
+
+    /** How long he lies there brought down by King Ghidorah (the tests shorten it as they do downedSeconds). */
+    private int recoverTicks() {
+        return this.downedTicksOverride >= 0 ? this.downedTicksOverride : GHIDORAH_DOWNED_TICKS;
     }
 
     /** What becomes of him once he's down: Minus One evolves (evolvesIntoMinusZero) or gets up again (regenerates). */
@@ -2588,6 +2623,7 @@ public class GodzillaEntity extends Monster implements GeoEntity {
         tag.putInt("RoarTimer", this.roarTimer);
         tag.putInt("Burns", getBurnTicks());
         tag.putString("Defeat", this.defeat.name());
+        tag.putInt("GhidorahDowns", this.ghidorahDowns);
         if (this.foe != null) {
             tag.putUUID("Foe", this.foe);
         }
@@ -2617,6 +2653,7 @@ public class GodzillaEntity extends Monster implements GeoEntity {
             this.defeat = Defeat.REGENERATE; // (saved by a version from before evolving: he gets up as he would have)
         }
         this.foe = tag.hasUUID("Foe") ? tag.getUUID("Foe") : null;
+        this.ghidorahDowns = tag.getInt("GhidorahDowns");
         // Godzillas saved by an older version of the mod walked faster.
         AttributeInstance speed = getAttribute(Attributes.MOVEMENT_SPEED);
         if (speed != null) {

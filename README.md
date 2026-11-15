@@ -236,9 +236,13 @@ the blue one a player.*
   hitbox (20 x 80). A broad armoured chest and massive shoulders, three long segmented necks, a narrower waist,
   powerful hindquarters on two muscular legs with three-taloned feet, a cluster of tall spear spikes on his upper
   back, and two long tails, each ending in a spiked mace. His wings are his forelimbs (no arms): huge bat wings with
-  armoured leading edges, a hooked claw at each wrist, and dark brown-burgundy membranes, veined and scalloped. His
-  hide is weathered gold, tarnished bronze, ochre and olive-brown; small amber eyes sunk under heavy brows, and every
-  head with its own jaw, teeth, horns, crown and cheek spikes and a jagged beard.
+  armoured leading edges spurred with spikes, a hooked claw at each wrist, and dark brown-burgundy membranes, veined
+  and scalloped: **each wing one sheet from its fingertips to his flank**, joined to his body (it never comes apart
+  into separate pieces, however the wing moves). His hide is weathered gold, tarnished bronze, ochre and olive-brown,
+  scaled and plated all over: rows of scales down each side of his necks and two rows of spikes down their backs,
+  scutes across his breast and belly, ridges of armour along his flanks, spikes out to either side of his tails,
+  spurs at his knees and scales down his thighs; small amber eyes sunk under heavy brows, and every head with its own
+  jaw, teeth, horns, a crown of spikes, knobs down its snout, cheek spikes and a jagged beard.
 - **He stands crouched low on bent legs, leaning on his wings like front legs: the claws at his wrists planted on the
   ground** and the wings half spread above them, **never folded** (only while he digs himself out of the ground are
   they tucked), heads looking every which way, as in the first reference picture. He walks the same way, on all
@@ -263,13 +267,20 @@ the blue one a player.*
   - **Tail whip**: his body twists and both tails swing round behind him, striking and flinging whatever is in their
     sweep and sweeping away what's built.
   - **Gravity beams**, from 40 to 160 blocks: he braces, his wings half open, and his three heads fire in turn:
-    **concentrated beams of golden lightning** (straight, blazing, white-hot at the core, crackling with jagged bolts)
-    that bore straight through whatever is in their way and **vaporize every block 12 blocks round where they
+    **beams of golden lightning**, each jagged like a bolt of lightning (its zigzag struck anew every other tick),
+    blazing and white-hot at the core, glowing as Godzilla's breath does (drawn the same way, so shader packs light
+    them up as they do his) and crackling with forking bolts, **lighting up the ground and the air round them** with
+    warm yellow light as they sweep (light blocks in the air along them, gone as they stop), that bore straight
+    through whatever is in their way and **vaporize every block 12 blocks round where they
     strike** (and along their last stretch of path), and whatever is caught there (all but liquids and bedrock;
     `breaksBlocks` and mobGriefing allowing).
   - **Lift**: his beams seize their target, **haul it high into the air** (34 blocks), hold it, and let it fall.
   - **Grab**: he takes off, flies at his target, **seizes it in his talons** (a player, Godzilla, anything), carries
     it high (48 blocks), and **dives, slamming it into the ground**. A player can't wriggle free.
+  - **A Shinden up in the air: he flies after it** (faster than it can fly, for up to 30 s), his body below it and
+    his heads up level with it, until one of his heads catches it in its jaws and it blows up there (its pilot bails
+    out; the blast hurts him as a naval mine would). Then he comes down. **If Godzilla Minus Zero is near, he leaves
+    the plane and comes down for him.** A Shinden on the ground he fights as anything else.
 - **Coming down out of the sky** (after his grab, at the end of his retreat), **he drives a big ditch into the
   ground**: 5 blocks deep and flat-bottomed 15 blocks round where he lands, its sides sloping up to the ground about 26
   blocks out, its floor rubble and the earth thrown out of it heaped round its rim; he sinks into it, and walks up out of
@@ -284,16 +295,19 @@ the blue one a player.*
   follow, each in its own time, uncoiling; his body hauls itself out after them in three heavy lurches, wings tucked,
   amid dense dust and flying debris; a pause, and his wings spread slowly to their full span, dust rushing out along
   the ground and loose earth falling from him; and all three heads throw themselves up and roar. **As he starts to
-  haul himself up and out (8 s in), the ground gives way round him: a big hole where he comes out of it**, 8 blocks deep
-  and flat-bottomed 15 blocks round him, sloping up to the ground about 32 blocks out (gently enough for him to walk
-  out of), its floor rubble and its earth heaped round its rim, and he sinks down into it as he climbs (like his
-  landing's ditch: `breaksBlocks` and `mobGriefing`; below Y 60 too). Until then the ground only seems to break (the
+  haul himself up and out (8 s in), the ground gives way round him: a huge hole where he comes out of it**, 13
+  blocks deep and flat-bottomed 24 blocks round him, sloping up to the ground about 50 blocks out (gently enough for
+  him to walk out of), its floor rubble and its earth heaped round its rim, caving in over a second or so from the
+  middle out, and he sinks down into it as he climbs (like his landing's ditch: `breaksBlocks` and `mobGriefing`;
+  below Y 60 too). Until then the ground only seems to break (the
   debris is made of the ground's own blocks), and his body rises from below the surface as part of his animation.
-  Nothing hurts him while he rises, and nothing but the ground giving way under him moves him. It happens once per spawn, not when he's loaded again. **Three seconds after it ends a thunderstorm
-  breaks** over the dimension (rain, thunder and lightning: the game's own weather, so every player there gets it;
-  not in the Nether or the End). The delay and the storm's length are in `godzillaminusone-common.toml`
-  (`entranceStormDelayTicks`, 60; `entranceStormDurationTicks`, 6000, 0 for none); how hard the ground shakes your
-  view is on the config screen ("Ghidorah's Entrance Shake", 0 for none).
+  Nothing hurts him while he rises, and nothing but the ground giving way under him moves him. It happens once per spawn, not when he's loaded again. **Three seconds after it ends his own weather
+  comes** over the dimension: **no rain, the sky overcast** (dark grey, heavy grey clouds, the daylight dimmed about
+  as much as in a thunderstorm, coming on and clearing over 5 seconds), and **lightning twice as often as in a
+  thunderstorm** (the game's own lightning: flash, thunder, fires). Every player in the dimension gets it; it's saved
+  with the world, so it carries on after a reload; not in the Nether or the End. The delay and its length are in
+  `godzillaminusone-common.toml` (`entranceStormDelayTicks`, 60; `entranceStormDurationTicks`, 6000, 0 for none);
+  how hard the ground shakes your view is on the config screen ("Ghidorah's Entrance Shake", 0 for none).
 - Everything he does runs on the server's clock: a player who comes in halfway through his entrance (or anything
   else) sees it from where it is, not from its beginning.
 - **His sounds** are his own sound pack's, each named for when it plays:
@@ -320,7 +334,12 @@ the blue one a player.*
   heavy ones **four times that (1/5)**: Minus Zero's **atomic breath** (each of his two beams, with its blast), and King
   Ghidorah's **gravity beams**, his **lift** and his **flying slam**. An attack lands once, however long it burns on
   him: a beam sweeping over him for seconds is one blow. (A kaiju with its AI off, standing for a picture, goes for
-  nobody.) Minus One isn't part of it: he and King Ghidorah fight as before.
+  nobody.)
+  - **Godzilla Minus One and King Ghidorah hurt each other the same way** (1/20 of his health a blow, the heavy ones
+    four times that). **Brought down by King Ghidorah, Minus One gets back up after a minute, once**; brought down by
+    him a second time, **he's dead**. (Brought down by anything else, he does as before: evolves, or regenerates.)
+  - **Minus Zero never fires his breath at a Shinden**: he follows it instead, and a charge already under way stops
+    when his target turns out to be one. King Ghidorah coming near, Minus Zero goes for him instead.
   - **King Ghidorah retreating, Minus Zero goes after him**: as long as he's flying off (480 blocks), Minus Zero
     keeps him as his target, nothing else, and follows him.
   - **Minus Zero charging his breath, King Ghidorah waits**: he holds where he is, facing him, until the beam's fired;
@@ -330,16 +349,18 @@ the blue one a player.*
     not in the air), so **his beam always comes from his mouth**, where he stands.
 - His spawn egg is a vanilla-style egg in weathered gold with burgundy spots. He doesn't despawn.
 
-**His model** (`assets/godzillaminusone/geo/entity/king_ghidorah.geo.json`, GeckoLib 4, Forge 1.20.1): 100 bones in a
+**His model** (`assets/godzillaminusone/geo/entity/king_ghidorah.geo.json`, GeckoLib 4, Forge 1.20.1): 104 bones in a
 hierarchy, named for what they move: `root` > `pelvis` > `torso` > `chest` > `back_spikes`; `neck_c_1`..`neck_c_8` >
 `head_c` > `jaw_c` and `mouth_c` (and the same for `_r` and `_l`, his right and left heads); `wing_shoulder_r` >
-`wing_upper_r` (> `wing_web4_r`) > `wing_fore_r` > `wing_hand_r` > `wing_claw_r` and `wing_finger1_r`..`3_r` (each
-> `wing_web1_r`..`3_r`, the membranes, which fold as their bones' y scale shrinks); `leg_thigh_r` > `leg_shin_r` >
+`wing_upper_r` (> `wing_web4_r`) > `wing_fore_r` (> `wing_web5_r`) > `wing_hand_r` > `wing_claw_r` and
+`wing_finger1_r`..`3_r` (each > `wing_web1_r`..`3_r`, the membranes, which fold as their bones' y scale shrinks); `leg_thigh_r` > `leg_shin_r` >
 `leg_foot_r` > `leg_toes_r`; `tail_r_1`..`tail_r_10` > `tail_r_tip`; and the `_l` side, mirrored. Each membrane
 hangs on two bones of its own (`wing_webN_r` > `wing_webN_skin_r`, pivoting at the wrist, or the shoulder for the
 inner one), turned and scaled in every frame of every animation so that it stays pinned at its three anchors (the
-wrist and two finger tips; the last finger's tip and the elbow; the shoulder, the elbow and his flank): the wings can
-spread, beat, raise or tuck and the membranes go with them. `mouth_c`, `_r`
+wrist and two finger tips; the wrist, the last finger's tip and the elbow; the elbow, the last finger's tip and his
+flank; the shoulder, the elbow and his flank): the wings can spread, beat, raise or tuck and the membranes go with
+them, and since every edge two panels share runs between two of their anchors, they always meet along it: each wing
+is one sheet, joined to his flank. `mouth_c`, `_r`
 and `_l` are empty bones at the tips of his snouts: where his beams come from (the renderer draws them from where the
 animation has put those bones). **His animations** (`animation.king_ghidorah.*`): `idle` (breathing, each head looking
 about on its own, his tails swaying slowly), `walk` (heavy alternating strides, his hips dropping and rolling with

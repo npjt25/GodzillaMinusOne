@@ -6,6 +6,8 @@ import com.npjt25.godzillaminusone.GodzillaMinusOne;
 import com.npjt25.godzillaminusone.client.render.BlastTimeline;
 import com.npjt25.godzillaminusone.entity.Blasts;
 import com.npjt25.godzillaminusone.entity.Destruction;
+import com.npjt25.godzillaminusone.entity.Rivals;
+import com.npjt25.godzillaminusone.entity.GhidorahWeather;
 import com.npjt25.godzillaminusone.entity.Flattening;
 import com.npjt25.godzillaminusone.entity.GodzillaEntity;
 import com.npjt25.godzillaminusone.entity.GodzillaMinusZeroEntity;
@@ -2225,6 +2227,7 @@ public final class ModGameTests {
             }
         }
         for (String bone : new String[] {"root", "wing_shoulder_r", "wing_finger3_l", "wing_web4_l", "wing_web4_skin_l", "wing_web1_skin_r",
+                "wing_web5_r", "wing_web5_skin_l",
                 "leg_toes_r", "tail_l_10", "tail_r_tip", "back_spikes"}) {
             helper.assertTrue(bones.contains(bone), "his model should have bone " + bone);
         }
@@ -2283,8 +2286,8 @@ public final class ModGameTests {
 
     /**
      * Spawned from his egg, he rises out of the ground: the entrance plays once (14.6 s), with him on the ground,
-     * unmoving and unhurt by anything; three seconds after it ends a thunderstorm breaks; loaded again, he doesn't
-     * rise again.
+     * unmoving and unhurt by anything; three seconds after it ends his weather comes (overcast, no rain, lightning:
+     * GhidorahWeather), saved with the level; loaded again, he doesn't rise again.
      */
     @GameTest(template = FLOOR, batch = "gmo_ghidorah_entrance", timeoutTicks = 420)
     public static void kingGhidorahRisesOnceThenTheStormBreaks(GameTestHelper helper) {
@@ -2325,8 +2328,15 @@ public final class ModGameTests {
         helper.succeedWhen(() -> {
             helper.assertTrue(ended[0] > 0 && level.getGameTime() >= ended[0] + Config.GHIDORAH_STORM_DELAY_TICKS.get() + 1,
                     "waiting for the end of his entrance and the storm after it");
-            // (the weather's own flags: the rain and thunder themselves come on gradually, over a few seconds)
-            helper.assertTrue(level.getLevelData().isThundering() && level.getLevelData().isRaining(), "a thunderstorm should have broken");
+            helper.assertTrue(GhidorahWeather.active(level) && !level.isRaining() && !level.isThundering(),
+                    "his weather should have come: no rain, no thunderstorm of the game's own (raining " + level.isRaining() + ")");
+            long until = GhidorahWeather.until(level);
+            helper.assertTrue(until - level.getGameTime() > Config.GHIDORAH_STORM_DURATION_TICKS.get() - 10, "it should last entranceStormDurationTicks");
+            CompoundTag weather = GhidorahWeather.get(level).save(new CompoundTag());
+            helper.assertTrue(weather.getLong("Until") == until, "it should be saved with the level");
+            helper.assertTrue(GhidorahWeather.STRIKE_ONE_IN * 2 == GhidorahWeather.THUNDERSTORM_ONE_IN, "twice a thunderstorm's lightning");
+            GhidorahWeather.stop(level);
+            helper.assertFalse(GhidorahWeather.active(level), "stopped, it should be over");
             CompoundTag tag = g.saveWithoutId(new CompoundTag());
             helper.assertTrue(tag.getBoolean("EntranceDone") && !tag.contains("EntranceTicks"), "loaded again, he shouldn't rise again");
             level.setWeatherParameters(6000, 0, false, false);
@@ -2452,6 +2462,7 @@ public final class ModGameTests {
             }
             helper.assertTrue(ghidorah.isFiring(KingGhidorahEntity.Head.MIDDLE), "his middle head should be firing");
             helper.assertTrue(!pig.isAlive(), "the pig where his beams strike should be gone");
+            helper.assertTrue(ghidorah.beamLightCount() > 0, "his beams should light up the air about them");
             int solid = 0;
             int checked = 0;
             for (BlockPos p : BlockPos.betweenClosed(at.offset(-8, -8, -8), at.offset(8, 8, 8))) {
@@ -2466,6 +2477,13 @@ public final class ModGameTests {
             helper.assertTrue(solid == 0, solid + " of " + checked + " breakable blocks within 8 of where his beams strike are still there");
             level.setChunkForced(at.getX() >> 4, at.getZ() >> 4, false);
             remove(ghidorah, pig);
+            int lights = 0;
+            for (BlockPos p : BlockPos.betweenClosed(at.offset(-12, -12, -12), at.offset(12, 12, 12))) {
+                if (level.getBlockState(p).is(Blocks.LIGHT)) {
+                    lights++;
+                }
+            }
+            helper.assertTrue(lights == 0, "his beams' light should go with him, " + lights + " left");
             helper.succeed();
         });
     }
@@ -2883,5 +2901,121 @@ public final class ModGameTests {
                 "a footprint for each footstep, half a stride apart");
         remove(g);
         helper.succeed();
+    }
+
+    /**
+     * Godzilla Minus One brought down by King Ghidorah (his blows take their share of his health, Rivals.foes): he
+     * gets up again, the once (after GHIDORAH_DOWNED_TICKS: shortened here); brought down by him again, he's dead.
+     */
+    @GameTest(template = FLOOR, batch = "gmo_one_downed_by_ghidorah", timeoutTicks = 1000)
+    public static void minusOneDownedByKingGhidorahGetsUpOnceThenDies(GameTestHelper helper) {
+        GodzillaEntity one = spawnActiveGodzilla(helper);
+        one.setNoAi(true);
+        one.setDownedTicks(20);
+        KingGhidorahEntity ghidorah = spawnGhidorah(helper);
+        one.setHealth(1.0F);
+        Rivals.forget(one);
+        helper.assertTrue(one.hurt(ghidorah.damageSources().mobAttack(ghidorah), 5.0F), "King Ghidorah's blow should land on Minus One");
+        helper.assertTrue(one.getPhase() == GodzillaEntity.Phase.COLLAPSING && one.getDefeat() == GodzillaEntity.Defeat.RECOVER
+                && one.ghidorahDowns() == 1, "brought down by him the first time, he should be going to get up again: "
+                + one.getPhase() + " / " + one.getDefeat() + " / " + one.ghidorahDowns());
+        boolean[] again = {false};
+        helper.onEachTick(() -> {
+            if (!again[0] && one.getPhase() == GodzillaEntity.Phase.ACTIVE) {
+                again[0] = true;
+                helper.assertTrue(one.getHealth() == one.getMaxHealth(), "up again, he should have all his health back");
+                one.setHealth(1.0F);
+                Rivals.forget(one);
+                one.hurt(ghidorah.damageSources().mobAttack(ghidorah), 5.0F);
+                helper.assertTrue(one.getPhase() == GodzillaEntity.Phase.COLLAPSING && one.getDefeat() == GodzillaEntity.Defeat.FALL
+                        && one.ghidorahDowns() == 2, "brought down by him again, he should be falling for good: "
+                        + one.getPhase() + " / " + one.getDefeat());
+            }
+        });
+        helper.succeedWhen(() -> {
+            helper.assertTrue(again[0], "waiting for him to get up again");
+            helper.assertTrue(!one.isAlive(), "the second time, he should be dead");
+            remove(ghidorah, one);
+        });
+    }
+
+    /** Godzilla Minus Zero never fires his breath at a Shinden: charging, his target turned to one, he stops. */
+    @GameTest(template = FLOOR, batch = "gmo_zero_no_breath_at_planes", timeoutTicks = 40)
+    public static void minusZeroNeverBreathesAtAShinden(GameTestHelper helper) {
+        GodzillaMinusZeroEntity zero = spawnZero(helper);
+        Player pilot = helper.makeMockPlayer();
+        ShindenEntity plane = planeAt(helper, zero.position().add(0.0, 4.0, 40.0), pilot);
+        plane.setNoAi(true);
+        plane.setNoGravity(true);
+        zero.startCharging();
+        zero.setTarget(plane);
+        helper.runAtTickTime(3, () -> {
+            helper.assertTrue(zero.getChargeTicks() < 0 && zero.getChargeState() == GodzillaEntity.CHARGE_NONE,
+                    "Minus Zero should never breathe at a Shinden, charge at " + zero.getChargeTicks());
+            pilot.stopRiding();
+            remove(zero, plane);
+            helper.succeed();
+        });
+    }
+
+    /** A Shinden up in the air: King Ghidorah takes off and flies after it. */
+    @GameTest(template = FLOOR, batch = "gmo_ghidorah_pursues_plane", timeoutTicks = 300)
+    public static void kingGhidorahFliesAfterAShindenInTheAir(GameTestHelper helper) {
+        int floor = floorY(helper);
+        Runnable release = room(helper, floor, 0, 0, 8, 8, 20);
+        KingGhidorahEntity ghidorah = spawnGhidorah(helper);
+        Player pilot = helper.makeMockPlayer();
+        ShindenEntity plane = planeAt(helper, helper.absoluteVec(new Vec3(4.5, floor + 14, 4.5)), pilot);
+        plane.setNoAi(true);
+        plane.setNoGravity(true);
+        boolean[] started = {false};
+        helper.onEachTick(() -> {
+            if (!started[0] && findable(helper, ghidorah, plane)) {
+                started[0] = true;
+                helper.assertTrue(KingGhidorahEntity.airbornePlane(plane) != null, "the plane should count as up in the air");
+                ghidorah.setNoAi(false);
+                ghidorah.setTarget(plane);
+            }
+        });
+        helper.succeedWhen(() -> {
+            helper.assertTrue(started[0], "waiting for them to be found");
+            helper.assertTrue(ghidorah.isPursuing() && ghidorah.isFlying(), "he should be flying after the plane, action " + ghidorah.getAction());
+            ghidorah.setNoAi(true);
+            pilot.stopRiding();
+            remove(ghidorah, plane);
+            release.run();
+        });
+    }
+
+    /** Flying after a Shinden, King Ghidorah leaves it for Godzilla Minus Zero near him: comes down, after him. */
+    @GameTest(template = FLOOR, batch = "gmo_ghidorah_plane_or_zero", timeoutTicks = 300)
+    public static void kingGhidorahLeavesThePlaneForMinusZero(GameTestHelper helper) {
+        int floor = floorY(helper);
+        Runnable release = room(helper, floor, 0, 0, 8, 8, 20);
+        GodzillaMinusZeroEntity zero = spawnZero(helper);
+        KingGhidorahEntity ghidorah = spawnGhidorah(helper);
+        Player pilot = helper.makeMockPlayer();
+        ShindenEntity plane = planeAt(helper, helper.absoluteVec(new Vec3(4.5, floor + 14, 4.5)), pilot);
+        plane.setNoAi(true);
+        plane.setNoGravity(true);
+        boolean[] started = {false};
+        boolean[] pursued = {false};
+        helper.onEachTick(() -> {
+            if (!started[0] && findable(helper, ghidorah, plane, zero)) {
+                started[0] = true;
+                ghidorah.setNoAi(false);
+                ghidorah.startPursuit(plane);
+            }
+            pursued[0] |= ghidorah.isPursuing();
+        });
+        helper.succeedWhen(() -> {
+            helper.assertTrue(started[0] && pursued[0], "waiting for him to fly after the plane");
+            helper.assertTrue(ghidorah.getTarget() == zero, "he should be after Minus Zero, not " + ghidorah.getTarget());
+            helper.assertTrue(!ghidorah.isPursuing() && !ghidorah.isFlying(), "he should have left the plane and come down");
+            ghidorah.setNoAi(true);
+            pilot.stopRiding();
+            remove(ghidorah, zero, plane);
+            release.run();
+        });
     }
 }

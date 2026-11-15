@@ -270,12 +270,12 @@ public final class Config {
                 .comment("How low his health (percent of its max) must fall before he retreats.")
                 .defineInRange("retreatHealthPercent", 20, 1, 99);
         GHIDORAH_STORM_DELAY_TICKS = BUILDER
-                .comment("Ticks (20 a second) after his entrance has finished that a thunderstorm breaks over the dimension he",
-                        "rose in (only where there's weather: not the Nether or the End). Counted from the end of the entrance,",
-                        "not from his spawning.")
+                .comment("Ticks (20 a second) after his entrance has finished that his weather comes over the dimension he",
+                        "rose in (no rain, the sky overcast, lightning twice as often as in a thunderstorm; only where there's",
+                        "a sky: not the Nether or the End). Counted from the end of the entrance, not from his spawning.")
                 .defineInRange("entranceStormDelayTicks", 60, 0, 12000);
         GHIDORAH_STORM_DURATION_TICKS = BUILDER
-                .comment("How long (ticks) the thunderstorm after his entrance lasts. 0: no storm.")
+                .comment("How long (ticks) his weather after his entrance lasts. 0: none.")
                 .defineInRange("entranceStormDurationTicks", 6000, 0, 1_000_000);
         BUILDER.pop();
     }

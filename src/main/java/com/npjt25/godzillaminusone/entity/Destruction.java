@@ -159,37 +159,109 @@ public final class Destruction {
     /** ...clearing what stands in it up to {@code clears} blocks above its ground (the game tests: their pocket's low). */
     public static int ditch(ServerLevel level, @Nullable LivingEntity breaker, Vec3 center, double floorRadius, double radius, int depth,
                             int clears) {
-        RandomSource random = level.getRandom();
-        int baseY = Mth.floor(center.y + 0.01);
-        int cx = Mth.floor(center.x);
-        int cz = Mth.floor(center.z);
-        int reach = Mth.ceil(radius * 1.1) + RIM;
-        double phase1 = random.nextDouble() * Mth.TWO_PI;
-        double phase2 = random.nextDouble() * Mth.TWO_PI;
-        BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
-        int removed = 0;
-        for (int x = cx - reach; x <= cx + reach; x++) {
-            for (int z = cz - reach; z <= cz + reach; z++) {
-                double dx = x + 0.5 - center.x;
-                double dz = z + 0.5 - center.z;
-                double d = Math.sqrt(dx * dx + dz * dz);
-                double angle = Math.atan2(dz, dx);
-                double edge = radius * (1.0 + 0.06 * Math.sin(3.0 * angle + phase1) + 0.04 * Math.sin(7.0 * angle + phase2));
-                if (d > edge + RIM || !level.isLoaded(pos.set(x, baseY, z))) {
+        Ditch ditch = new Ditch(level, breaker, center, floorRadius, radius, depth, clears);
+        ditch.run(Integer.MAX_VALUE);
+        return ditch.removed;
+    }
+
+    /**
+     * The same ditch, dug over the next few ticks from the middle out (as the ground gives way), {@link Ditch#BUDGET}
+     * blocks a tick: a big one is tens of thousands of blocks.
+     */
+    public static void digDitch(ServerLevel level, @Nullable LivingEntity breaker, Vec3 center, double floorRadius, double radius, int depth) {
+        DITCHES.add(new Ditch(level, breaker, center, floorRadius, radius, depth, DITCH_CLEARS));
+    }
+
+    private static final List<Ditch> DITCHES = new ArrayList<>();
+
+    private static final class Ditch {
+        /** Blocks looked at a tick. */
+        static final int BUDGET = 20000;
+        final ServerLevel level;
+        @Nullable
+        final LivingEntity breaker;
+        final Vec3 center;
+        final double floorRadius;
+        final double radius;
+        final int depth;
+        final int clears;
+        final int baseY;
+        final double phase1;
+        final double phase2;
+        final RandomSource random;
+        /** Its columns, nearest the middle first: (dx, dz) packed, and how far out. */
+        final int[] columns;
+        final float[] distances;
+        int next;
+        int removed;
+
+        Ditch(ServerLevel level, @Nullable LivingEntity breaker, Vec3 center, double floorRadius, double radius, int depth, int clears) {
+            this.level = level;
+            this.breaker = breaker;
+            this.center = center;
+            this.floorRadius = floorRadius;
+            this.radius = radius;
+            this.depth = depth;
+            this.clears = clears;
+            this.baseY = Mth.floor(center.y + 0.01);
+            this.random = level.getRandom();
+            this.phase1 = this.random.nextDouble() * Mth.TWO_PI;
+            this.phase2 = this.random.nextDouble() * Mth.TWO_PI;
+            int reach = Mth.ceil(radius * 1.1) + RIM;
+            int cx = Mth.floor(center.x);
+            int cz = Mth.floor(center.z);
+            List<double[]> cols = new ArrayList<>();
+            for (int x = cx - reach; x <= cx + reach; x++) {
+                for (int z = cz - reach; z <= cz + reach; z++) {
+                    double dx = x + 0.5 - center.x;
+                    double dz = z + 0.5 - center.z;
+                    double d = Math.sqrt(dx * dx + dz * dz);
+                    if (d <= reach) {
+                        cols.add(new double[]{d, x - cx, z - cz});
+                    }
+                }
+            }
+            cols.sort((a, b) -> Double.compare(a[0], b[0]));
+            this.columns = new int[cols.size()];
+            this.distances = new float[cols.size()];
+            for (int i = 0; i < cols.size(); i++) {
+                double[] c = cols.get(i);
+                this.columns[i] = ((int) c[1] & 0xFFFF) << 16 | ((int) c[2] & 0xFFFF);
+                this.distances[i] = (float) c[0];
+            }
+        }
+
+        /** Digs on, about {@code budget} blocks' worth; returns whether it's dug. */
+        boolean run(int budget) {
+            BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
+            int cx = Mth.floor(this.center.x);
+            int cz = Mth.floor(this.center.z);
+            int work = 0;
+            while (this.next < this.columns.length && work < budget) {
+                int packed = this.columns[this.next];
+                double d = this.distances[this.next];
+                this.next++;
+                int x = cx + (short) (packed >> 16);
+                int z = cz + (short) packed;
+                double angle = Math.atan2(z + 0.5 - this.center.z, x + 0.5 - this.center.x);
+                double edge = this.radius * (1.0 + 0.06 * Math.sin(3.0 * angle + this.phase1) + 0.04 * Math.sin(7.0 * angle + this.phase2));
+                work++;
+                if (d > edge + RIM || !this.level.isLoaded(pos.set(x, this.baseY, z))) {
                     continue;
                 }
                 if (d > edge) {
-                    if (random.nextFloat() < 0.7F * (1.0F - (float) ((d - edge) / RIM))) {
-                        heap(level, breaker, x, z, baseY, random);
+                    if (this.random.nextFloat() < 0.7F * (1.0F - (float) ((d - edge) / RIM))) {
+                        heap(this.level, this.breaker, x, z, this.baseY, this.random);
                     }
                     continue;
                 }
-                double f = d <= floorRadius ? 0.0 : Math.min(1.0, (d - floorRadius) / Math.max(1.0, edge - floorRadius));
-                int dug = (int) Math.round(depth * (1.0 - f * f * (3.0 - 2.0 * f)));
-                removed += ditchColumn(level, breaker, x, z, baseY + clears, baseY - dug, random);
+                double f = d <= this.floorRadius ? 0.0 : Math.min(1.0, (d - this.floorRadius) / Math.max(1.0, edge - this.floorRadius));
+                int dug = (int) Math.round(this.depth * (1.0 - f * f * (3.0 - 2.0 * f)));
+                this.removed += ditchColumn(this.level, this.breaker, x, z, this.baseY + this.clears, this.baseY - dug, this.random);
+                work += this.depth + this.clears;
             }
+            return this.next >= this.columns.length;
         }
-        return removed;
     }
 
     /** One column of a ditch: everything from what stands on it down to {@code floor} (its new ground) goes. */
@@ -266,12 +338,16 @@ public final class Destruction {
         if (!SWEEPS.isEmpty()) {
             SWEEPS.removeIf(sweep -> sweep.level == level && (sweep.run(TailSweep.PER_TICK) >= 0 && sweep.done()));
         }
+        if (!DITCHES.isEmpty()) {
+            DITCHES.removeIf(ditch -> ditch.level == level && ditch.run(Ditch.BUDGET));
+        }
     }
 
     @SubscribeEvent
     public static void onServerStopped(ServerStoppedEvent event) {
         WAVES.clear();
         SWEEPS.clear();
+        DITCHES.clear();
     }
 
     /**
@@ -281,6 +357,7 @@ public final class Destruction {
     public static void stopBlasts(ServerLevel level) {
         WAVES.removeIf(wave -> wave.level == level);
         SWEEPS.removeIf(sweep -> sweep.level == level);
+        DITCHES.removeIf(ditch -> ditch.level == level);
     }
 
     private static final class BlastWave {

@@ -216,6 +216,11 @@ def neck(m, side, parent):
         m.rod(name, a + back * (w * 0.3), a + back * (w * 0.3) + d * (b - a).dot(d) * 0.55, w * 0.7, w * 0.72,
               'armor', ext=0.0)
         m.spike(name, mid + back * (w * 0.5), mid + back * (w * 0.5 + 2.2 - i * 0.12) + d * 1.6, 1.3, steps=2)
+        m.spike(name, a + back * (w * 0.46), a + back * (w * 0.46 + 1.2) + d * 1.0, 0.8, steps=2)
+        across = unit(np.cross(d, front))
+        for sgn in (1.0, -1.0):
+            m.rod(name, a + across * sgn * (w * 0.44) + d * 0.4, b + across * sgn * (w * 0.44) - d * 0.2,
+                  w * 0.5, 0.9, 'armor')
         parent = name
     return name, pts[-1], unit(pts[-1] - pts[-2])
 
@@ -257,6 +262,11 @@ def head(m, side, parent, at):
     m.spike(h, P + (-1.4, 5.0, -1.0), P + (-1.8, 8.0, 3.5), 1.2, 'horn')
     m.spike(h, P + (-3.3, 4.6, -6.5), P + (-5.2, 7.2, -3.5), 1.0, 'horn', steps=2)
     m.spike(h, P + (-3.6, 3.8, 0.0), P + (-6.4, 5.4, 3.6), 1.1, 'horn', steps=2)
+    m.spike(h, P + (-2.4, 5.6, -8.2), P + (-3.0, 8.2, -5.2), 0.9, 'horn', steps=2)
+    m.spike(h, P + (-0.8, 5.4, -2.6), P + (-1.0, 9.6, 1.6), 1.0, 'horn', steps=2)
+    m.spike(h, P + (-2.6, 6.2, 1.6), P + (-3.6, 10.4, 6.4), 1.0, 'horn', steps=2)
+    for z in (-14.6, -12.2, -9.8):
+        B((-0.55, 4.2, z), (1.1, 0.7, 1.4), 'armor')                 # knobs down the snout
     # cheek projections
     m.spike(h, P + (-4.1, 0.6, -5.4), P + (-7.6, -0.6, -0.6), 1.6, 'horn')
     m.spike(h, P + (-3.8, -1.0, -3.6), P + (-6.2, -2.8, 0.6), 1.1, 'horn', steps=2)
@@ -386,13 +396,29 @@ def wing(m, parent):
         m.cbox(f, W + (T - W) * 0.5, (2.9, 2.9, 2.9), 'armor')                        # a knuckle
         m.spike(f, T - unit(T - W) * 1.5, T + unit(T - W) * 3.0, 1.3, 'claw', steps=2)
         fingers.append(f)
-    # the membranes: finger to finger, the last finger to the elbow, and the arm to his flank
+    # the membrane, one sheet from his fingertips to his flank, in panels: finger to finger; the last finger to the
+    # elbow; from there its trailing edge to his flank; and the arm to his side. Every edge two panels share runs
+    # between two of the points they're pinned at (solve_webs), so however the wing moves they meet all along it:
+    # it never tears into separate pieces.
     T1, T2, T3 = (np.array(t[:2]) for t in TIPS)
-    W2, E2, S2 = W[:2], E[:2], np.array(SHOULDER[:2])
+    W2, E2, S2, F2 = W[:2], E[:2], np.array(SHOULDER[:2]), np.array(FLANK[:2])
     web(m, 'wing_web1_r', ha, W, [W2, T1] + scallops(T1, T2, 2, 5.0))
     web(m, 'wing_web2_r', ha, W, [W2, T2] + scallops(T2, T3, 2, 4.5))
-    web(m, 'wing_web3_r', ha, W, [W2, T3] + scallops(T3, np.array(TRAIL[:2]), 2, 3.8) + [E2])
-    web(m, 'wing_web4_r', parent, Se, [S2, E2, np.array(TRAIL[:2])] + scallops(np.array(TRAIL[:2]), np.array(FLANK[:2]), 2, 3.4))
+    web(m, 'wing_web3_r', ha, W, [W2, T3, E2])
+    web(m, 'wing_web5_r', fo, E, [E2, T3] + scallops(T3, F2, 3, 4.2))
+    web(m, 'wing_web4_r', parent, Se, [S2, E2, F2])
+    # more of him: spurs along the upper arm's leading edge, plates down the forearm, a spike on each knuckle
+    for f in (0.2, 0.5, 0.8):
+        p = S + (E - S) * f + (0, 5.2, 0)
+        m.spike(up, p, p + unit(E - S) * 2.6 + (0, 3.4, 0), 1.2, 'claw', steps=2)
+    for f in (0.2, 0.5, 0.8):
+        p = E + (W - E) * f + (0, 3.4, 0)
+        m.rod(fo, p, p + unit(W - E) * 5.0 + (0, 0.4, 0), 2.2, 1.4, 'armor')
+    for f in fingers:
+        i = fingers.index(f)
+        T = np.array(TIPS[i])
+        k = W + (T - W) * 0.5
+        m.spike(f, k + (0, 1.2, 0), k + unit(T - W) * 1.6 + (0, 3.6, 0), 0.9, 'claw', steps=2)
 
 
 def leg(m, parent):
@@ -406,6 +432,10 @@ def leg(m, parent):
     m.cbox(sh, knee, (7.0, 6.5, 7.0), 'armor')
     m.rod(sh, knee, ankle, 6.6, 6.2, 'hide', ext=1.0)
     m.rod(sh, knee + (0, 0, -2.4), ankle + (0, 0.5, -2.0), 4.0, 2.0, 'armor')
+    m.spike(sh, knee + (0, 1.0, -3.2), knee + (-0.4, 4.4, -7.0), 1.5, 'claw', steps=2)    # a spur at the knee
+    for f in (0.3, 0.65):                                                               # scales down the thigh
+        p = hip + (knee - hip) * f + (-5.6, 0.0, 1.0)
+        m.rod(th, p, p + unit(knee - hip) * 4.0 + (0.0, 0.0, 1.0), 4.4, 1.2, 'armor')
     ft = m.bone('leg_foot_r', sh, ankle)
     m.rod(ft, ankle, ball, 5.2, 5.0, 'hide', ext=1.0)
     m.box(ft, ball + (-3.8, -2.6, -3.5), (7.6, 3.8, 9.0), 'hide')
@@ -439,6 +469,11 @@ def tail(m, parent):
         mid = (a + b) / 2
         m.spike(name, mid + up * (w * 0.42), mid + up * (w * 0.42 + 2.6 - i * 0.12) + d * 2.0, 1.5 - i * 0.05,
                 steps=2)
+        if i % 2 == 1:
+            out = unit(np.cross(up, d))
+            for sgn in (1.0, -1.0):
+                m.spike(name, mid + out * sgn * (w * 0.4), mid + out * sgn * (w * 0.4 + 2.0) + d * 1.4 + up * 0.5,
+                        0.9, steps=2)
         parent = name
     # the mace at its tip, and its spikes
     a, b = pts[-2], pts[-1]
@@ -470,6 +505,10 @@ def body(m):
     m.cbox(torso, (0, 38.5, -3.3), (14.0, 11.0, 2.0), 'plate', (10, 0, 0), grad='belly')  # belly plates
     for k in range(3):
         m.cbox(torso, (0, 45.0 - k * 4.0, 11.2 + k * 0.5), (14.0, 2.4, 6.0), 'armor', (-28, 0, 0))
+    for k in range(4):                                                                  # belly scutes
+        m.cbox(torso, (0, 34.6 + k * 2.6, -4.5 + k * 0.45), (13.0 - k * 0.4, 1.2, 1.6), 'plate', (10, 0, 0), grad='belly')
+    m.cbox(torso, (-9.4, 40.0, 6.0), (2.2, 3.0, 12.0), 'armor', (10, 0, -8))             # a ridge along each flank
+    symmetric(m, torso, 0.0)
     chest = m.bone('chest', torso, (0, 44, 4))
     m.cbox(chest, (0, 50.0, 2.0), (31.0, 15.0, 19.0), 'hide', (14, 0, 0))
     m.cbox(chest, (0, 47.5, -8.2), (20.0, 13.0, 5.0), 'hide', (14, 0, 0))                # the breast
@@ -481,6 +520,10 @@ def body(m):
     m.cbox(chest, (-11.0, 44.0, -3.0), (6.0, 8.0, 9.0), 'armor', (14, 0, 8))           # the pectorals' edge
     for k in range(4):                                                                  # overlapping back plates
         m.cbox(chest, (-6.0, 56.5 - k * 3.4, 12.0 + k * 1.6), (8.0, 2.4, 8.0), 'armor', (-36, 0, -10))
+    for k in range(4):                                                                  # scutes across his breast
+        m.cbox(chest, (0, 43.4 + k * 3.0, -12.0 + k * 0.75), (15.0 - k * 0.6, 1.2, 1.4), 'plate', (14, 0, 0), grad='belly')
+    for k in range(3):                                                                  # ribs of armour down his sides
+        m.cbox(chest, (-15.2, 46.0 - k * 3.6, 6.0 + k * 0.8), (2.0, 2.2, 13.0), 'armor', (14, 0, -4))
     symmetric(m, chest, 0.0)
     # collars where his necks meet him
     m.cbox(chest, (0, 56.0, -2.4), (10.0, 5.0, 10.0), 'armor', (24, 0, 0))
@@ -966,6 +1009,7 @@ WEBS = {
     2: ('wing_hand', _W, ('wing_finger2', _T[1]), ('wing_finger3', _T[2])),
     3: ('wing_hand', _W, ('wing_finger3', _T[2]), ('wing_upper', _E)),
     4: ('chest', np.array([_S[0], _S[1], WEB_Z]), ('wing_upper', _E), ('chest', np.array(FLANK))),
+    5: ('wing_fore', _E, ('wing_finger3', _T[2]), ('chest', np.array(FLANK))),
 }
 G4 = np.diag([-1.0, 1.0, 1.0, 1.0])
 SHIFT = np.zeros(3)     # (how far the built model was raised to stand on y = 0: main())
