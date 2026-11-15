@@ -293,8 +293,13 @@ public class GodzillaEntity extends Monster implements GeoEntity {
 
     /** How long Minus One lies there, brought down by King Ghidorah, before he gets up again (the once he does): a minute. */
     public static final int GHIDORAH_DOWNED_TICKS = 1200;
-    /** How many times King Ghidorah has brought him down (Minus One: the second time, he doesn't get up). */
+    /** How many times King Ghidorah has brought him down (the second time, he doesn't get up). */
     private int ghidorahDowns;
+    /**
+     * Whether he's fired his breath at King Ghidorah: he does so the once, when they first face off (his roar, then
+     * his breath); meeting him again after that, he doesn't breathe at him: they just fight.
+     */
+    private boolean breathedAtGhidorah;
 
     // Client side: when the charge state last changed (for the plate glow), and the smoothed head aim.
     private int chargeChangedTick;
@@ -487,9 +492,13 @@ public class GodzillaEntity extends Monster implements GeoEntity {
 
     /**
      * Whether he won't use his breath on {@code target}: Minus Zero never fires it at a Shinden (or at its pilot), he
-     * chases it (King Ghidorah coming near, he goes for him instead: preferRival).
+     * chases it (King Ghidorah coming near, he goes for him instead: preferRival); and neither Godzilla fires it at King
+     * Ghidorah again once he has (breathedAtGhidorah).
      */
     protected boolean holdsBreathAt(@Nullable LivingEntity target) {
+        if (target instanceof KingGhidorahEntity && this.breathedAtGhidorah) {
+            return true;        // (his one breath at King Ghidorah fired: they just fight now)
+        }
         return this instanceof GodzillaMinusZeroEntity && target != null
                 && (target instanceof ShindenEntity || target.getVehicle() instanceof ShindenEntity);
     }
@@ -1102,6 +1111,9 @@ public class GodzillaEntity extends Monster implements GeoEntity {
             return;
         }
         this.chargeTicks++;
+        if (this.chargeTicks == BEAM_START_TICK && target instanceof KingGhidorahEntity) {
+            this.breathedAtGhidorah = true;     // (his one breath at him: it's out)
+        }
         if (target != null) {
             if (this.chargeTicks < BEAM_START_TICK) {
                 faceTowards(target, 4.0F, BEAM_YAW);
@@ -2003,7 +2015,7 @@ public class GodzillaEntity extends Monster implements GeoEntity {
             Shapes.creditDefeat(player, this); // (ReMorphed: bringing him down unlocks his shape)
         }
         Defeat outcome = kill || level().isClientSide ? Defeat.NONE
-                : source.getEntity() instanceof KingGhidorahEntity && !(this instanceof GodzillaMinusZeroEntity) ? downedByGhidorah()
+                : source.getEntity() instanceof KingGhidorahEntity ? downedByGhidorah()
                 : defeatOutcome();
         if (outcome != Defeat.NONE) {
             // gojira -> gojira_dead: collapse, lie dead, then whatever comes next (see tick())
@@ -2020,8 +2032,9 @@ public class GodzillaEntity extends Monster implements GeoEntity {
     }
 
     /**
-     * Minus One brought down by King Ghidorah: the first time he gets up again after a minute (GHIDORAH_DOWNED_TICKS),
-     * whatever evolvesIntoMinusZero and regenerates say; the next time, he's dead.
+     * Brought down by King Ghidorah (Minus One or Minus Zero): the first time he lies there a minute
+     * (GHIDORAH_DOWNED_TICKS) and gets up again, whatever evolvesIntoMinusZero, regenerates (or Minus Zero's falling
+     * for good) say; the next time, he's dead.
      */
     private Defeat downedByGhidorah() {
         return this.ghidorahDowns++ == 0 ? Defeat.RECOVER : Defeat.FALL;
@@ -2030,6 +2043,21 @@ public class GodzillaEntity extends Monster implements GeoEntity {
     /** How many times King Ghidorah has brought him down. */
     public int ghidorahDowns() {
         return this.ghidorahDowns;
+    }
+
+    /** Whether he's had his one breath at King Ghidorah. */
+    public boolean breathedAtGhidorah() {
+        return this.breathedAtGhidorah;
+    }
+
+    /**
+     * Ordinary explosions (TNT, creepers, King Ghidorah's beams going off where they strike) neither hurt nor shove
+     * him while only naval mines can hurt him (onlyHurtByNavalMines): his own rules decide what does (his rivals'
+     * blows: Rivals).
+     */
+    @Override
+    public boolean ignoreExplosion() {
+        return Config.GODZILLA_ONLY_HURT_BY_EXPLOSIVES.get();
     }
 
     /** How long he lies there brought down by King Ghidorah (the tests shorten it as they do downedSeconds). */
@@ -2624,6 +2652,7 @@ public class GodzillaEntity extends Monster implements GeoEntity {
         tag.putInt("Burns", getBurnTicks());
         tag.putString("Defeat", this.defeat.name());
         tag.putInt("GhidorahDowns", this.ghidorahDowns);
+        tag.putBoolean("BreathedAtGhidorah", this.breathedAtGhidorah);
         if (this.foe != null) {
             tag.putUUID("Foe", this.foe);
         }
@@ -2654,6 +2683,7 @@ public class GodzillaEntity extends Monster implements GeoEntity {
         }
         this.foe = tag.hasUUID("Foe") ? tag.getUUID("Foe") : null;
         this.ghidorahDowns = tag.getInt("GhidorahDowns");
+        this.breathedAtGhidorah = tag.getBoolean("BreathedAtGhidorah");
         // Godzillas saved by an older version of the mod walked faster.
         AttributeInstance speed = getAttribute(Attributes.MOVEMENT_SPEED);
         if (speed != null) {

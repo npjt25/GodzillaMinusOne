@@ -41,10 +41,14 @@ public class GodzillaModel extends DefaultedEntityGeoModel<GodzillaEntity> {
             });
         }
         // the beam (a cube on his mouth, stretched out ahead of it) drawn only as far as the first block in its way:
-        // its length and how far it's pushed out ahead cut down alike, so it still starts at his mouth
+        // its length and how far it's pushed out ahead (down as well as forward: the charge animation tilts it down
+        // from his mouth, and pushes it out along that tilt) cut down alike, so it still starts at his mouth. (Cutting
+        // down only how far forward it went left it pushed down as far as ever: a short beam, at something close,
+        // came out of his chest.)
         float reach = entity.getBeamReach(animationState.getPartialTick());
         getBone("B").ifPresent(beam -> {
-            beam.setPosY(beam.getPosY() - BEAM_DOWN);
+            beam.setPosX(beam.getPosX() * reach);
+            beam.setPosY(beam.getPosY() * reach - BEAM_DOWN);
             beam.setPosZ(beam.getPosZ() * reach - BEAM_FORWARD);
             beam.setScaleZ(beam.getScaleZ() * reach);
         });

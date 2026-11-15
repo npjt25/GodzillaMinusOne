@@ -2463,6 +2463,7 @@ public final class ModGameTests {
             helper.assertTrue(ghidorah.isFiring(KingGhidorahEntity.Head.MIDDLE), "his middle head should be firing");
             helper.assertTrue(!pig.isAlive(), "the pig where his beams strike should be gone");
             helper.assertTrue(ghidorah.beamLightCount() > 0, "his beams should light up the air about them");
+            helper.assertTrue(ghidorah.trailBlasts() > 0, "his gravity beams should leave a trail of explosions where they strike");
             int solid = 0;
             int checked = 0;
             for (BlockPos p : BlockPos.betweenClosed(at.offset(-8, -8, -8), at.offset(8, 8, 8))) {
@@ -3016,6 +3017,52 @@ public final class ModGameTests {
             pilot.stopRiding();
             remove(ghidorah, zero, plane);
             release.run();
+        });
+    }
+
+    /** Godzilla Minus Zero brought down by King Ghidorah the first time lies there to get up again (not gone for good). */
+    @GameTest(template = FLOOR, batch = "gmo_zero_downed_by_ghidorah", timeoutTicks = 20)
+    public static void minusZeroDownedByKingGhidorahGetsUpAgainOnce(GameTestHelper helper) {
+        GodzillaMinusZeroEntity zero = spawnZero(helper);
+        KingGhidorahEntity ghidorah = spawnGhidorah(helper);
+        zero.setHealth(1.0F);
+        Rivals.forget(zero);
+        helper.assertTrue(zero.hurt(ghidorah.damageSources().mobAttack(ghidorah), 5.0F), "King Ghidorah's blow should land on Minus Zero");
+        helper.assertTrue(zero.getPhase() == GodzillaEntity.Phase.COLLAPSING && zero.getDefeat() == GodzillaEntity.Defeat.RECOVER,
+                "brought down by him the first time, Minus Zero should lie there to get up again, was " + zero.getDefeat());
+        helper.runAtTickTime(5, () -> {
+            helper.assertTrue(zero.isAlive() && !zero.isRemoved(), "he should be lying there, not gone");
+            remove(ghidorah, zero);
+            helper.succeed();
+        });
+    }
+
+    /**
+     * A Godzilla's breath at King Ghidorah is had the once: when they first face off. Once he's fired it, he doesn't
+     * again (a charge at King Ghidorah stops before the beam): they just fight. One that hasn't charges on.
+     */
+    @GameTest(template = FLOOR, batch = "gmo_one_breath_at_ghidorah", timeoutTicks = 40)
+    public static void godzillaBreathesAtKingGhidorahOnlyOnce(GameTestHelper helper) {
+        GodzillaMinusZeroEntity zero = spawnZero(helper);
+        KingGhidorahEntity ghidorah = spawnGhidorah(helper);
+        helper.assertFalse(zero.breathedAtGhidorah(), "a new Minus Zero hasn't breathed at him yet");
+        zero.setTarget(ghidorah);
+        zero.startCharging();
+        helper.runAtTickTime(4, () -> {
+            helper.assertTrue(zero.isBreathCharging(), "the first time, he should be charging at him, at " + zero.getChargeTicks());
+            // (as if that breath had been fired: saved and loaded with it)
+            CompoundTag tag = zero.saveWithoutId(new CompoundTag());
+            tag.putBoolean("BreathedAtGhidorah", true);
+            zero.load(tag);
+            zero.cancelBreath();
+            zero.setTarget(ghidorah);
+            zero.startCharging();
+        });
+        helper.runAtTickTime(8, () -> {
+            helper.assertTrue(zero.breathedAtGhidorah(), "it should be kept with him");
+            helper.assertTrue(zero.getChargeTicks() < 0, "having breathed at him once, he shouldn't again, at " + zero.getChargeTicks());
+            remove(ghidorah, zero);
+            helper.succeed();
         });
     }
 }

@@ -1033,10 +1033,26 @@ public class KingGhidorahEntity extends Monster implements GeoEntity {
             if (action == ACTION_BEAM && (t - head.fireAt) % 8 == 0) {      // (as hard over his long beam as Minus Zero's)
                 zap(level, from, end);
             }
+            if (action == ACTION_BEAM && t - head.fireAt >= 2 && (t - head.fireAt) % TRAIL_EVERY == 0) {
+                // (his gravity beams, not his lift: a trail of explosions where they strike, as they sweep along)
+                level.explode(this, end.x, end.y, end.z, TRAIL_POWER,
+                        breaksBlocks(level) ? Level.ExplosionInteraction.MOB : Level.ExplosionInteraction.NONE);
+                this.trailBlasts++;
+            }
         }
         if (action == ACTION_LIFT && this.lifted != null) {
             lift(level, t);
         }
+    }
+
+    /** How often (ticks) each of his gravity beams sets off an explosion where it strikes, and how big (TNT is 4). */
+    private static final int TRAIL_EVERY = 4;
+    private static final float TRAIL_POWER = 4.5F;
+    private int trailBlasts;
+
+    /** How many explosions his gravity beams have set off (game tests). */
+    public int trailBlasts() {
+        return this.trailBlasts;
     }
 
     /** What his beams touch, and everything round where they strike, is struck down and flung. */

@@ -271,7 +271,8 @@ the blue one a player.*
     blazing and white-hot at the core, glowing as Godzilla's breath does (drawn the same way, so shader packs light
     them up as they do his) and crackling with forking bolts, **lighting up the ground and the air round them** with
     warm yellow light as they sweep (light blocks in the air along them, gone as they stop), that bore straight
-    through whatever is in their way and **vaporize every block 12 blocks round where they
+    through whatever is in their way, **leave a trail of explosions where they strike as they sweep** (his gravity
+    beams; not his lift), and **vaporize every block 12 blocks round where they
     strike** (and along their last stretch of path), and whatever is caught there (all but liquids and bedrock;
     `breaksBlocks` and mobGriefing allowing).
   - **Lift**: his beams seize their target, **haul it high into the air** (34 blocks), hold it, and let it fall.
@@ -336,8 +337,12 @@ the blue one a player.*
   him: a beam sweeping over him for seconds is one blow. (A kaiju with its AI off, standing for a picture, goes for
   nobody.)
   - **Godzilla Minus One and King Ghidorah hurt each other the same way** (1/20 of his health a blow, the heavy ones
-    four times that). **Brought down by King Ghidorah, Minus One gets back up after a minute, once**; brought down by
-    him a second time, **he's dead**. (Brought down by anything else, he does as before: evolves, or regenerates.)
+    four times that). **Brought down by King Ghidorah, either Godzilla (Minus One or Minus Zero) lies there a minute
+    and gets back up, once**; brought down by him a second time, **he's dead**. (Brought down by anything else, he does
+    as before: Minus One evolves or regenerates, Minus Zero falls for good.)
+  - **A Godzilla breathes at King Ghidorah the once**: when they first face off (Minus Zero's roar, then his breath).
+    Meeting him again after that, he doesn't fire his breath at him: **they just fight**. (Kept with him when the
+    world is saved.)
   - **Minus Zero never fires his breath at a Shinden**: he follows it instead, and a charge already under way stops
     when his target turns out to be one. King Ghidorah coming near, Minus Zero goes for him instead.
   - **King Ghidorah retreating, Minus Zero goes after him**: as long as he's flying off (480 blocks), Minus Zero
