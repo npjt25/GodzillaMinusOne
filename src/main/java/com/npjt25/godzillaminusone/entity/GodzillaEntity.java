@@ -445,6 +445,45 @@ public class GodzillaEntity extends Monster implements GeoEntity {
         beginCharge();
     }
 
+    /**
+     * His breath stopped short (seized and carried off by King Ghidorah, or carried by anything): the charge is over,
+     * the glow and beam gone, and he's back to himself, his breath ready again only after its cooldown.
+     */
+    public void cancelBreath() {
+        if (this.chargeTicks < 0) {
+            return;
+        }
+        this.chargeTicks = -1;
+        this.breathAfterRoar = false;
+        this.breathCooldown = Math.max(this.breathCooldown, Config.ATOMIC_BREATH_COOLDOWN.get() * 20);
+        this.entityData.set(DATA_AIM, 0.0F);
+        this.entityData.set(DATA_AIM_YAW, 0.0F);
+        setChargeState(CHARGE_NONE);
+    }
+
+    /**
+     * Whether he's up in the air (hauled up by King Ghidorah's lift, thrown, falling): not on the ground, not in water,
+     * and nothing solid within 5 blocks under him.
+     */
+    public boolean offTheGround() {
+        if (onGround() || isInWater() || isSwimmingAtSurface()) {
+            return false;
+        }
+        BlockPos.MutableBlockPos p = BlockPos.containing(getX(), getY() - 0.01, getZ()).mutable();
+        for (int k = 0; k < 5; k++) {
+            if (!level().getBlockState(p).getCollisionShape(level(), p).isEmpty() || !level().getFluidState(p).isEmpty()) {
+                return false;
+            }
+            p.move(0, -1, 0);
+        }
+        return true;
+    }
+
+    /** Whether he's charging his breath and hasn't fired yet (King Ghidorah waits for it: the beam's not out). */
+    public boolean isBreathCharging() {
+        return this.chargeTicks >= 0 && this.chargeTicks < BEAM_START_TICK && getChargeState() == CHARGE_GLOWING;
+    }
+
     private void beginCharge() {
         this.chargeTicks = 0;
         this.chargeStartTime = level().getGameTime();
@@ -709,7 +748,9 @@ public class GodzillaEntity extends Monster implements GeoEntity {
             updateAim(null);
             // (Minus Zero's breath at King Ghidorah the moment his roar at seeing him is over: no waiting, near or far)
             boolean atRival = this.breathAfterRoar && target != null && Rivals.rivals(this, target);
+            // (only with his feet on the ground: not carried, not hauled up or falling, so it's from his mouth, where he stands)
             if (target != null && this.stunTicks <= 0 && this.pendingHitTicks < 0 && this.roaringTicks <= 0 && !isSwimmingAtSurface()
+                    && !isPassenger() && onGround()
                     && (atRival || this.angryTicks >= ANGER_DELAY && this.breathCooldown <= 0 && this.firstBreathDelay <= 0
                     && farEnoughToBreathe(target))) {
                 this.breathAfterRoar = false;
@@ -775,6 +816,28 @@ public class GodzillaEntity extends Monster implements GeoEntity {
             setTarget(rival);
         }
         return true;
+    }
+
+    /** How far Minus Zero follows King Ghidorah when he flies off to get away (his retreat: he follows him all the way). */
+    public static final double CHASE_RANGE = 480.0;
+
+    /**
+     * Minus Zero doesn't let King Ghidorah go while he's flying off to get away (his retreat): no other target, and
+     * not out of range (his target goals would drop him past their range); he follows him till he lands.
+     */
+    @Override
+    public void setTarget(@Nullable LivingEntity target) {
+        LivingEntity current = getTarget();
+        if (current != null && current != target && followingRetreat(current)) {
+            return;
+        }
+        super.setTarget(target);
+    }
+
+    private boolean followingRetreat(LivingEntity rival) {
+        return !level().isClientSide && !isNoAi() && isActive() && rival instanceof KingGhidorahEntity ghidorah
+                && Rivals.rivals(this, ghidorah) && Rivals.fighting(ghidorah) && ghidorah.isRetreating()
+                && distanceToSqr(ghidorah) < CHASE_RANGE * CHASE_RANGE;
     }
 
     /**
@@ -1017,6 +1080,12 @@ public class GodzillaEntity extends Monster implements GeoEntity {
     }
 
     private void tickCharge(ServerLevel level, @Nullable LivingEntity target) {
+        if (isPassenger() || offTheGround()) {
+            // (carried off in King Ghidorah's talons or by anything, hauled up by his lift, falling: his breath is over;
+            // it never fires from the air)
+            cancelBreath();
+            return;
+        }
         this.chargeTicks++;
         if (target != null) {
             if (this.chargeTicks < BEAM_START_TICK) {

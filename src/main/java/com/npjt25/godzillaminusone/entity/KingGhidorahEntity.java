@@ -134,6 +134,28 @@ public class KingGhidorahEntity extends Monster implements GeoEntity {
      * ticks in, his right 27), a couple of ticks early: the pack's footsteps thud about 0.15 s in.
      */
     public static final int[] WALK_FOOTFALLS = {1, 25};
+    /** When in his stride each hind foot is down on the ground (his left, then his right): its footprint is pressed then. */
+    public static final int[] WALK_TOUCHDOWNS = {3, 27};
+    /**
+     * Where each hind foot comes down as he walks (his right; his left is its mirror), and how big its footprint is, half
+     * its width and half its length: model units (UNIT), measured on his walk animation (his three toes spread, the
+     * spur behind).
+     */
+    public static final Vec3 WALK_FOOT = new Vec3(11.4, 0.0, 7.5);
+    public static final double WALK_FOOT_HALF_WIDTH = 5.2;
+    public static final double WALK_FOOT_HALF_LENGTH = 8.1;
+    /**
+     * The ditch he drives into the ground coming down out of the sky (Destruction.ditch: flat-bottomed out to its floor
+     * radius, sloping up to the ground at its radius; blocks), and the hole he hauls himself out of at his entrance, dug
+     * as he starts to (ENTRANCE_HOLE_AT, as the earth gives way with its loudest crack).
+     */
+    public static final double LANDING_DITCH_FLOOR = 15.0;
+    public static final double LANDING_DITCH_RADIUS = 26.0;
+    public static final int LANDING_DITCH_DEPTH = 5;
+    public static final double ENTRANCE_HOLE_FLOOR = 15.0;
+    public static final double ENTRANCE_HOLE_RADIUS = 32.0;
+    public static final int ENTRANCE_HOLE_DEPTH = 8;
+    public static final int ENTRANCE_HOLE_AT = 160;
     /** How fast his walk animation carries him over the ground at its own pace (his planted feet, measured): blocks a tick. */
     public static final double WALK_BLOCKS_PER_TICK = 0.35;
     /** How long his animations take to blend from one into the next (his main controller's transition). */
@@ -234,9 +256,14 @@ public class KingGhidorahEntity extends Monster implements GeoEntity {
     private int decisionDelay;
     /** Footsteps the server has sounded (his landings, his heaves at his entrance), for their turns. */
     private int serverSteps;
-    /** Footsteps his walk has sounded on this client, for their turns. */
+    /** Footsteps his walk has sounded on this client, for their turns; footprints it has pressed on the server. */
     private int walkSteps;
-    /** On each client: how far into his walk he is (animation ticks: it runs at strideSpeed), how fast he's going, and for how long he's walked (-1: he isn't). */
+    private int walkPrints;
+    /**
+     * On each side, client and server: how far into his walk he is (animation ticks: it runs at strideSpeed), how fast
+     * he's going, and for how long he's walked (-1: he isn't). (The client's sounds his footsteps; the server's presses
+     * his footprints.)
+     */
     private double walkClock;
     private double walkClockSpeed;
     private double groundSpeed;
@@ -445,6 +472,7 @@ public class KingGhidorahEntity extends Monster implements GeoEntity {
             return;
         }
         ServerLevel level = (ServerLevel) level();
+        sinkTick();
         this.bossEvent.setProgress(Mth.clamp(getHealth() / getMaxHealth(), 0.0F, 1.0F));
         if (this.stormAt >= 0 && level.getGameTime() >= this.stormAt) {
             this.stormAt = -1L;
@@ -516,6 +544,7 @@ public class KingGhidorahEntity extends Monster implements GeoEntity {
         if (this.tickCount % 4 == 0 && !isFlying() && getDeltaMovement().horizontalDistanceSqr() > 1.0E-4) {
             smashBlocks(level);
         }
+        walkClockTick();
     }
 
     private void tickAction(ServerLevel level, int action, int t, @Nullable LivingEntity target) {
@@ -659,6 +688,11 @@ public class KingGhidorahEntity extends Monster implements GeoEntity {
         }
         if (reachedAny(ENTRANCE_CRACKS)) {
             sound(level, at, ModSounds.KING_GHIDORAH_EARTH_CRACK.get(), t >= 160 ? 14.0F : 9.0F, 0.75F + this.random.nextFloat() * 0.25F);
+        }
+        if (reached(ENTRANCE_HOLE_AT)) {
+            // as he starts hauling himself up and out, the earth gives way round him: the hole he comes out of
+            dig(level, ENTRANCE_HOLE_FLOOR, ENTRANCE_HOLE_RADIUS, ENTRANCE_HOLE_DEPTH, 0.6);
+            ModNetwork.shake(level, at, 120.0, 1.4F, 1.6F);
         }
         if (reachedAny(ENTRANCE_HEAVES)) {
             footstep(level, at, 16.0F);       // (each heave of him out of the ground)
@@ -1044,6 +1078,64 @@ public class KingGhidorahEntity extends Monster implements GeoEntity {
         this.flyingSoundIn = 0;
     }
 
+    /** Whether he digs his ditches (landing, at his entrance): the game tests turn it off, sharing their pocket of ground. */
+    private boolean digs = true;
+
+    public void setDigs(boolean digs) {
+        this.digs = digs;
+    }
+
+    /**
+     * A ditch dug round where he stands (his landing, his entrance's hole), as everything he breaks: with mobGriefing
+     * and godzillaBreaksBlocks. He comes down into it.
+     */
+    private void dig(ServerLevel level, double floorRadius, double radius, int depth, double drop) {
+        if (!this.digs || !breaksBlocks(level)) {
+            return;
+        }
+        Vec3 at = position();
+        if (Destruction.ditch(level, this, at, floorRadius, radius, depth) > 0) {
+            // down he goes into it, onto its floor (sinkTick: with his AI off too, which the game's gravity passes by)
+            BlockPos.MutableBlockPos p = BlockPos.containing(at).mutable();
+            for (int k = 0; k <= depth + 2 && level.getBlockState(p.below()).getCollisionShape(level, p.below()).isEmpty(); k++) {
+                p.move(0, -1, 0);
+            }
+            if (p.getY() < getY() - 1.0E-3) {
+                this.sinkTo = p.getY();
+                this.sinkSpeed = drop;
+            }
+            for (int i = 0; i < 8; i++) {
+                double a = i * Mth.TWO_PI / 8.0;
+                level.sendParticles(ParticleTypes.EXPLOSION_EMITTER, at.x + Math.cos(a) * radius * 0.7, at.y + 1.0,
+                        at.z + Math.sin(a) * radius * 0.7, 1, 2.0, 0.5, 2.0, 0.0);
+            }
+            this.ditches++;
+        }
+    }
+
+    /** How many ditches he's dug (for the harness). */
+    private int ditches;
+    /** Where he's sinking to (the floor of the ditch he's just dug: NaN, he isn't), and how fast (blocks a tick). */
+    private double sinkTo = Double.NaN;
+    private double sinkSpeed;
+
+    /** Each server tick: down into his new ditch, till he's on its floor (the game's collisions stop him there too). */
+    private void sinkTick() {
+        if (Double.isNaN(this.sinkTo)) {
+            return;
+        }
+        if (isFlying() || getY() <= this.sinkTo + 1.0E-3) {
+            this.sinkTo = Double.NaN;
+            return;
+        }
+        setPos(getX(), Math.max(this.sinkTo, getY() - this.sinkSpeed), getZ());
+        setDeltaMovement(getDeltaMovement().x, 0.0, getDeltaMovement().z);
+    }
+
+    public int ditches() {
+        return this.ditches;
+    }
+
     private void setFlying(boolean flying) {
         this.entityData.set(DATA_FLYING, flying);
         setNoGravity(flying);
@@ -1087,6 +1179,9 @@ public class KingGhidorahEntity extends Monster implements GeoEntity {
                 if (d.length() < 3.5) {
                     p.stopRiding();
                     p.startRiding(this, true);
+                    if (p instanceof GodzillaEntity godzilla) {
+                        godzilla.cancelBreath();      // (seized, Godzilla's breath is over)
+                    }
                     this.entityData.set(DATA_CARRYING, true);
                     level.playSound(null, p.getX(), p.getY(), p.getZ(), ModSounds.KING_GHIDORAH_BITE.get(), SoundSource.HOSTILE, 10.0F, 0.85F);
                     next(Flight.ASCEND);
@@ -1134,6 +1229,8 @@ public class KingGhidorahEntity extends Monster implements GeoEntity {
                     footstep(level, position(), 16.0F);
                     stopFlyingSound(level);
                     ModNetwork.shake(level, position(), 90.0, 1.2F, 1.0F);
+                    // coming down out of the sky, all his weight: a ditch driven into the ground under him
+                    dig(level, LANDING_DITCH_FLOOR, LANDING_DITCH_RADIUS, LANDING_DITCH_DEPTH, 1.2);
                     endAction();
                     return;
                 }
@@ -1291,6 +1388,11 @@ public class KingGhidorahEntity extends Monster implements GeoEntity {
         return super.hurt(source, amount);
     }
 
+    /** Whether he's flying off to get away (his retreat: Minus Zero follows him). */
+    public boolean isRetreating() {
+        return getAction() == ACTION_RETREAT;
+    }
+
     /** Which attack of his a blow is from (Rivals: an attack lands once): what he's doing, and when he began it. */
     public long rivalAttackId() {
         return ((long) getActionStart() << 4) | getAction();
@@ -1399,8 +1501,9 @@ public class KingGhidorahEntity extends Monster implements GeoEntity {
      */
     private void walkClockTick() {
         Vec3 v = getDeltaMovement();
-        boolean walking = !isFlying() && !isDeadOrDying() && !isBusy() && this.walkAnimation.speed() != 0.0F
-                && (Math.abs(v.x) + Math.abs(v.z)) / 2.0 >= 0.015;
+        boolean client = level().isClientSide;
+        boolean walking = !isFlying() && !isDeadOrDying() && !isBusy() && !isPassenger()
+                && (!client || this.walkAnimation.speed() != 0.0F) && (Math.abs(v.x) + Math.abs(v.z)) / 2.0 >= 0.015;
         if (!walking) {
             this.walkingFor = -1;
             this.walkClock = 0.0;
@@ -1415,11 +1518,58 @@ public class KingGhidorahEntity extends Monster implements GeoEntity {
         double before = this.walkClock;
         this.walkClockSpeed = strideSpeed();
         this.walkClock += this.walkClockSpeed;
-        for (int foot : WALK_FOOTFALLS) {
-            if (Math.floor((before - foot) / WALK_TICKS) != Math.floor((this.walkClock - foot) / WALK_TICKS)) {
-                level().playLocalSound(getX(), getY(), getZ(), footstepSound(this.walkSteps++), SoundSource.HOSTILE, 10.0F, 1.0F, false);
+        if (client) {
+            for (int foot : WALK_FOOTFALLS) {
+                if (crossed(before, this.walkClock, foot)) {
+                    level().playLocalSound(getX(), getY(), getZ(), footstepSound(this.walkSteps++), SoundSource.HOSTILE, 10.0F, 1.0F, false);
+                }
+            }
+            return;
+        }
+        for (int i = 0; i < WALK_TOUCHDOWNS.length; i++) {
+            if (crossed(before, this.walkClock, WALK_TOUCHDOWNS[i])) {
+                walkFootfall((ServerLevel) level(), i == 0 ? -1.0 : 1.0);
             }
         }
+    }
+
+    /** Whether his walk's clock went past {@code tick} of his stride, going from {@code from} to {@code to}. */
+    private static boolean crossed(double from, double to, int tick) {
+        return Math.floor((from - tick) / WALK_TICKS) != Math.floor((to - tick) / WALK_TICKS);
+    }
+
+    /** Where his hind foot on {@code side} (1 his right, -1 his left) comes down as he walks. */
+    public Vec3 walkFoot(double side) {
+        return locator(new Vec3(side * WALK_FOOT.x, WALK_FOOT.y, WALK_FOOT.z).scale(UNIT));
+    }
+
+    /**
+     * One of his hind feet comes down as he walks (WALK_TOUCHDOWNS), as Godzilla's do: the ground shakes, what's close
+     * by is hurt (stepDamage, within stepRadius; not Minus Zero: Rivals), and what he stepped on is crushed into a
+     * footprint, its ground sunk into a hole.
+     */
+    private void walkFootfall(ServerLevel level, double side) {
+        Vec3 foot = walkFoot(side);
+        this.walkPrints++;
+        ModNetwork.shake(level, foot, 100.0, 0.3F, 1.2F);
+        float damage = Config.STEP_DAMAGE.get().floatValue();
+        int radius = Config.STEP_RADIUS.get();
+        if (damage > 0 && radius > 0) {
+            DamageSource source = ModDamageTypes.source(level, ModDamageTypes.STOMP, this);
+            for (LivingEntity e : victims(level, getBoundingBox().inflate(radius))) {
+                if (!Blasts.isPilot(e) && e.getY() < getY() + 8.0) {
+                    e.hurt(source, damage);
+                }
+            }
+        }
+        if (Config.FOOTPRINTS.get() && breaksBlocks(level)) {
+            Destruction.footprint(level, this, foot, this.yBodyRot, WALK_FOOT_HALF_WIDTH * UNIT, WALK_FOOT_HALF_LENGTH * UNIT);
+        }
+    }
+
+    /** How many footprints his walk has pressed (the server's count), for the game tests. */
+    public int walkPrints() {
+        return this.walkPrints;
     }
 
     /** Where in his stride he is on this client, {@code partialTick} on from the last tick (animation ticks, 0 to WALK_TICKS). */
@@ -1666,6 +1816,14 @@ public class KingGhidorahEntity extends Monster implements GeoEntity {
             g.getLookControl().setLookAt(target, 10.0F, 10.0F);
             if (g.shouldRetreat()) {
                 g.startRetreat(target.position());
+                return;
+            }
+            if (target instanceof GodzillaEntity godzilla && godzilla.isBreathCharging()) {
+                // Godzilla charging his breath: he holds where he is, facing him, and waits; once the beam's out, he's at
+                // him again
+                g.getNavigation().stop();
+                g.getMoveControl().setWantedPosition(g.getX(), g.getY(), g.getZ(), 0.0);
+                g.faceTowards(target.position());
                 return;
             }
             Vec3 local = g.localOf(target.position());

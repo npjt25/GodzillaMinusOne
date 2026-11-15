@@ -46,7 +46,10 @@ public final class Destruction {
      * a footprint: walkBreaksFromY (60), or what a game test set on the Godzilla under test. Below it, nothing.
      */
     public static int walkFloorY(LivingEntity breaker) {
-        return breaker instanceof GodzillaEntity godzilla ? godzilla.walkFloorY() : Config.WALK_BREAKS_FROM_Y.get();
+        if (breaker instanceof GodzillaEntity godzilla) {
+            return godzilla.walkFloorY();
+        }
+        return breaker instanceof KingGhidorahEntity ghidorah ? ghidorah.walkFloorY() : Config.WALK_BREAKS_FROM_Y.get();
     }
 
     /**
@@ -132,6 +135,103 @@ public final class Destruction {
             return Blocks.COARSE_DIRT.defaultBlockState();
         }
         return Blocks.ANDESITE.defaultBlockState();
+    }
+
+    // ------------------------------------------------------------------ ditches
+
+    /** How far out round a ditch the earth thrown out of it is heaped. */
+    private static final int RIM = 3;
+    /** How high above a ditch's ground what stands in it is cleared (trees, houses: what's taller is left standing). */
+    private static final int DITCH_CLEARS = 24;
+
+    /**
+     * A ditch in the ground round {@code center} (King Ghidorah coming down from the sky onto it, and the hole he hauls
+     * himself out of at his entrance): {@code depth} blocks deep and flat-bottomed out to {@code floorRadius}, its sides
+     * sloping up to the ground at about {@code radius} (a little ragged: so he walks up out of it), everything in it
+     * gone, its floor rubble, and the earth thrown out of it heaped round its rim. Lakes and the sea keep their bed (a
+     * column with water or lava in it is left as it is). Dug, not walked through, it goes below walkBreaksFromY (as the
+     * atomic breath's crater does). Returns how many blocks it took out.
+     */
+    public static int ditch(ServerLevel level, @Nullable LivingEntity breaker, Vec3 center, double floorRadius, double radius, int depth) {
+        return ditch(level, breaker, center, floorRadius, radius, depth, DITCH_CLEARS);
+    }
+
+    /** ...clearing what stands in it up to {@code clears} blocks above its ground (the game tests: their pocket's low). */
+    public static int ditch(ServerLevel level, @Nullable LivingEntity breaker, Vec3 center, double floorRadius, double radius, int depth,
+                            int clears) {
+        RandomSource random = level.getRandom();
+        int baseY = Mth.floor(center.y + 0.01);
+        int cx = Mth.floor(center.x);
+        int cz = Mth.floor(center.z);
+        int reach = Mth.ceil(radius * 1.1) + RIM;
+        double phase1 = random.nextDouble() * Mth.TWO_PI;
+        double phase2 = random.nextDouble() * Mth.TWO_PI;
+        BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
+        int removed = 0;
+        for (int x = cx - reach; x <= cx + reach; x++) {
+            for (int z = cz - reach; z <= cz + reach; z++) {
+                double dx = x + 0.5 - center.x;
+                double dz = z + 0.5 - center.z;
+                double d = Math.sqrt(dx * dx + dz * dz);
+                double angle = Math.atan2(dz, dx);
+                double edge = radius * (1.0 + 0.06 * Math.sin(3.0 * angle + phase1) + 0.04 * Math.sin(7.0 * angle + phase2));
+                if (d > edge + RIM || !level.isLoaded(pos.set(x, baseY, z))) {
+                    continue;
+                }
+                if (d > edge) {
+                    if (random.nextFloat() < 0.7F * (1.0F - (float) ((d - edge) / RIM))) {
+                        heap(level, breaker, x, z, baseY, random);
+                    }
+                    continue;
+                }
+                double f = d <= floorRadius ? 0.0 : Math.min(1.0, (d - floorRadius) / Math.max(1.0, edge - floorRadius));
+                int dug = (int) Math.round(depth * (1.0 - f * f * (3.0 - 2.0 * f)));
+                removed += ditchColumn(level, breaker, x, z, baseY + clears, baseY - dug, random);
+            }
+        }
+        return removed;
+    }
+
+    /** One column of a ditch: everything from what stands on it down to {@code floor} (its new ground) goes. */
+    private static int ditchColumn(ServerLevel level, @Nullable LivingEntity breaker, int x, int z, int clearTo, int floor, RandomSource random) {
+        BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
+        int top = Math.min(level.getHeight(Heightmap.Types.WORLD_SURFACE, x, z) - 1, clearTo);
+        for (int y = top; y >= floor - 1; y--) {
+            if (!level.getFluidState(pos.set(x, y, z)).isEmpty()) {
+                return 0;
+            }
+        }
+        int removed = 0;
+        for (int y = top; y >= floor; y--) {
+            BlockState state = level.getBlockState(pos.set(x, y, z));
+            if (!state.isAir() && canBreak(level, pos, state, breaker)) {
+                level.setBlock(pos, Blocks.AIR.defaultBlockState(), FLAGS);
+                removed++;
+            }
+        }
+        BlockState ground = level.getBlockState(pos.set(x, floor - 1, z));
+        if (removed > 0 && ground.isCollisionShapeFullBlock(level, pos) && random.nextInt(5) < 3 && canBreak(level, pos, ground, breaker)) {
+            level.setBlock(pos, rubble(random), FLAGS);
+        }
+        return removed;
+    }
+
+    /** Earth thrown out of a ditch, heaped on the ground round its rim (where there's ground to heap it on). */
+    private static void heap(ServerLevel level, @Nullable LivingEntity breaker, int x, int z, int baseY, RandomSource random) {
+        BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
+        int y = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z);
+        if (Math.abs(y - baseY) > 4) {
+            return;
+        }
+        BlockState below = level.getBlockState(pos.set(x, y - 1, z));
+        if (!isGround(below) || !below.getFluidState().isEmpty() || !below.isCollisionShapeFullBlock(level, pos)
+                || !canBreak(level, pos, below, breaker)) {
+            return;
+        }
+        BlockState above = level.getBlockState(pos.set(x, y, z));
+        if (above.isAir() || above.canBeReplaced()) {
+            level.setBlock(pos, random.nextInt(3) == 0 ? rubble(random) : Blocks.COARSE_DIRT.defaultBlockState(), FLAGS);
+        }
     }
 
     // ------------------------------------------------------------------ the atomic blast

@@ -2184,6 +2184,7 @@ public final class ModGameTests {
         KingGhidorahEntity ghidorah = helper.spawn(ModEntities.KING_GHIDORAH.get(), 4, floorY(helper) + 1, 4);
         ghidorah.setNoAi(true);
         ghidorah.setWalkFloorY(Integer.MIN_VALUE);
+        ghidorah.setDigs(false);       // (his landing's ditch would dig up the pocket the tests share: kingGhidorahsDitches checks it)
         ghidorah.setYRot(0.0F);
         ghidorah.setYBodyRot(0.0F);
         ghidorah.setYHeadRot(0.0F);
@@ -2301,6 +2302,7 @@ public final class ModGameTests {
         helper.assertTrue(spawned.size() == 1, "his egg should bring one King Ghidorah, was " + spawned.size());
         KingGhidorahEntity g = spawned.get(0);
         g.setWalkFloorY(Integer.MIN_VALUE);
+        g.setDigs(false);      // (the hole he comes out of would be dug in the tests' own pocket: kingGhidorahsDitches checks it)
         g.setNoAi(true);       // (his entrance plays all the same; this keeps him from hunting into the other tests after it)
         Vec3 start = g.position();
         long[] ended = {-1};
@@ -2628,6 +2630,10 @@ public final class ModGameTests {
                 zero.setNoAi(false);
                 ghidorah.setNoAi(false);
             }
+            if (ghidorah.getTarget() == zero && !ghidorah.isNoAi()) {
+                // (he's found him: he stays after him, but goes no further, so he doesn't seize him before his charge)
+                ghidorah.setNoAi(true);
+            }
             boolean roaring = zero.isRoaring();
             roared[0] |= roaring;
             if (roared[0] && !roaring && roarEnded[0] < 0) {
@@ -2723,5 +2729,159 @@ public final class ModGameTests {
             remove(ghidorah, pig);
             release.forEach(Runnable::run);
         });
+    }
+
+    /** Godzilla Minus Zero for the rival tests: on his feet, no AI (each test turns on what it needs). */
+    private static GodzillaMinusZeroEntity spawnZero(GameTestHelper helper) {
+        removeLeftoverGodzillas(helper);
+        GodzillaMinusZeroEntity zero = helper.spawn(ModEntities.GODZILLA_MINUS_ZERO.get(), 4, floorY(helper) + 1, 4);
+        zero.skipIntro();
+        zero.setNoAi(true);
+        zero.setWalkFloorY(Integer.MIN_VALUE);
+        return zero;
+    }
+
+    /** Seized in King Ghidorah's talons (carried off by him), Minus Zero's breath is over before it fires. */
+    @GameTest(template = FLOOR, batch = "gmo_grab_cancels_breath", timeoutTicks = 40)
+    public static void kingGhidorahSeizingMinusZeroCancelsHisBreath(GameTestHelper helper) {
+        GodzillaMinusZeroEntity zero = spawnZero(helper);
+        KingGhidorahEntity ghidorah = spawnGhidorah(helper);
+        zero.startCharging();
+        helper.runAtTickTime(5, () -> {
+            helper.assertTrue(zero.isBreathCharging(), "he should be charging his breath, at " + zero.getChargeTicks());
+            helper.assertTrue(zero.startRiding(ghidorah, true), "King Ghidorah should have him in his talons");
+        });
+        helper.runAtTickTime(8, () -> {
+            helper.assertTrue(zero.getChargeTicks() < 0 && zero.getChargeState() == GodzillaEntity.CHARGE_NONE,
+                    "carried off, his breath should be over, at " + zero.getChargeTicks() + " state " + zero.getChargeState());
+            zero.stopRiding();
+            remove(ghidorah, zero);
+            helper.succeed();
+        });
+    }
+
+    /** King Ghidorah flying off (his retreat), Minus Zero keeps after him: nothing else becomes his target till it's over. */
+    @GameTest(template = FLOOR, batch = "gmo_zero_follows_retreat", timeoutTicks = 20)
+    public static void minusZeroFollowsKingGhidorahsRetreat(GameTestHelper helper) {
+        GodzillaMinusZeroEntity zero = spawnZero(helper);
+        Zombie zombie = helper.spawn(EntityType.ZOMBIE, 4, floorY(helper) + 1, 7);
+        zombie.setNoAi(true);
+        zombie.setInvulnerable(true);
+        KingGhidorahEntity ghidorah = spawnGhidorah(helper);
+        helper.runAtTickTime(1, () -> {
+            zero.setNoAi(false);
+            zero.setTarget(ghidorah);
+            ghidorah.startRetreat(zero.position());
+            helper.assertTrue(ghidorah.isRetreating(), "King Ghidorah should be retreating");
+            zero.setTarget(zombie);
+            helper.assertTrue(zero.getTarget() == ghidorah, "he should keep after King Ghidorah, not " + zero.getTarget());
+            zero.setTarget(null);
+            helper.assertTrue(zero.getTarget() == ghidorah, "he shouldn't lose King Ghidorah as he flies off");
+            ghidorah.discard();
+            zero.setTarget(zombie);
+            helper.assertTrue(zero.getTarget() == zombie, "with King Ghidorah gone, he should be free to go after something else");
+            zero.setTarget(null);
+            zero.setNoAi(true);
+            remove(zero, zombie);
+            helper.succeed();
+        });
+    }
+
+    /** Minus Zero charging his breath, King Ghidorah holds where he is, facing him, and waits for it (he attacks nothing). */
+    @GameTest(template = FLOOR, batch = "gmo_ghidorah_waits", timeoutTicks = 120)
+    public static void kingGhidorahWaitsThroughMinusZerosCharge(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        GodzillaMinusZeroEntity zero = spawnZero(helper);
+        KingGhidorahEntity ghidorah = spawnGhidorah(helper);
+        Vec3 off = zero.position().add(0.0, 0.0, 45.0);
+        BlockPos at = BlockPos.containing(off);
+        level.setChunkForced(at.getX() >> 4, at.getZ() >> 4, true);
+        ghidorah.moveTo(off.x, zero.getY(), off.z, 180.0F, 0.0F);
+        Vec3[] from = {null};
+        int[] attacked = {-1};
+        zero.startCharging();
+        helper.onEachTick(() -> {
+            if (from[0] == null) {
+                if (!findable(helper, zero, ghidorah)) {
+                    return;
+                }
+                from[0] = ghidorah.position();
+                ghidorah.setNoAi(false);
+                ghidorah.setTarget(zero);
+            }
+            int action = ghidorah.getAction();
+            if (action != KingGhidorahEntity.ACTION_NONE && action != KingGhidorahEntity.ACTION_ROAR && attacked[0] < 0) {
+                attacked[0] = action;
+            }
+        });
+        helper.runAtTickTime(100, () -> {
+            helper.assertTrue(from[0] != null, "they can't be found yet");
+            helper.assertTrue(zero.isBreathCharging(), "Minus Zero should still be charging, at " + zero.getChargeTicks());
+            double moved = ghidorah.position().subtract(from[0]).horizontalDistance();
+            helper.assertTrue(moved < 1.5, "King Ghidorah should hold where he is while Minus Zero charges, moved " + moved);
+            helper.assertTrue(attacked[0] < 0, "King Ghidorah should wait, not attack (action " + attacked[0] + ")");
+            helper.assertTrue(ghidorah.getTarget() == zero, "he should still be after Minus Zero, not " + ghidorah.getTarget());
+            level.setChunkForced(at.getX() >> 4, at.getZ() >> 4, false);
+            ghidorah.setNoAi(true);
+            remove(ghidorah, zero);
+            helper.succeed();
+        });
+    }
+
+    /**
+     * King Ghidorah's ditches (coming down out of the sky, and the hole he climbs out of at his entrance): flat-bottomed
+     * and as deep as they're dug in the middle, shallower up their sides to the ground at their edge (so he walks up out
+     * of them), their floor ground still; a column of water is left as it is. (Small, for the test floor.) Also: the
+     * sizes he digs them, and where his feet come down as he walks.
+     */
+    @GameTest(template = FLOOR, batch = "gmo_ghidorah_ditch", timeoutTicks = 20)
+    public static void kingGhidorahsDitches(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        int floor = floorY(helper);
+        for (int x = 0; x <= 8; x++) {
+            for (int z = 0; z <= 8; z++) {
+                for (int y = floor + 1; y <= floor + 4; y++) {
+                    helper.setBlock(new BlockPos(x, y, z), Blocks.STONE.defaultBlockState());
+                }
+            }
+        }
+        helper.setBlock(new BlockPos(6, floor + 4, 4), Blocks.WATER.defaultBlockState());
+        Vec3 center = helper.absoluteVec(new Vec3(4.5, floor + 5, 4.5));
+        int removed = Destruction.ditch(level, null, center, 1.5, 3.5, 3, 2);
+        helper.assertTrue(removed > 0, "the ditch should have been dug");
+        for (int y = floor + 2; y <= floor + 4; y++) {
+            helper.assertTrue(helper.getBlockState(new BlockPos(4, y, 4)).isAir(), "its middle should be dug 3 deep: not at " + (y - floor));
+        }
+        helper.assertFalse(helper.getBlockState(new BlockPos(4, floor + 1, 4)).isAir(), "its floor should be ground");
+        helper.assertFalse(helper.getBlockState(new BlockPos(4, floor + 3, 7)).isAir(), "its side should be shallower");
+        helper.assertTrue(helper.getBlockState(new BlockPos(4, floor + 4, 8)).is(Blocks.STONE), "beyond its edge the ground should be as it was");
+        helper.assertTrue(helper.getBlockState(new BlockPos(6, floor + 4, 4)).is(Blocks.WATER)
+                && helper.getBlockState(new BlockPos(6, floor + 3, 4)).is(Blocks.STONE), "the water's column should be left");
+        for (int x = 0; x <= 8; x++) {
+            for (int z = 0; z <= 8; z++) {
+                for (int y = floor + 1; y <= floor + 7; y++) {
+                    helper.setBlock(new BlockPos(x, y, z), Blocks.AIR.defaultBlockState());
+                }
+            }
+        }
+        // his own: wide and deep enough to sink his hitbox in (its floor out past his corners), sloping gently enough to walk out of
+        double halfDiagonal = ModEntities.KING_GHIDORAH.get().getWidth() / 2.0 * Math.sqrt(2.0);
+        helper.assertTrue(KingGhidorahEntity.LANDING_DITCH_FLOOR > halfDiagonal && KingGhidorahEntity.ENTRANCE_HOLE_FLOOR > halfDiagonal,
+                "his ditches' floors should be wider than his hitbox");
+        // (steepest halfway up its side, at its narrowest: 1.5 times its depth over its side's width; its edge is ragged, 10%)
+        double hole = 1.5 * KingGhidorahEntity.ENTRANCE_HOLE_DEPTH / (KingGhidorahEntity.ENTRANCE_HOLE_RADIUS * 0.9 - KingGhidorahEntity.ENTRANCE_HOLE_FLOOR);
+        double ditch = 1.5 * KingGhidorahEntity.LANDING_DITCH_DEPTH / (KingGhidorahEntity.LANDING_DITCH_RADIUS * 0.9 - KingGhidorahEntity.LANDING_DITCH_FLOOR);
+        helper.assertTrue(hole < 1.0 && ditch < 1.0, "his ditches should slope gently enough to walk out of: " + hole + ", " + ditch + " a block");
+        KingGhidorahEntity g = spawnGhidorah(helper);
+        Vec3 left = g.localOf(g.walkFoot(-1.0));
+        Vec3 right = g.localOf(g.walkFoot(1.0));
+        helper.assertTrue(left.x < -5.0 && right.x > 5.0 && Math.abs(left.x + right.x) < 0.01 && right.z > 3.0,
+                "his feet should come down either side of him, ahead of his middle: " + left + ", " + right);
+        int[] down = KingGhidorahEntity.WALK_TOUCHDOWNS;
+        helper.assertTrue(down.length == 2 && down[1] - down[0] == KingGhidorahEntity.WALK_TICKS / 2
+                        && down[0] - KingGhidorahEntity.WALK_FOOTFALLS[0] == down[1] - KingGhidorahEntity.WALK_FOOTFALLS[1],
+                "a footprint for each footstep, half a stride apart");
+        remove(g);
+        helper.succeed();
     }
 }

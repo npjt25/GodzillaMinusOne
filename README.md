@@ -242,7 +242,12 @@ the blue one a player.*
 - **He stands crouched low on bent legs, leaning on his wings like front legs: the claws at his wrists planted on the
   ground** and the wings half spread above them, **never folded** (only while he digs himself out of the ground are
   they tucked), heads looking every which way, as in the first reference picture. He walks the same way, on all
-  fours: each wing claw lifts, swings forward and is planted again in step with the hind foot on the other side. **Each head has a mind of its own**: it looks about at its own pace, out of step with the
+  fours: each wing claw lifts, swings forward and is planted again in step with the hind foot on the other side.
+  **His hind feet step on the ground, not over it**: each comes down flat and stays put where it landed while he
+  walks on over it (his legs are worked out frame by frame for where each foot must be), then lifts and swings
+  forward. **Every footfall is like Godzilla's**: the ground shakes, everything close by is hurt (`stepDamage`,
+  `stepRadius`; not Minus Zero), and **a footprint is crushed into the ground**, a hole of rubble the shape of his
+  foot (`footprints`; from Y 60 up, `walkBreaksFromY`, as Godzilla's; needs `breaksBlocks` and `mobGriefing`). **Each head has a mind of its own**: it looks about at its own pace, out of step with the
   others, turning towards what he's looking at but never quite all together.
 - **Minus Zero's health and durability, and his ways**: Minus Zero's `maxHealth` and `attackDamage`; only naval
   mines hurt him (a tenth of his health each, `mineDamagePercent`; `onlyHurtByNavalMines`), a nuclear blast does
@@ -265,6 +270,11 @@ the blue one a player.*
   - **Lift**: his beams seize their target, **haul it high into the air** (34 blocks), hold it, and let it fall.
   - **Grab**: he takes off, flies at his target, **seizes it in his talons** (a player, Godzilla, anything), carries
     it high (48 blocks), and **dives, slamming it into the ground**. A player can't wriggle free.
+- **Coming down out of the sky** (after his grab, at the end of his retreat), **he drives a big ditch into the
+  ground**: 5 blocks deep and flat-bottomed 15 blocks round where he lands, its sides sloping up to the ground about 26
+  blocks out, its floor rubble and the earth thrown out of it heaped round its rim; he sinks into it, and walks up out of
+  it. Everything standing in it goes (24 blocks up); lakes and the sea keep their bed. It's dug, so it goes below Y 60
+  too (as the atomic breath's crater does); it needs `breaksBlocks` and `mobGriefing`.
 - **Retreat**: with his health low (`retreatHealthPercent`, 20%) he takes to the air and flies away from whatever
   he's fighting, lands far off and lets it go (healing while he's left alone). Switch it off on the in-game config
   screen ("King Ghidorah Retreats") or with `retreats` in `godzillaminusone-common.toml`.
@@ -273,10 +283,13 @@ the blue one a player.*
   earth, bursts of dirt and rock; one head rises through the broken ground and looks deliberately about; the other two
   follow, each in its own time, uncoiling; his body hauls itself out after them in three heavy lurches, wings tucked,
   amid dense dust and flying debris; a pause, and his wings spread slowly to their full span, dust rushing out along
-  the ground and loose earth falling from him; and all three heads throw themselves up and roar. The ground only
-  seems to break: nothing of the terrain is destroyed (the debris is made of the ground's own blocks), and his body
-  rises from below the surface as part of his animation while he himself stands on it. Nothing hurts or moves him
-  while he rises. It happens once per spawn, not when he's loaded again. **Three seconds after it ends a thunderstorm
+  the ground and loose earth falling from him; and all three heads throw themselves up and roar. **As he starts to
+  haul himself up and out (8 s in), the ground gives way round him: a big hole where he comes out of it**, 8 blocks deep
+  and flat-bottomed 15 blocks round him, sloping up to the ground about 32 blocks out (gently enough for him to walk
+  out of), its floor rubble and its earth heaped round its rim, and he sinks down into it as he climbs (like his
+  landing's ditch: `breaksBlocks` and `mobGriefing`; below Y 60 too). Until then the ground only seems to break (the
+  debris is made of the ground's own blocks), and his body rises from below the surface as part of his animation.
+  Nothing hurts him while he rises, and nothing but the ground giving way under him moves him. It happens once per spawn, not when he's loaded again. **Three seconds after it ends a thunderstorm
   breaks** over the dimension (rain, thunder and lightning: the game's own weather, so every player there gets it;
   not in the Nether or the End). The delay and the storm's length are in `godzillaminusone-common.toml`
   (`entranceStormDelayTicks`, 60; `entranceStormDurationTicks`, 6000, 0 for none); how hard the ground shakes your
@@ -308,6 +321,13 @@ the blue one a player.*
   Ghidorah's **gravity beams**, his **lift** and his **flying slam**. An attack lands once, however long it burns on
   him: a beam sweeping over him for seconds is one blow. (A kaiju with its AI off, standing for a picture, goes for
   nobody.) Minus One isn't part of it: he and King Ghidorah fight as before.
+  - **King Ghidorah retreating, Minus Zero goes after him**: as long as he's flying off (480 blocks), Minus Zero
+    keeps him as his target, nothing else, and follows him.
+  - **Minus Zero charging his breath, King Ghidorah waits**: he holds where he is, facing him, until the beam's fired;
+    then he's at him again.
+  - **If King Ghidorah seizes Minus Zero in his talons, Minus Zero's breath is cancelled** (charging or firing: it's
+    over, and comes back after its cooldown). Minus Zero only starts a breath with his feet on the ground (not carried,
+    not in the air), so **his beam always comes from his mouth**, where he stands.
 - His spawn egg is a vanilla-style egg in weathered gold with burgundy spots. He doesn't despawn.
 
 **His model** (`assets/godzillaminusone/geo/entity/king_ghidorah.geo.json`, GeckoLib 4, Forge 1.20.1): 100 bones in a

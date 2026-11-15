@@ -101,6 +101,7 @@ final class Scenes {
         godzilla();
         minusZero();
         kingGhidorah();
+        kingGhidorahGround();
         ShapeScenes.script(); // (with Walkers installed: CI's client-shapes job)
     }
 
@@ -1213,6 +1214,142 @@ final class Scenes {
         }, 200);
         shot("king_ghidorah_retreat");
         commands("kill @e[type=godzillaminusone:king_ghidorah]", "kill @e[type=minecraft:pig]", "weather clear");
+        waitTicks(5);
+    }
+
+    /** Where King Ghidorah digs up the ground (kingGhidorahGround): a patch of the flat world of its own. */
+    private static final Vec3 DIG_AT = new Vec3(850.5, -60.0, 400.5);
+
+    @Nullable
+    private static KingGhidorahEntity digGhidorah(ServerLevel level) {
+        List<KingGhidorahEntity> all = level.getEntitiesOfClass(KingGhidorahEntity.class, new AABB(DIG_AT, DIG_AT).inflate(250.0));
+        return all.isEmpty() ? null : all.get(0);
+    }
+
+    /** How many of the flat world's grass blocks (y -61) are gone between (x0, z0) and (x1, z1). */
+    private static int grassGone(ServerLevel level, double x0, double z0, double x1, double z1) {
+        int gone = 0;
+        for (BlockPos pos : BlockPos.betweenClosed(BlockPos.containing(x0, -61, z0), BlockPos.containing(x1, -61, z1))) {
+            if (!level.getBlockState(pos).is(net.minecraft.world.level.block.Blocks.GRASS_BLOCK)) {
+                gone++;
+            }
+        }
+        return gone;
+    }
+
+    /**
+     * King Ghidorah and the ground (mobGriefing on, in his own patch of it, his walk breaking the ground below Y 60): the
+     * hole he hauls himself out of at his entrance, his footprints as he walks up out of it, and the ditch he drives into
+     * the ground as he comes down out of the sky. (The flat world's ground is three blocks over bedrock: as deep as his
+     * hole and ditch go here.)
+     */
+    private static void kingGhidorahGround() {
+        commands("gamerule mobGriefing true", "weather clear", "kill @e[type=godzillaminusone:king_ghidorah]", "kill @e[type=minecraft:pig]");
+        camera("ghidorah ground: his hole", new Vec3(DIG_AT.x + 62.0, -18.0, DIG_AT.z + 62.0), new Vec3(DIG_AT.x, -58.0, DIG_AT.z), 75);
+        waitTicks(20);
+        commands(String.format(java.util.Locale.ROOT, "summon godzillaminusone:king_ghidorah %.1f -60 %.1f", DIG_AT.x, DIG_AT.z));
+        untilServer("ghidorah ground: rising", level -> {
+            KingGhidorahEntity g = digGhidorah(level);
+            if (g != null && g.walkFloorY() != Integer.MIN_VALUE) {
+                g.setWalkFloorY(Integer.MIN_VALUE);       // (his footprints in the flat world's ground, below Y 60)
+            }
+            return g != null && g.inEntrance();
+        }, 60);
+        untilServer("ghidorah ground: his entrance over", level -> {
+            KingGhidorahEntity g = digGhidorah(level);
+            return g != null && !g.inEntrance();
+        }, 400);
+        waitTicks(10);
+        checkServer("ghidorah ground: the hole he came out of", level -> {
+            KingGhidorahEntity g = digGhidorah(level);
+            if (g == null) {
+                return "gone";
+            }
+            double r = KingGhidorahEntity.ENTRANCE_HOLE_FLOOR - 2.0;
+            int gone = grassGone(level, DIG_AT.x - r, DIG_AT.z - r, DIG_AT.x + r, DIG_AT.z + r);
+            int all = (int) Math.pow(Math.floor(DIG_AT.x + r) - Math.floor(DIG_AT.x - r) + 1, 2);
+            int beyond = grassGone(level, DIG_AT.x + 45.0, DIG_AT.z - 5.0, DIG_AT.x + 50.0, DIG_AT.z + 5.0);
+            log(String.format(java.util.Locale.ROOT, "ghidorah ground: his hole: %d of %d of the ground in its middle dug out, %d beyond it; he stands at y %.1f, %d ditches",
+                    gone, all, beyond, g.getY(), g.ditches()));
+            return gone > all * 0.9 && beyond == 0 && g.ditches() == 1 && g.getY() < -61.5 ? null
+                    : "no hole: " + gone + " of " + all + ", " + beyond + " beyond, y " + g.getY() + ", " + g.ditches() + " ditches";
+        });
+        shot("king_ghidorah_entrance_hole");
+        untilServer("ghidorah ground: the storm", level -> level.getLevelData().isThundering(), 200);
+        commands("weather clear");
+
+        // walking out of it: a footprint where each foot comes down
+        int[] prints = {0};
+        server("ghidorah ground: walk out of it", level -> {
+            KingGhidorahEntity g = digGhidorah(level);
+            if (g != null) {
+                prints[0] = g.walkPrints();
+                g.setNoAi(false);
+                g.walkTo(new Vec3(DIG_AT.x, -60.0, DIG_AT.z + 80.0));
+            }
+        });
+        camera("ghidorah ground: footprints", new Vec3(DIG_AT.x + 55.0, -22.0, DIG_AT.z + 90.0), new Vec3(DIG_AT.x, -60.0, DIG_AT.z + 50.0), 75);
+        untilServer("ghidorah ground: out of his hole", level -> {
+            KingGhidorahEntity g = digGhidorah(level);
+            return g == null || g.getZ() > DIG_AT.z + 75.0;
+        }, 500);
+        waitTicks(20);
+        checkServer("ghidorah ground: his footprints", level -> {
+            KingGhidorahEntity g = digGhidorah(level);
+            if (g == null) {
+                return "gone";
+            }
+            int walked = g.walkPrints() - prints[0];
+            // (beyond his hole and its rim, where he walked: a footprint's ground sunk where each foot came down)
+            int gone = grassGone(level, DIG_AT.x - 16.0, DIG_AT.z + 40.0, DIG_AT.x + 16.0, DIG_AT.z + 70.0);
+            log(String.format(java.util.Locale.ROOT, "ghidorah ground: %d footprints pressed walking %.1f blocks, %d of the ground beyond his hole sunk",
+                    walked, g.getZ() - DIG_AT.z, gone));
+            return walked >= 4 && gone > 40 ? null : walked + " footprints, " + gone + " blocks sunk";
+        });
+        shot("king_ghidorah_footprints");
+
+        // his landing: up after a pig, and down again with it, into a ditch
+        Pig[] grabbed = {null};
+        Vec3 pigAt = new Vec3(DIG_AT.x, -60.0, DIG_AT.z + 115.0);
+        server("ghidorah ground: a pig to grab", level -> {
+            KingGhidorahEntity g = digGhidorah(level);
+            if (g == null) {
+                return;
+            }
+            g.walkTo(null);
+            Pig pig = EntityType.PIG.create(level);
+            pig.moveTo(pigAt.x, pigAt.y, pigAt.z);
+            level.addFreshEntity(pig);
+            grabbed[0] = pig;
+            g.startGrab(pig);
+        });
+        camera("ghidorah ground: his ditch", new Vec3(DIG_AT.x + 65.0, -15.0, DIG_AT.z + 165.0), new Vec3(DIG_AT.x, -60.0, DIG_AT.z + 115.0), 80);
+        double[] landed = {0.0, 0.0};
+        untilServer("ghidorah ground: landed", level -> {
+            KingGhidorahEntity g = digGhidorah(level);
+            if (g != null && g.hasSlammed() && !g.isFlying()) {
+                landed[0] = g.getX();
+                landed[1] = g.getZ();
+                return true;
+            }
+            return g == null;
+        }, 500);
+        waitTicks(15);
+        checkServer("ghidorah ground: the ditch he landed in", level -> {
+            KingGhidorahEntity g = digGhidorah(level);
+            if (g == null) {
+                return "gone";
+            }
+            double r = KingGhidorahEntity.LANDING_DITCH_FLOOR - 2.0;
+            int gone = grassGone(level, landed[0] - r, landed[1] - r, landed[0] + r, landed[1] + r);
+            int all = (int) Math.pow(Math.floor(landed[0] + r) - Math.floor(landed[0] - r) + 1, 2);
+            log(String.format(java.util.Locale.ROOT, "ghidorah ground: his ditch at (%.1f, %.1f): %d of %d of the ground in its middle dug out; he stands at y %.1f, %d ditches",
+                    landed[0], landed[1], gone, all, g.getY(), g.ditches()));
+            return gone > all * 0.9 && g.ditches() == 2 && g.getY() < -61.5 ? null
+                    : "no ditch: " + gone + " of " + all + ", y " + g.getY() + ", " + g.ditches() + " ditches";
+        });
+        shot("king_ghidorah_landing_ditch");
+        commands("kill @e[type=godzillaminusone:king_ghidorah]", "kill @e[type=minecraft:pig]", "weather clear", "gamerule mobGriefing false");
         waitTicks(5);
     }
 

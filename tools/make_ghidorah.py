@@ -1145,24 +1145,25 @@ def idle(t):
 WALK_LEN = 2.4
 
 
+# His walk's footwork (plant_walk: the legs solved frame by frame for where each foot must be): each hind foot is down
+# for WALK_STANCE of the stride, flat on the ground where it landed (so it doesn't slide or float), going back under him
+# as fast as he walks (WALK_BLOCKS_PER_TICK, 0.35 blocks a tick at the walk's own pace: KingGhidorahEntity's), then
+# lifted WALK_LIFT units and swung forward. It comes down WALK_CONTACT of the way through the stride: his left foot 3
+# ticks in, his right 27 (KingGhidorahEntity.WALK_FOOTFALLS sounds his footsteps and presses his footprints then).
+WALK_STANCE = 0.6
+WALK_CONTACT = {'l': 3.0 / 48.0, 'r': 27.0 / 48.0}
+WALK_BLOCKS_PER_TICK = 0.35
+REAL_UNIT = 90.74 / 105.5          # blocks per model unit (KingGhidorahEntity.UNIT)
+WALK_STRIDE = WALK_BLOCKS_PER_TICK / REAL_UNIT * WALK_STANCE * WALK_LEN * 20   # how far a planted foot goes back (units)
+WALK_LIFT = 5.0
+
+
 def walk(t):
-    # (each hind foot touches the ground as it swings back under him: his left 3 ticks into the stride, his right 27;
-    # his footsteps are sounded there, KingGhidorahEntity.WALK_FOOTFALLS, by a clock his walk is played by in the game,
-    # which runs at his speed over the ground / WALK_BLOCKS_PER_TICK, 0.35, how fast his planted feet go back)
+    # (the legs: plant_walk, after the rest of him is posed)
     p = Pose()
     crouch(p)
     wing_pose(p, STANCE)
     ph = TAU * t / WALK_LEN
-    for s, off in (('r', 0.0), ('l', math.pi)):
-        a = ph + off
-        swing = 22 * math.sin(a)                    # + forward
-        lift = max(0.0, math.cos(a))                # the foot's up while the leg swings forward
-        thigh = -swing - 8 * lift
-        knee = 30 * lift + 2
-        p.rot('leg_thigh_' + s, thigh, 0, 0)
-        p.rot('leg_shin_' + s, knee, 0, 0)
-        p.rot('leg_foot_' + s, -(thigh + knee) * 0.85, 0, 0)
-        p.rot('leg_toes_' + s, -14 * lift * math.sin(a) if math.sin(a) < 0 else 8 * lift, 0, 0)
     # his weight going from foot to foot: the hips drop at each footfall, roll and turn with the stride
     p.add('pelvis', 'position', [1.4 * math.sin(ph), -1.6 * abs(math.sin(ph)) + 0.4, 0])
     p.rot('pelvis', 0, 5 * math.sin(ph), 3.5 * math.cos(ph))
@@ -1504,13 +1505,70 @@ CLIPS = {
 FPS = 10
 
 
-def bake(fn, length, loop, bones):
+def foot_target(side, t, rest):
+    """Where his ankle (leg_foot's pivot) is to be at time t in his walk (model space): `rest` where it is standing."""
+    u = (t / WALK_LEN - WALK_CONTACT[side]) % 1.0
+    x, y, z = rest
+    if u < WALK_STANCE:
+        # down, going back under him (his front is -z)
+        return np.array([x, y, z - WALK_STRIDE / 2 + WALK_STRIDE * u / WALK_STANCE]), 0.0
+    s = (u - WALK_STANCE) / (1.0 - WALK_STANCE)
+    return np.array([x, y + WALK_LIFT * math.sin(math.pi * s), z + WALK_STRIDE / 2 - WALK_STRIDE * smooth(s)]), s
+
+
+def plant_walk(bones, pose, t, memory):
+    """His legs in his walk: for each, the thigh and shin turned so the ankle is where foot_target puts it (Newton's
+    method on the two angles, from the last frame's), the foot turned back as much (so its sole stays as it stands:
+    flat on the ground), the toes curled as it swings."""
+    if 'rest' not in memory:
+        rest_pose = Pose()
+        crouch(rest_pose)
+        mats = {k: G4 @ M @ G4 for k, M in rp.bone_matrices(bones, rest_pose).items()}
+        by = {b['name']: b for b in bones}
+        memory['rest'] = {s: (mats['leg_foot_' + s] @ np.append(by['leg_foot_' + s]['pivot'], 1.0))[:3] for s in SIDES}
+        memory['by'] = by
+    by = memory['by']
+    for s in SIDES:
+        target, swing = foot_target(s, t, memory['rest'][s])
+        pivot = np.append(by['leg_foot_' + s]['pivot'], 1.0)
+
+        def ankle(a, b):
+            q = Pose({k: {c: list(v) for c, v in ch.items()} for k, ch in pose.items()})
+            q.rot('leg_thigh_' + s, a)
+            q.rot('leg_shin_' + s, b)
+            m = rp.bone_matrices(bones, q)
+            return (G4 @ m['leg_foot_' + s] @ G4 @ pivot)[1:3]
+
+        a, b = memory.get('legs_' + s, (0.0, 0.0))
+        want = target[1:3]
+        for _ in range(8):
+            f = ankle(a, b) - want
+            if np.abs(f).max() < 0.02:
+                break
+            h = 0.5
+            J = np.column_stack([(ankle(a + h, b) - ankle(a, b)) / h, (ankle(a, b + h) - ankle(a, b)) / h])
+            step = np.linalg.lstsq(J, -f, rcond=None)[0]
+            step = np.clip(step, -15.0, 15.0)
+            a, b = a + step[0], b + step[1]
+        memory['legs_' + s] = (a, b)
+        pose.rot('leg_thigh_' + s, a)
+        pose.rot('leg_shin_' + s, b)
+        pose.rot('leg_foot_' + s, -(a + b))
+        pose.rot('leg_toes_' + s, -16.0 * math.sin(math.pi * swing) if swing > 0 else 0.0)
+
+
+POST = {'walk': plant_walk}
+
+
+def bake(fn, length, loop, bones, post=None):
     n = int(round(length * FPS))
     memory = {}
     frames = []
     for i in range(n + 1):
         t = i / FPS
         pose = fn(t)
+        if post is not None:
+            post(bones, pose, t, memory)
         solve_webs(bones, pose, memory)
         frames.append((t, pose))
     clip_bones = {}
@@ -1534,7 +1592,7 @@ def bake(fn, length, loop, bones):
 
 def animations(bones):
     return {'format_version': '1.8.0', 'animations': {
-        'animation.king_ghidorah.' + name: bake(fn, length, loop, bones) for name, (fn, length, loop) in CLIPS.items()}}
+        'animation.king_ghidorah.' + name: bake(fn, length, loop, bones, POST.get(name)) for name, (fn, length, loop) in CLIPS.items()}}
 
 
 def main():
