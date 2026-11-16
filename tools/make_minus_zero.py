@@ -31,6 +31,8 @@ import sys
 import numpy as np
 from PIL import Image
 
+import owner_edits  # noqa: E402  (tools/owner_edits.py)
+
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import render_preview as rp  # noqa: E402
 
@@ -499,6 +501,23 @@ def main():
     print("highest point: Minus One %.3f, Minus Zero's model %.3f (texture units)" % (before, after))
     if after > before + 1e-6:
         raise SystemExit("the new parts reach above Minus One's highest point: Minus Zero would stand more than twice his height")
+    owners()
+
+
+def owners():
+    """Last, the owner's own edits (made in Blockbench: tools/owner_edits.py) over what's made here: taller plates
+    without the points, his jaw, his tail tip, his eyes repainted. (After the height check: his taller plates are his
+    choice.)"""
+    data = json.load(open(GEO_OUT))
+    bones = owner_edits.apply_geo(data, "godzilla_minus_zero")
+    with open(GEO_OUT, "w") as f:
+        json.dump(data, f, indent=1)
+        f.write("\n")
+    path = os.path.join(TEX, "godzilla_minus_zero.png")
+    img = Image.open(path).convert("RGBA")
+    texels = owner_edits.apply_paint(img, "godzilla_minus_zero")
+    img.save(path)
+    print("the owner's edits: %d bones, %d texels" % (bones, texels))
 
 
 if __name__ == "__main__":

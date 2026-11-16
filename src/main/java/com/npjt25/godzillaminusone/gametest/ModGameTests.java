@@ -3065,4 +3065,41 @@ public final class ModGameTests {
             helper.succeed();
         });
     }
+
+    /**
+     * The models are the game's own geo.json files (GeckoLib reads no other kind: a jar with Blockbench projects in their
+     * place can't find them and crashes), and they carry the mod owner's own Blockbench edits (tools/owner_edits):
+     * Minus Zero's taller plates and tilted jaw, King Ghidorah without his knee spurs.
+     */
+    @GameTest(template = FLOOR, batch = "gmo_owner_edits", timeoutTicks = 20)
+    public static void theModelsCarryTheOwnersEdits(GameTestHelper helper) {
+        java.util.Map<String, com.google.gson.JsonObject> zero = new java.util.HashMap<>();
+        for (String model : new String[] {"godzilla", "godzilla_minus_zero", "king_ghidorah"}) {
+            com.google.gson.JsonObject geo = resourceJson("/assets/godzillaminusone/geo/entity/" + model + ".geo.json");
+            helper.assertTrue(geo != null && geo.has("minecraft:geometry"), model + "'s model should be a geo.json");
+            if (model.equals("godzilla_minus_zero")) {
+                for (com.google.gson.JsonElement b : geo.getAsJsonArray("minecraft:geometry").get(0).getAsJsonObject().getAsJsonArray("bones")) {
+                    zero.put(b.getAsJsonObject().get("name").getAsString(), b.getAsJsonObject());
+                }
+            }
+            if (model.equals("king_ghidorah")) {
+                for (com.google.gson.JsonElement b : geo.getAsJsonArray("minecraft:geometry").get(0).getAsJsonObject().getAsJsonArray("bones")) {
+                    com.google.gson.JsonObject bone = b.getAsJsonObject();
+                    if (bone.get("name").getAsString().startsWith("leg_shin_")) {
+                        helper.assertTrue(bone.getAsJsonArray("cubes").size() == 3, "King Ghidorah's shins shouldn't have their spurs: "
+                                + bone.getAsJsonArray("cubes").size() + " cubes");
+                    }
+                }
+            }
+        }
+        com.google.gson.JsonObject jaw = zero.get("Jew");
+        helper.assertTrue(jaw != null && jaw.has("rotation") && Math.abs(jaw.getAsJsonArray("rotation").get(0).getAsDouble() - 5.0) < 1e-6,
+                "Minus Zero's jaw should be tilted 5 degrees, as the owner set it");
+        boolean tall = false;
+        for (com.google.gson.JsonElement c : zero.get("T12").getAsJsonArray("cubes")) {
+            tall |= Math.abs(c.getAsJsonObject().getAsJsonArray("size").get(1).getAsDouble() - 12.0) < 1e-6;
+        }
+        helper.assertTrue(tall, "Minus Zero's plates should be the owner's taller ones");
+        helper.succeed();
+    }
 }

@@ -191,7 +191,13 @@ the blue one a player.*
   breaking and demolishing buildings (the same 23-block rule), the Shinsei Maru and Shinden rules, and the config
   (his breath's second blast, his bigger blasts and his tail strike, below, are his own).
 - **Brought down, Minus Zero falls for good**: he collapses, lies there 3 seconds and dies (no Godzilla after him, no
-  getting up again). That ends the encounter.
+  getting up again). That ends the encounter. (King Ghidorah is the exception: brought down by him the first time, he
+  lies there a minute and gets up again.)
+- **His look includes the mod owner's own edits**, made in Blockbench: taller dorsal plates without the pointed tips,
+  the small spikes along his tail sides and arm bands taken off, his tail tip set a little further back, his jaw
+  tilted open a touch, and his eyes repainted yellow with black. (Minus One has the same repainted eyes, and King
+  Ghidorah has the owner's eyes too: a black slit of a pupil and a white glint in the amber.) They're kept as data in
+  `tools/owner_edits/` and laid over what the model generators make, so they survive any regeneration.
 - **His spawn egg** ("Spawn Godzilla Minus Zero", creative tab, no recipe): a vanilla-style egg, charcoal with
   grey-green spots. He rises out of the ground and roars, as Godzilla does from his egg. No natural spawning.
 - `evolvesIntoMinusZero` (`godzilla` section, on): turn it off for Minus One to regenerate (or die, with
@@ -241,7 +247,8 @@ the blue one a player.*
   into separate pieces, however the wing moves). His hide is weathered gold, tarnished bronze, ochre and olive-brown,
   scaled and plated all over: rows of scales down each side of his necks and two rows of spikes down their backs,
   scutes across his breast and belly, ridges of armour along his flanks, spikes out to either side of his tails,
-  spurs at his knees and scales down his thighs; small amber eyes sunk under heavy brows, and every head with its own
+  scales down his thighs; small amber eyes sunk under heavy brows, each with a black slit of a pupil and a white glint
+  (the mod owner's own painting), and every head with its own
   jaw, teeth, horns, a crown of spikes, knobs down its snout, cheek spikes and a jagged beard.
 - **He stands crouched low on bent legs, leaning on his wings like front legs: the claws at his wrists planted on the
   ground** and the wings half spread above them, **never folded** (only while he digs himself out of the ground are

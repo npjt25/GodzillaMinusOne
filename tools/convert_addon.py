@@ -27,6 +27,8 @@ import sys
 import numpy as np
 from PIL import Image
 
+import owner_edits  # noqa: E402  (tools/owner_edits.py)
+
 MODID = "godzillaminusone"
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ASSETS = os.path.join(ROOT, "src", "main", "resources", "assets", MODID)
@@ -105,7 +107,9 @@ def convert_textures(rp):
     # emissive-alpha material. no_powered.png is default.png plus the dorsal plates, so it is his skin.
     no_powered = load(os.path.join(g2, "no_powered.png"))
     base, glow = split_emissive(no_powered)
-    save(base, "textures", "entity", "godzilla.png")
+    skin = Image.fromarray(base).convert("RGBA")
+    owner_edits.apply_paint(skin, "godzilla")              # (the owner's own: his eyes repainted)
+    skin.save(out("textures", "entity", "godzilla.png"))
     save(glow, "textures", "entity", "godzilla_glow.png")
 
     # Charged, the plates turn icy cyan (powered.png differs from no_powered.png only there): mostly glowing,
@@ -177,6 +181,8 @@ def convert_models(rp):
         data["minecraft:geometry"][0]["description"]["identifier"] = "geometry." + dst
         if dst == "shinden":
             level_shinden(data["minecraft:geometry"][0])
+        if dst == "godzilla":
+            owner_edits.apply_geo(data, "godzilla")      # (the owner's own edit, made in Blockbench: his eyes)
         write_json(out("geo", "entity", dst + ".geo.json"), data)
 
 

@@ -432,7 +432,7 @@ def leg(m, parent):
     m.cbox(sh, knee, (7.0, 6.5, 7.0), 'armor')
     m.rod(sh, knee, ankle, 6.6, 6.2, 'hide', ext=1.0)
     m.rod(sh, knee + (0, 0, -2.4), ankle + (0, 0.5, -2.0), 4.0, 2.0, 'armor')
-    m.spike(sh, knee + (0, 1.0, -3.2), knee + (-0.4, 4.4, -7.0), 1.5, 'claw', steps=2)    # a spur at the knee
+    # (no spur at the knee: the owner took it off in Blockbench)
     for f in (0.3, 0.65):                                                               # scales down the thigh
         p = hip + (knee - hip) * f + (-5.6, 0.0, 1.0)
         m.rod(th, p, p + unit(knee - hip) * 4.0 + (0.0, 0.0, 1.0), 4.4, 1.2, 'armor')
@@ -783,6 +783,18 @@ def paint_face(c, face, rect, world, normal, img, alpha, rng):
         col[h // 2, w // 2] = hexc('#ffe27a')
         if w > 2:
             col[:, 0] = hexc('#8a4a0c')
+        # the owner's eyes (painted in Blockbench): a black slit of a pupil down the middle of the amber, a white
+        # glint beside it
+        black, white = hexc('#000000'), hexc('#ffffff')
+        if face in ('east', 'west') and w >= 3:
+            col[:, w // 2] = black
+            col[0, w // 2 + 1] = white
+        elif face in ('up', 'down') and h >= 3:
+            col[h // 2, :] = black
+            if face == 'up':
+                col[h // 2 + 1, :] = white
+        elif face == 'north':
+            col[0, :] = white
     elif kind == 'nostril':
         col = np.broadcast_to(hexc('#3a2616'), (h, w, 3)).copy()
     elif kind == 'socket':
